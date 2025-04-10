@@ -44,6 +44,7 @@ export interface Database {
           release_year: number | null
           created_at: string
           updated_at: string
+          price: number
         }
         Insert: {
           id?: string
@@ -59,6 +60,7 @@ export interface Database {
           release_year?: number | null
           created_at?: string
           updated_at?: string
+          price: number
         }
         Update: {
           id?: string
@@ -74,6 +76,7 @@ export interface Database {
           release_year?: number | null
           created_at?: string
           updated_at?: string
+          price?: number
         }
       }
       purchases: {
@@ -82,18 +85,24 @@ export interface Database {
           user_id: string
           movie_id: string
           created_at: string
+          payment_intent_id: string
+          status: 'pending' | 'completed' | 'failed'
         }
         Insert: {
           id?: string
           user_id: string
           movie_id: string
           created_at?: string
+          payment_intent_id: string
+          status?: 'pending' | 'completed' | 'failed'
         }
         Update: {
           id?: string
           user_id?: string
           movie_id?: string
           created_at?: string
+          payment_intent_id?: string
+          status?: 'pending' | 'completed' | 'failed'
         }
       }
       watchlist: {

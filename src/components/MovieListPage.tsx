@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Library, LogOut, LogIn } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/types';
 import { useAuth } from 'react-oidc-context';
 import { MOCK_MOVIES } from '../mockData';
@@ -16,12 +15,16 @@ function MovieListPage() {
     const auth = useAuth();
 
     const handleLogout = async () => {
-        await auth.signoutRedirect();
+        auth.removeUser();
+        const clientId = "51p21ae4hhsgjtd1jfakg4mpiu";
+        const logoutUri = "http://localhost:5173/";
+        const cognitoDomain = "https://ap-northeast-1rybpqg2yr.auth.ap-northeast-1.amazoncognito.com";
+        window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
         setIsAuthenticated(false);
     };
 
-    const handleLogin = () => {
-        navigate('/login');
+    const handleLogin = async () => {
+        await auth.signinRedirect();
     };
 
     const handleMovieClick = (movieId: string) => {
@@ -29,12 +32,6 @@ function MovieListPage() {
     };
 
     useEffect(() => {
-        const checkAuth = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setIsAuthenticated(!!session);
-        };
-        checkAuth();
-
         // Use mock data instead of fetching from DB
         setMovies(MOCK_MOVIES);
     }, []);
@@ -81,15 +78,16 @@ function MovieListPage() {
                 </div>
 
                 {/* Auth Button */}
-                {isAuthenticated ? (
-                    <button 
+                {auth.isAuthenticated ? (
+                    <button
                     onClick={handleLogout}
                     className="text-gray-400 hover:text-white flex items-center"
                     >
                     <LogOut className="h-5 w-5" />
+                    <span>ログアウト</span>
                     </button>
                 ) : (
-                    <button 
+                    <button
                     onClick={handleLogin}
                     className="text-gray-400 hover:text-white flex items-center gap-2"
                     >
@@ -119,7 +117,7 @@ function MovieListPage() {
                     <p className="text-gray-200 text-lg mb-6 max-w-2xl">
                         {movies[0].description}
                     </p>
-                    <button 
+                    <button
                         onClick={() => handleMovieClick(movies[0].id)}
                         className="bg-white text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition"
                     >

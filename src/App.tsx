@@ -1,9 +1,4 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { Search, Library, LogOut, LogIn } from 'lucide-react';
-import { supabase } from './lib/supabase';
-import type { Database } from './lib/types';
-import { useAuth } from "react-oidc-context";
+import { BrowserRouter as Router, Routes, Route} from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import SignUpPage from './components/SignUpPage';
 import PasswordResetPage from './components/PasswordResetPage';
