@@ -38,24 +38,28 @@ function MovieDetailPage() {
         if (!movie) return;
 
         try {
-            const res = await fetch('https://o0dka8b0b3.execute-api.ap-northeast-1.amazonaws.com/dev1/payments/create-checkout-session', {
+            const res = await fetch('https://nsrcamrusc.execute-api.ap-northeast-1.amazonaws.com/dev/CreateCheckout', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                  'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    priceId: 'price_1RCA0wKxyMynMg1Mo5jsYBMJ',
-                    contentsId: movieId
+                  priceId: 'price_1RCA0wKxyMynMg1Mo5jsYBMJ',
+                  contentsId: movieId
                 })
-            });
+              });
 
-            const { sessionId } = await res.json();
-            const stripe = await loadStripe("pk_test_51QsGlSKxyMynMg1MBIwFvSLHkeiaN0hwuTdPD98lUzeNKeYIyTLuXmIBuMCYiinUS8QQ0gX4dwNOPmZnphGLZUmx00FeCfTtLb");
-            if (!stripe) {
-                console.error('Stripe failed to initialize.');
-                return;
+              const { sessionId } = await res.json();
+              const stripe = await loadStripe("pk_test_51QsGlSKxyMynMg1MBIwFvSLHkeiaN0hwuTdPD98lUzeNKeYIyTLuXmIBuMCYiinUS8QQ0gX4dwNOPmZnphGLZUmx00FeCfTtLb");
+              if (!stripe) {
+                  throw new Error('Stripe failed to load');
+              }
+
+              const error = await stripe.redirectToCheckout({ sessionId });
+              console.log("redirect result:", error);
+              if (error) {
+                throw error;
             }
-            stripe.redirectToCheckout({ sessionId });
         } catch (error) {
             console.error('Payment error:', error);
             alert('決済処理中にエラーが発生しました');
@@ -134,3 +138,4 @@ function MovieDetailPage() {
 }
 
 export default MovieDetailPage;
+
