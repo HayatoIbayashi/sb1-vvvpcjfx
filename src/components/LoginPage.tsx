@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
+import AWS from 'aws-sdk';
+
+const cognito = new AWS.CognitoIdentityServiceProvider({
+  region: 'ap-northeast-1'
+});
 
 function LoginPage() {
   const auth = useAuth();
@@ -32,7 +37,30 @@ function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await auth.signinRedirect();
+      const params = {
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: '51p21ae4hhsgjtd1jfakg4mpiu',
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: password
+        }
+      };
+      
+      const response = await cognito.initiateAuth(params).promise();
+      if (!response.AuthenticationResult) {
+        throw new Error('Authentication failed');
+      }
+      
+      const { AccessToken, IdToken, RefreshToken } = response.AuthenticationResult;
+      
+      // トークンを一時保存してページをリロード
+      localStorage.setItem('cognito_tokens', JSON.stringify({
+        id_token: IdToken,
+        access_token: AccessToken,
+        refresh_token: RefreshToken
+      }));
+      
+      window.location.reload();
     } catch (error) {
       setError('ログインに失敗しました。');
     }
@@ -70,13 +98,12 @@ function LoginPage() {
               required
             />
           </div>
-          {/* <button
+          <button
             type="submit"
             className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700"
           >
             ログイン
-          </button> */}
-          <button onClick={() => auth.signinRedirect()}>Sign in</button>
+          </button>
         </form>
         <div className="mt-4 text-center">
           <Link to="/signup" className="text-blue-400 hover:text-blue-300">
