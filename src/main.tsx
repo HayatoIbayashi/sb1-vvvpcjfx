@@ -15,8 +15,6 @@ const cognitoAuthConfig = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider {...cognitoAuthConfig}>
-      <App />
-    </AuthProvider>
+    <App />
   </StrictMode>
 );
