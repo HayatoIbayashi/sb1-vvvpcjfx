@@ -4,6 +4,7 @@ import SignUpPage from './components/SignUpPage';
 import PasswordResetPage from './components/PasswordResetPage';
 import MovieDetailPage from './components/MovieDetailPage';
 import MovieListPage from './components/MovieListPage';
+import MoviePlayerPage from './components/MoviePlayerPage';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/password-reset" element={<PasswordResetPage />} />
         <Route path="/movies/:id" element={<MovieDetailPage />} />
+        <Route path="/watch/:id" element={<MoviePlayerPage />} />
       </Routes>
     </Router>
   );

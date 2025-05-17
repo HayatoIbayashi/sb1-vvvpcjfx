@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import AWS from 'aws-sdk';
 
@@ -10,6 +10,8 @@ const cognito = new AWS.CognitoIdentityServiceProvider({
 function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from?.pathname || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,15 +24,28 @@ function LoginPage() {
     return <div>Encountering error... {auth.error.message}</div>;
   }
 
-  if (auth.isAuthenticated) {
+  // ローカルストレージからトークンをチェック
+  const storedTokens = localStorage.getItem('cognito_tokens');
+  if (auth.isAuthenticated || storedTokens) {
     return (
       <div>
-        <pre> Hello: {auth.user?.profile.email} </pre>
-        <pre> ID Token: {auth.user?.id_token} </pre>
-        <pre> Access Token: {auth.user?.access_token} </pre>
-        <pre> Refresh Token: {auth.user?.refresh_token} </pre>
-
-        <button onClick={() => auth.signoutRedirect()}>Sign out</button>
+        {storedTokens ? (
+          <>
+            <p>ログイン済みです</p>
+            <button onClick={() => {
+              localStorage.removeItem('cognito_tokens');
+              window.location.reload();
+            }}>ログアウト</button>
+          </>
+        ) : (
+          <>
+            <pre> Hello: {auth.user?.profile.email} </pre>
+            <pre> ID Token: {auth.user?.id_token} </pre>
+            <pre> Access Token: {auth.user?.access_token} </pre>
+            <pre> Refresh Token: {auth.user?.refresh_token} </pre>
+            <button onClick={() => auth.signoutRedirect()}>Sign out</button>
+          </>
+        )}
       </div>
     );
   }
@@ -60,7 +75,7 @@ function LoginPage() {
         refresh_token: RefreshToken
       }));
       
-      window.location.reload();
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       setError('ログインに失敗しました。');
     }
@@ -106,11 +121,11 @@ function LoginPage() {
           </button>
         </form>
         <div className="mt-4 text-center">
-          <Link to="/signup" className="text-blue-400 hover:text-blue-300">
+          <Link to="/signup" state={{ from: location.state?.from }} className="text-blue-400 hover:text-blue-300">
             アカウントを作成
           </Link>
           <span className="text-gray-500 mx-2">|</span>
-          <Link to="/password-reset" className="text-blue-400 hover:text-blue-300">
+          <Link to="/password-reset" state={{ from: location.state?.from }} className="text-blue-400 hover:text-blue-300">
             パスワードを忘れた方
           </Link>
         </div>

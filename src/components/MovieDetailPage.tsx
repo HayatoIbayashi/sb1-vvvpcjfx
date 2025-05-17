@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from 'react-oidc-context';
 import { stripePromise } from '../lib/stripe';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Database } from '../lib/types';
@@ -12,7 +11,13 @@ function MovieDetailPage() {
     const navigate = useNavigate();
     const [movie, setMovie] = useState<Movie | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const auth = useAuth();
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    useEffect(() => {
+        // 初期ロード時にlocalStorageから認証状態をチェック
+        const storedTokens = localStorage.getItem('cognito_tokens');
+        setIsAuthenticated(!!storedTokens);
+    }, []);
     const movieId = window.location.pathname.split('/').pop();
 
     useEffect(() => {
@@ -30,8 +35,8 @@ function MovieDetailPage() {
     }, []);
 
     const handlePurchase = async () => {
-        if (!auth.isAuthenticated) {
-            await auth.signinRedirect();
+        if (!isAuthenticated) {
+            navigate('/login');
             return;
         }
 
@@ -126,7 +131,7 @@ function MovieDetailPage() {
                                     onClick={handlePurchase}
                                     className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
                                 >
-                                    {auth.isAuthenticated ? '購入する' : 'ログインして購入'}
+                                    {isAuthenticated ? '購入する' : 'ログインして購入'}
                                 </button>
                             )}
                         </div>
@@ -138,4 +143,3 @@ function MovieDetailPage() {
 }
 
 export default MovieDetailPage;
-

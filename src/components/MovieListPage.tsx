@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Library, LogOut, LogIn } from 'lucide-react';
 import type { Database } from '../lib/types';
-import { useAuth } from 'react-oidc-context';
 import { MOCK_MOVIES } from '../mockData';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -12,19 +11,21 @@ function MovieListPage() {
     const [movies, setMovies] = useState<Movie[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const auth = useAuth();
+
+    useEffect(() => {
+        // 初期ロード時にlocalStorageから認証状態をチェック
+        const storedTokens = localStorage.getItem('cognito_tokens');
+        setIsAuthenticated(!!storedTokens);
+    }, []);
 
     const handleLogout = async () => {
-        auth.removeUser();
-        const clientId = "51p21ae4hhsgjtd1jfakg4mpiu";
-        const logoutUri = "http://localhost:5173/";
-        const cognitoDomain = "https://ap-northeast-1rybpqg2yr.auth.ap-northeast-1.amazoncognito.com";
-        window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
+        localStorage.removeItem('cognito_tokens');
         setIsAuthenticated(false);
+        window.location.reload();
     };
 
     const handleLogin = async () => {
-        await auth.signinRedirect();
+        navigate(`/login`);
     };
 
     const handleMovieClick = (movieId: string) => {
@@ -78,7 +79,7 @@ function MovieListPage() {
                 </div>
 
                 {/* Auth Button */}
-                {auth.isAuthenticated ? (
+                {isAuthenticated ? (
                     <button
                     onClick={handleLogout}
                     className="text-gray-400 hover:text-white flex items-center"

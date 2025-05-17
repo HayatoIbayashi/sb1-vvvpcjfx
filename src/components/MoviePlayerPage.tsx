@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/types';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
-function MoviePlayerPage() {
+export default function MoviePlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -20,9 +19,34 @@ function MoviePlayerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p');
+  const [showControls, setShowControls] = useState(true);
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // テスト用の動画URL（実際の実装では、Supabaseから取得する）
-  const videoUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
+  // テスト用の動画URL
+  const videoUrls = {
+    '1080p': 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4',
+    '720p': 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4', 
+    '360p': 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'
+  };
+
+  const handleQualityChange = (newQuality: '1080p' | '720p' | '360p') => {
+    setQuality(newQuality);
+    setIsPlaying(true);
+    resetControlsTimer();
+  };
+
+  const resetControlsTimer = () => {
+    setShowControls(true);
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
+    setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
+  };
+
+  const handleMouseMove = () => {
+    resetControlsTimer();
+  };
 
   const fetchMovie = async () => {
     try {
@@ -30,7 +54,7 @@ function MoviePlayerPage() {
       setError(null);
 
       if (!movie) {
-        throw new Error('作品が見つかりませんでした');
+        //throw new Error('作品が見つかりませんでした');
       }
 
       setMovie(movie);
@@ -142,26 +166,29 @@ function MoviePlayerPage() {
     );
   }
 
-  if (!movie) {
-    return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <div className="text-white text-center">
-          <p className="text-xl mb-4">作品が見つかりませんでした</p>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition"
-          >
-            ホームに戻る
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // if (!movie) {
+  //   return (
+  //     <div className="min-h-screen bg-dark flex items-center justify-center">
+  //       <div className="text-white text-center">
+  //         <p className="text-xl mb-4">作品が見つかりませんでした</p>
+  //         <button
+  //           onClick={() => navigate('/')}
+  //           className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition"
+  //         >
+  //           ホームに戻る
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
-    <div className="min-h-screen bg-dark">
+      <div 
+        className="min-h-screen bg-gray-900"
+        onMouseMove={handleMouseMove}
+      >
       {/* Header */}
-      <header className="fixed top-0 w-full bg-dark/95 backdrop-blur-sm z-50 border-b border-dark-lighter">
+      <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
             <button
@@ -170,7 +197,7 @@ function MoviePlayerPage() {
             >
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-xl font-bold text-white">{movie.title}</h1>
+            <h1 className="text-xl font-bold text-white">{movie?.title || 'デモ版（作品名）'}</h1>
           </div>
         </div>
       </header>
@@ -178,9 +205,9 @@ function MoviePlayerPage() {
       {/* Player */}
       <div className="pt-16 pb-8">
         <div className="container mx-auto px-4">
-          <div className="player-wrapper relative pt-[56.25%] bg-black rounded-lg overflow-hidden">
+          <div className="player-wrapper relative pt-[56.25%] bg-gray-800 rounded-lg overflow-hidden">
             <ReactPlayer
-              url={videoUrl}
+              url={videoUrls[quality]}
               className="absolute top-0 left-0"
               width="100%"
               height="100%"
@@ -191,7 +218,11 @@ function MoviePlayerPage() {
             />
 
             {/* Custom Controls */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent">
+            <div 
+              className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-900/90 to-transparent transition-opacity duration-300 ${
+                showControls ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
               {/* Progress Bar */}
               <input
                 type="range"
@@ -210,7 +241,7 @@ function MoviePlayerPage() {
                   {/* Play/Pause */}
                   <button
                     onClick={handlePlayPause}
-                    className="text-white hover:text-primary transition"
+                    className="text-white hover:text-blue-500 transition"
                   >
                     {isPlaying ? (
                       <Pause className="h-6 w-6" />
@@ -219,34 +250,45 @@ function MoviePlayerPage() {
                     )}
                   </button>
 
-                  {/* Volume */}
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={handleMute}
-                      className="text-white hover:text-primary transition"
+                  {/* Volume & Quality */}
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleMute}
+                        className="text-white hover:text-blue-500 transition"
+                      >
+                        {isMuted ? (
+                          <VolumeX className="h-6 w-6" />
+                        ) : (
+                          <Volume2 className="h-6 w-6" />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step="any"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        className="w-20 accent-primary"
+                      />
+                    </div>
+                    <select 
+                      value={quality}
+                      onChange={(e) => handleQualityChange(e.target.value as '1080p' | '720p' | '360p')}
+                      className="bg-gray-800 text-white text-sm rounded px-2 py-1"
                     >
-                      {isMuted ? (
-                        <VolumeX className="h-6 w-6" />
-                      ) : (
-                        <Volume2 className="h-6 w-6" />
-                      )}
-                    </button>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step="any"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      className="w-20 accent-primary"
-                    />
+                      <option value="1080p">1080p</option>
+                      <option value="720p">720p</option>
+                      <option value="360p">360p</option>
+                    </select>
                   </div>
                 </div>
 
                 {/* Fullscreen */}
                 <button
                   onClick={handleFullscreen}
-                  className="text-white hover:text-primary transition"
+                  className="text-white hover:text-blue-500 transition"
                 >
                   <Maximize className="h-6 w-6" />
                 </button>
@@ -256,24 +298,24 @@ function MoviePlayerPage() {
 
           {/* Movie Info */}
           <div className="mt-8">
-            <h2 className="text-2xl font-bold text-white mb-4">{movie.title}</h2>
-            <p className="text-gray-400 mb-4">{movie.description}</p>
+            <h2 className="text-2xl font-bold text-white mb-4">{movie?.title || ''}</h2>
+            <p className="text-gray-400 mb-4">{movie?.description || ''}</p>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-500">監督:</span>{' '}
-                <span className="text-white">{movie.director}</span>
+                <span className="text-gray-400">監督:</span>{' '}
+                <span className="text-white">{movie?.director || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-500">時間:</span>{' '}
-                <span className="text-white">{movie.duration}</span>
+                <span className="text-gray-400">時間:</span>{' '}
+                <span className="text-white">{movie?.duration || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-500">公開年:</span>{' '}
-                <span className="text-white">{movie.release_year}</span>
+                <span className="text-gray-400">公開年:</span>{' '}
+                <span className="text-white">{movie?.release_year || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-500">評価:</span>{' '}
-                <span className="text-white">{movie.rating}/10</span>
+                <span className="text-gray-400">評価:</span>{' '}
+                <span className="text-white">{movie?.rating ? `${movie.rating}/10` : '-'}</span>
               </div>
             </div>
           </div>
