@@ -6,49 +6,84 @@ interface TabsProps {
   className?: string;
 }
 
-interface TabsListProps {
+interface CommonProps {
   children: React.ReactNode;
+  className?: string;
 }
 
-interface TabsTriggerProps {
+interface TabsListProps extends CommonProps {}
+interface TabsTriggerProps extends CommonProps {
   value: string;
-  children: React.ReactNode;
+  activeTab?: string;
+  setActiveTab?: (value: string) => void;
 }
-
-interface TabsContentProps {
+interface TabsContentProps extends CommonProps {
   value: string;
-  children: React.ReactNode;
+  activeTab?: string;
 }
 
 export function Tabs({ defaultValue, children, className = '' }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+  const [activeTab, setActiveTab] = useState<string>(defaultValue || '');
+
+  const renderChildren = (children: React.ReactNode): React.ReactNode => {
+    return React.Children.map(children, child => {
+      if (!React.isValidElement(child)) return child;
+
+      if (child.type === TabsList) {
+        const listChild = child as React.ReactElement<TabsListProps>;
+        return React.cloneElement(listChild, {
+          children: renderChildren(listChild.props.children)
+        });
+      }
+
+      if (child.type === TabsTrigger) {
+        const triggerChild = child as React.ReactElement<TabsTriggerProps>;
+        return React.cloneElement(triggerChild, {
+          ...triggerChild.props,
+          activeTab,
+          setActiveTab,
+          onClick: () => setActiveTab?.(triggerChild.props.value)
+        } as Partial<TabsTriggerProps>);
+      }
+
+      if (child.type === TabsContent) {
+        const contentChild = child as React.ReactElement<TabsContentProps>;
+        return React.cloneElement(contentChild, {
+          ...contentChild.props,
+          activeTab
+        } as Partial<TabsContentProps>);
+      }
+
+      return child;
+    });
+  };
 
   return (
     <div className={`tabs ${className}`} data-active-tab={activeTab}>
-      {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, { activeTab, setActiveTab });
-        }
-        return child;
-      })}
+      {renderChildren(children)}
     </div>
   );
 }
 
-export function TabsList({ children, activeTab, setActiveTab }: TabsListProps & { activeTab: string; setActiveTab: (value: string) => void }) {
+export function TabsList({ children, className = '' }: TabsListProps) {
   return (
-    <div className="flex space-x-2 border-b border-dark-light">
-      {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, { activeTab, setActiveTab });
-        }
-        return child;
-      })}
+    <div className={`flex space-x-2 border-b border-dark-light ${className}`}>
+      {children}
     </div>
   );
 }
 
-export function TabsTrigger({ value, children, activeTab, setActiveTab }: TabsTriggerProps & { activeTab: string; setActiveTab: (value: string) => void }) {
+export function TabsTrigger({ 
+  value, 
+  children, 
+  activeTab, 
+  setActiveTab,
+  className = '',
+  ...props 
+}: TabsTriggerProps & { 
+  activeTab?: string;
+  setActiveTab?: (value: string) => void;
+}) {
   const isActive = activeTab === value;
   
   return (
@@ -58,14 +93,22 @@ export function TabsTrigger({ value, children, activeTab, setActiveTab }: TabsTr
           ? 'text-primary border-b-2 border-primary' 
           : 'text-gray-400 hover:text-white'
       }`}
-      onClick={() => setActiveTab(value)}
+      onClick={() => setActiveTab?.(value)}
     >
       {children}
     </button>
   );
 }
 
-export function TabsContent({ value, children, activeTab }: TabsContentProps & { activeTab: string }) {
+export function TabsContent({ 
+  value, 
+  children, 
+  activeTab,
+  className = '',
+  ...props 
+}: TabsContentProps & { 
+  activeTab?: string 
+}) {
   if (activeTab !== value) return null;
   
   return <div className="pt-6">{children}</div>;

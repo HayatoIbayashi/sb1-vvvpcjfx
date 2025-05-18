@@ -5,6 +5,8 @@ import PasswordResetPage from './components/PasswordResetPage';
 import MovieDetailPage from './components/MovieDetailPage';
 import MovieListPage from './components/MovieListPage';
 import MoviePlayerPage from './components/MoviePlayerPage';
+import MovieManagementPage from './components/admin/MovieManagementPage';
+import AdminDashboard from './components/AdminDashboard';
 
 function App() {
   return (
@@ -16,6 +18,8 @@ function App() {
         <Route path="/password-reset" element={<PasswordResetPage />} />
         <Route path="/movies/:id" element={<MovieDetailPage />} />
         <Route path="/watch/:id" element={<MoviePlayerPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/movies" element={<MovieManagementPage />} />
       </Routes>
     </Router>
   );
