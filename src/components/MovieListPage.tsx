@@ -50,18 +50,22 @@ function MovieListPage() {
             <div className="flex justify-between items-center">
                 {/* Left side */}
                 <div className="flex items-center space-x-8">
-                <h1 className="text-2xl font-bold text-white">VODサービス</h1>
+                <h1 className="text-2xl font-bold text-white">
+                    <img src="../src/assets/WiiBER_logo.png" alt="WiiBER" className="h-8"
+                    onClick={() => navigate('/')}  // Navigate to home on logo click
+                    /></h1>
                 <nav className="hidden md:flex space-x-6">
                     <Link to="/" className="text-white hover:text-gray-300">
                     ホーム
                     </Link>
-                    {isAuthenticated && (
-                    <Link to="/library" className="text-gray-400 hover:text-white flex items-center">
-                        <Library className="h-4 w-4 mr-1" />
-                        マイライブラリ
-                    </Link>
-                    )}
                 </nav>
+                {/* Subscription Button */}
+                <Link
+                    to="/subscription"
+                    className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition hidden md:block"
+                >
+                メンバーシップ
+              </Link>
                 </div>
 
                 {/* Right side */}
@@ -108,16 +112,14 @@ function MovieListPage() {
             <section className="mb-12">
                 <div className="relative h-[60vh] rounded-xl overflow-hidden">
                 <img
-                    src={movies[0].thumbnail || ''}
+                    src={movies[0].thumbnail_top || ''}
                     alt={movies[0].title}
                     className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
                     <div className="absolute bottom-0 left-0 p-8">
                     <h2 className="text-4xl font-bold text-white mb-4">{movies[0].title}</h2>
-                    <p className="text-gray-200 text-lg mb-6 max-w-2xl">
-                        {movies[0].description}
-                    </p>
+
                     <button
                         onClick={() => handleMovieClick(movies[0].id)}
                         className="bg-white text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition"
@@ -193,7 +195,7 @@ function MovieListPage() {
         <footer className="bg-gray-900 border-t border-gray-800">
             <div className="container mx-auto px-4 py-8">
             <p className="text-center text-gray-400">
-                © 2025 VODサービス. All rights reserved.
+                Copyright © WiiBER All Rights Reserved.
             </p>
             </div>
         </footer>

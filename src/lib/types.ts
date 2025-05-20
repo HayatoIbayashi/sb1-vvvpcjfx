@@ -35,9 +35,10 @@ export interface Database {
           title: string
           description: string | null
           thumbnail: string | null
+          thumbnail_top: string | null
+          thumbnail_detail: string | null
           release_date: string | null
           duration: string | null
-          rating: number | null
           genre: string[] | null
           cast: string[] | null
           director: string | null
@@ -45,15 +46,17 @@ export interface Database {
           created_at: string
           updated_at: string
           price: number
+          rental_price: number
         }
         Insert: {
           id?: string
           title: string
           description?: string | null
           thumbnail?: string | null
+          thumbnail_top: string | null
+          thumbnail_detail: string | null
           release_date?: string | null
           duration?: string | null
-          rating?: number | null
           genre?: string[] | null
           cast?: string[] | null
           director?: string | null
@@ -61,15 +64,17 @@ export interface Database {
           created_at?: string
           updated_at?: string
           price: number
+          rental_price: number
         }
         Update: {
           id?: string
           title?: string
           description?: string | null
           thumbnail?: string | null
+          thumbnail_top?: string | null
+          thumbnail_detail?: string | null
           release_date?: string | null
           duration?: string | null
-          rating?: number | null
           genre?: string[] | null
           cast?: string[] | null
           director?: string | null
@@ -77,6 +82,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           price?: number
+          rental_price?: number
         }
       }
       purchases: {

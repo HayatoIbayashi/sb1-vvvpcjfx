@@ -7,6 +7,7 @@ import MovieListPage from './components/MovieListPage';
 import MoviePlayerPage from './components/MoviePlayerPage';
 import MovieManagementPage from './components/admin/MovieManagementPage';
 import AdminDashboard from './components/AdminDashboard';
+import SubscriptionPage from './components/SubscriptionPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/watch/:id" element={<MoviePlayerPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
+        <Route path="/subscription" element={<SubscriptionPage />} />
       </Routes>
     </Router>
   );

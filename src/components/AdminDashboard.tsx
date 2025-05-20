@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './admin/ui/Tabs';
 import { UserManagement } from './admin/UserManagement';
 import { VideoManagement } from './admin/VideoManagement';
-import { AdminUserManagement } from '../components/admin/AdminUserManagement';
+import { AdminUserManagement } from './admin/AdminUserManagement';
 
-export function AdminDashboard() {
+export default function AdminDashboard() {
   return (
-    <div className="min-h-screen bg-dark">
-      <header className="bg-dark-lighter border-b border-dark-light">
+    <div className="min-h-screen bg-gray-900">
+      <header className="bg-gray-800 border-b border-gray-700">
         <div className="container mx-auto px-4 py-4">
           <h1 className="text-2xl font-bold text-white">管理ダッシュボード</h1>
         </div>

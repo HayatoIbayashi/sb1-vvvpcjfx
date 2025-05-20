@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { stripePromise } from '../lib/stripe';
+import { Header } from './common/Header';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
@@ -34,35 +35,35 @@ function MovieDetailPage() {
         }
     }, []);
 
-    const handlePurchase = async () => {
+    const handlePurchase = async (event: React.MouseEvent, isRental = false) => {
         if (!isAuthenticated) {
             navigate('/login');
             return;
         }
 
-        if (!movie) return;
+        if (!movie || !movieId) return;
 
         try {
             const res = await fetch('https://nsrcamrusc.execute-api.ap-northeast-1.amazonaws.com/dev/CreateCheckout', {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  priceId: 'price_1RCA0wKxyMynMg1Mo5jsYBMJ',
-                  contentsId: movieId
+                    priceId: isRental ? 'price_1RQjIPKxyMynMg1MBNl3glQp' : 'price_1RCA0wKxyMynMg1Mo5jsYBMJ',
+                    contentsId: movieId,
+                    productId: isRental ? 'prod_S6MkShXbOAI54P' : 'prod_SLQ8ucdYOansfn'
                 })
-              });
+            });
 
-              const { sessionId } = await res.json();
-              const stripe = await loadStripe("pk_test_51QsGlSKxyMynMg1MBIwFvSLHkeiaN0hwuTdPD98lUzeNKeYIyTLuXmIBuMCYiinUS8QQ0gX4dwNOPmZnphGLZUmx00FeCfTtLb");
-              if (!stripe) {
-                  throw new Error('Stripe failed to load');
-              }
+            const { sessionId } = await res.json();
+            const stripe = await loadStripe("pk_test_51QsGlSKxyMynMg1MBIwFvSLHkeiaN0hwuTdPD98lUzeNKeYIyTLuXmIBuMCYiinUS8QQ0gX4dwNOPmZnphGLZUmx00FeCfTtLb");
+            if (!stripe) {
+                throw new Error('Stripe failed to load');
+            }
 
-              const error = await stripe.redirectToCheckout({ sessionId });
-              console.log("redirect result:", error);
-              if (error) {
+            const error = await stripe.redirectToCheckout({ sessionId });
+            if (error) {
                 throw error;
             }
         } catch (error) {
@@ -71,24 +72,34 @@ function MovieDetailPage() {
         }
     };
 
+    const handleRental = (event: React.MouseEvent) => handlePurchase(event, true);
+
     const handleBack = () => {
         navigate(`/movies/${movie?.id}`);
     };
 
+    const handleLogin = () => navigate('/login');
+    const handleLogout = () => {
+        localStorage.removeItem('cognito_tokens');
+        setIsAuthenticated(false);
+        window.location.reload();
+    };
+
     return (
         <div className="min-h-screen bg-gray-900">
+            <Header
+                isAuthenticated={isAuthenticated}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
+                searchQuery=""
+                onSearchChange={() => {}}
+            />
             {movie && (
-                <div className="container mx-auto px-4 py-8">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="mb-6 bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600 transition"
-                    >
-                        作品一覧に戻る
-                    </button>
+                <div className="container mx-auto px-4 pt-24 pb-8">
                     <div className="flex flex-col md:flex-row gap-8">
                         <div className="md:w-1/3">
                             <img
-                                src={movie.thumbnail || ''}
+                                src={movie.thumbnail_detail || ''}
                                 alt={movie.title}
                                 className="w-full rounded-lg shadow-lg"
                             />
@@ -109,10 +120,6 @@ function MovieDetailPage() {
                                     <h3 className="text-gray-400 font-semibold">監督</h3>
                                     <p className="text-white">{movie.director}</p>
                                 </div>
-                                <div>
-                                    <h3 className="text-gray-400 font-semibold">評価</h3>
-                                    <p className="text-white">{movie.rating}/10</p>
-                                </div>
                             </div>
                             {paymentSuccess ? (
                                 <div className="space-y-4">
@@ -127,12 +134,32 @@ function MovieDetailPage() {
                                     </button>
                                 </div>
                             ) : (
-                                <button
-                                    onClick={handlePurchase}
-                                    className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                                >
-                                    {isAuthenticated ? '購入する' : 'ログインして購入'}
-                                </button>
+                                <div className="flex flex-wrap gap-4">
+                                    <button
+                                        onClick={(e) => handlePurchase(e, false)}
+                                        className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
+                                    >
+                                        <div>{isAuthenticated ? '購入する' : 'ログインして購入'}</div>
+                                        <div className="text-sm font-normal">
+                                            {movie?.price ? `¥${movie.price.toLocaleString()}` : '価格未設定'}
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={handleRental}
+                                        className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
+                                    >
+                                        <div>{isAuthenticated ? 'レンタルする' : 'ログインしてレンタル'}</div>
+                                        <div className="text-sm font-normal">
+                                            {movie?.rental_price ? `¥${movie.rental_price.toLocaleString()}` : '価格未設定'}
+                                        </div>
+                                    </button>
+                                    <Link
+                                        to="/subscription"
+                                        className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px] text-center"
+                                    >
+                                        メンバーシップ登録
+                                    </Link>
+                                </div>
                             )}
                         </div>
                     </div>

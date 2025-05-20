@@ -67,7 +67,7 @@ export function Tabs({ defaultValue, children, className = '' }: TabsProps) {
 
 export function TabsList({ children, className = '' }: TabsListProps) {
   return (
-    <div className={`flex space-x-2 border-b border-dark-light ${className}`}>
+    <div className={`flex space-x-2 border-b border-gray-700 ${className}`}>
       {children}
     </div>
   );
@@ -88,10 +88,10 @@ export function TabsTrigger({
   
   return (
     <button
-      className={`px-4 py-2 font-medium transition-colors ${
+      className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
         isActive 
-          ? 'text-primary border-b-2 border-primary' 
-          : 'text-gray-400 hover:text-white'
+          ? 'text-white bg-gray-800 border-b-2 border-blue-500' 
+          : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
       }`}
       onClick={() => setActiveTab?.(value)}
     >

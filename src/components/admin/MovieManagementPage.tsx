@@ -1,71 +1,69 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, Upload, ArrowLeft } from 'lucide-react';
-import type { Database } from '../lib/types';
+import type { Database } from '../../lib/types';
+import { MOCK_MOVIES } from '../../mockData';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
-const MOCK_MOVIES: Movie[] = [
-  {
-    id: '1',
-    title: 'インセプション',
-    description: '夢の中で情報を盗む特殊な技術を持つ男が、今度は逆に思考を植え付ける危険なミッションに挑む。',
-    thumbnail: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800',
-    release_date: '2010-07-16',
-    duration: '2時間28分',
-    rating: 8.8,
-    genre: ['アクション', 'SF', 'サスペンス'],
-    cast: ['レオナルド・ディカプリオ', '渡辺謙', 'エレン・ペイジ'],
-    director: 'クリストファー・ノーラン',
-    release_year: 2010,
-    price: 1500,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    title: 'アバター',
-    description: '人類が新たな惑星を開拓しようとする中、原住民との間で繰り広げられる壮大な物語。',
-    thumbnail: 'https://images.unsplash.com/photo-1518709766631-a6a7f45921c3?w=800',
-    release_date: '2009-12-18',
-    duration: '2時間42分',
-    rating: 8.7,
-    genre: ['SF', 'アドベンチャー', 'アクション'],
-    cast: ['サム・ワーシントン', 'ゾーイ・サルダナ', 'シガーニー・ウィーバー'],
-    director: 'ジェームズ・キャメロン',
-    release_year: 2009,
-    price: 1800,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-];
-
-export function MovieManagementPage() {
+export default function MovieManagementPage() {
   const navigate = useNavigate();
-  const [movies, setMovies] = useState<Movie[]>(MOCK_MOVIES);
-  const [isLoading, setIsLoading] = useState(false);
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        setIsLoading(true);
+        // 模擬API呼び出し (実際にはmockデータを使用)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setMovies(MOCK_MOVIES);
+      } catch (err) {
+        setError('作品データの取得に失敗しました');
+        console.error('Error fetching movies:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMovies();
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Partial<Movie>>({
     title: '',
     description: '',
     thumbnail: '',
+    thumbnail_top: '',
+    thumbnail_detail: '',
     release_date: '',
     duration: '',
-    rating: 0,
     director: '',
     release_year: new Date().getFullYear(),
     price: 0,
-    genre: [] as string[],
-    cast: [] as string[],
+    rental_price: 0,
+    genre: [],
+    cast: [],
   });
 
   const handleCreate = async () => {
     try {
       const newMovie: Movie = {
         id: Math.random().toString(36).substr(2, 9),
-        ...formData,
+        title: formData.title || '',
+        description: formData.description || null,
+        thumbnail: formData.thumbnail || null,
+        thumbnail_top: formData.thumbnail_top || null,
+        thumbnail_detail: formData.thumbnail_detail || null,
+        release_date: formData.release_date || null,
+        duration: formData.duration || null,
+        director: formData.director || null,
+        release_year: formData.release_year || new Date().getFullYear(),
+        price: formData.price || 0,
+        rental_price: formData.rental_price || 0,
+        genre: formData.genre || [],
+        cast: formData.cast || [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -76,12 +74,14 @@ export function MovieManagementPage() {
         title: '',
         description: '',
         thumbnail: '',
+        thumbnail_top: '',
+        thumbnail_detail: '',
         release_date: '',
         duration: '',
-        rating: 0,
         director: '',
         release_year: new Date().getFullYear(),
         price: 0,
+        rental_price: 0,
         genre: [],
         cast: [],
       });
@@ -122,14 +122,16 @@ export function MovieManagementPage() {
     setSelectedMovie(movie);
     setFormData({
       title: movie.title,
-      description: movie.description || '',
-      thumbnail: movie.thumbnail || '',
-      release_date: movie.release_date || '',
-      duration: movie.duration || '',
-      rating: movie.rating || 0,
-      director: movie.director || '',
+      description: movie.description || null,
+      thumbnail: movie.thumbnail || null,
+      thumbnail_top: movie.thumbnail_top || null,
+      thumbnail_detail: movie.thumbnail_detail || null,
+      release_date: movie.release_date || null,
+      duration: movie.duration || null,
+      director: movie.director || null,
       release_year: movie.release_year || new Date().getFullYear(),
       price: movie.price || 0,
+      rental_price: movie.rental_price || 0,
       genre: movie.genre || [],
       cast: movie.cast || [],
     });
@@ -160,7 +162,6 @@ export function MovieManagementPage() {
                   thumbnail: '',
                   release_date: '',
                   duration: '',
-                  rating: 0,
                   director: '',
                   release_year: new Date().getFullYear(),
                   price: 0,
@@ -216,9 +217,6 @@ export function MovieManagementPage() {
                       <div>
                         <span className="text-gray-500">時間:</span> {movie.duration}
                       </div>
-                      <div>
-                        <span className="text-gray-500">評価:</span> {movie.rating}/10
-                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col space-y-2 ml-6">
@@ -265,7 +263,7 @@ export function MovieManagementPage() {
                 <div>
                   <label className="block text-gray-300 mb-2">説明</label>
                   <textarea
-                    value={formData.description}
+                    value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded h-32"
                   />
@@ -274,7 +272,7 @@ export function MovieManagementPage() {
                   <label className="block text-gray-300 mb-2">サムネイルURL</label>
                   <input
                     type="text"
-                    value={formData.thumbnail}
+                    value={formData.thumbnail || ''}
                     onChange={(e) => setFormData({ ...formData, thumbnail: e.target.value })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
@@ -285,7 +283,7 @@ export function MovieManagementPage() {
                   <label className="block text-gray-300 mb-2">公開日</label>
                   <input
                     type="date"
-                    value={formData.release_date}
+                    value={formData.release_date || ''}
                     onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
@@ -294,20 +292,8 @@ export function MovieManagementPage() {
                   <label className="block text-gray-300 mb-2">時間</label>
                   <input
                     type="text"
-                    value={formData.duration}
+                    value={formData.duration || ''}
                     onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-2">評価 (0-10)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    value={formData.rating}
-                    onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
                 </div>
@@ -315,7 +301,7 @@ export function MovieManagementPage() {
                   <label className="block text-gray-300 mb-2">監督</label>
                   <input
                     type="text"
-                    value={formData.director}
+                    value={formData.director || ''}
                     onChange={(e) => setFormData({ ...formData, director: e.target.value })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
@@ -324,7 +310,7 @@ export function MovieManagementPage() {
                   <label className="block text-gray-300 mb-2">公開年</label>
                   <input
                     type="number"
-                    value={formData.release_year}
+                    value={formData.release_year || new Date().getFullYear()}
                     onChange={(e) => setFormData({ ...formData, release_year: parseInt(e.target.value) })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
