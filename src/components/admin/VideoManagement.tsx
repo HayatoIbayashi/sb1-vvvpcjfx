@@ -65,7 +65,7 @@ export function VideoManagement() {
 
       {/* New Video Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
           <div className="bg-dark-lighter p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold text-white mb-4">新規動画登録</h3>
             
@@ -320,7 +320,16 @@ export function VideoManagement() {
                       )}
                       <div className="ml-4">
                         <div className="text-sm font-medium text-white">{video.title}</div>
-                        <div className="text-sm text-gray-400">{video.description}</div>
+                        <div 
+                          className="text-sm text-gray-400 truncate max-w-xs" 
+                          title={video.description || undefined}
+                        >
+                          {!video.description 
+                            ? "説明なし"
+                            : video.description.length > 100 
+                              ? `${video.description.substring(0, 100)}...` 
+                              : video.description}
+                        </div>
                       </div>
                     </div>
                   </td>
