@@ -191,8 +191,8 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
               </label>
               <input
                 type="text"
-                name="genres"
-                value={editedVideo.genres ?? ''}
+                name="genre"
+                value={editedVideo.genre?.join(', ') ?? ''}
                 onChange={handleChange}
                 className="w-full px-3 py-2 bg-dark rounded border border-dark-light text-white"
                 placeholder="アクション, ドラマ, コメディ"
