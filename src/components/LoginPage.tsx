@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import AWS from 'aws-sdk';
+import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 
-const cognito = new AWS.CognitoIdentityServiceProvider({
+const cognito = new CognitoIdentityProviderClient({
   region: 'ap-northeast-1'
 });
 
@@ -52,7 +52,14 @@ function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const params = {
+      const params: {
+        AuthFlow: 'USER_PASSWORD_AUTH';
+        ClientId: string;
+        AuthParameters: {
+          USERNAME: string;
+          PASSWORD: string;
+        };
+      } = {
         AuthFlow: 'USER_PASSWORD_AUTH',
         ClientId: '51p21ae4hhsgjtd1jfakg4mpiu',
         AuthParameters: {
@@ -61,7 +68,8 @@ function LoginPage() {
         }
       };
       
-      const response = await cognito.initiateAuth(params).promise();
+      const command = new InitiateAuthCommand(params);
+      const response = await cognito.send(command);
       if (!response.AuthenticationResult) {
         throw new Error('Authentication failed');
       }
