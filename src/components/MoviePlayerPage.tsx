@@ -1,3 +1,4 @@
+// 動画再生ページコンポーネント (ReactPlayerを使用)
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
@@ -7,47 +8,59 @@ import type { Database } from '../lib/types';
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 export default function MoviePlayerPage() {
-  const { id } = useParams();
+  // ルーティング関連
+  const { id } = useParams(); // URLパラメータから動画ID取得
   const navigate = useNavigate();
-  const [movie, setMovie] = useState<Movie | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(1);
-  const [played, setPlayed] = useState(0);
-  const [seeking, setSeeking] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p');
-  const [showControls, setShowControls] = useState(true);
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // テスト用の動画URL
+  // 動画データ状態
+  const [movie, setMovie] = useState<Movie | null>(null);
+
+  // プレーヤー制御状態
+  const [isPlaying, setIsPlaying] = useState(false); // 再生/一時停止状態
+  const [volume, setVolume] = useState(1); // 音量 (0-1)
+  const [played, setPlayed] = useState(0); // 再生位置 (0-1)
+  const [seeking, setSeeking] = useState(false); // シーク中かどうか
+  const [isMuted, setIsMuted] = useState(false); // ミュート状態
+  const [isFullscreen, setIsFullscreen] = useState(false); // フルスクリーン状態
+
+  // UI状態
+  const [loading, setLoading] = useState(true); // ローディング状態
+  const [error, setError] = useState<string | null>(null); // エラーメッセージ
+  const [retryCount, setRetryCount] = useState(0); // リトライ回数
+  const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p'); // 画質設定
+  const [showControls, setShowControls] = useState(true); // コントロール表示状態
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null); // コントロール非表示タイマー
+
+  // テスト用動画URL (画質別)
   const videoUrls = {
     '1080p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample_output1.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVK76E37GK%2F20250521%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250521T042653Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEPz%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkYwRAIgKKfRDwiBcSS8FUapkjskGSCXBuQ5quVmNhfxayoIhO4CICs29uAP1bzamQgXJ%2BMW1xqY2i2JZaTJKoqWGlHYsw53KuMCCLb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQABoMNDQ1NTY3MDg0MTM4IgyhouEcHap1jeNTZU4qtwJzfMp%2BisLaRZLUw%2B2PVPC%2BXMG20yROFj%2Bpzaew9hZYbXXwnxm4EZfwKbYQ2K%2Bx3mvuhA%2F4Q790HVcqQap1Ynb7XiAanHMsrAD3MEpih9Th1%2BTzIkKgXat6m43eAgIWGYaOMs%2FmuYbWoDFWnbYQw6Od54Me%2Ff3itKDCcosGgcnhmYxiFiGeKllIfB0cTHf0AUWWQD7eRYmGfLTKCDxfMCbOgxvBD8bh4vHX97SXE9nrkt%2FP%2F7MZepjC11etMWe0eGkO8gXXBsvxCH0Kp9HNFBRf6KSXOpUT%2Fqr6f5sIR%2FOeYHKfFzpenMS%2BO5W%2B8zNIC%2BeWe3JQbQ3KtX8D6NeIzkAcItOZ6FHRoB8pKfpyPrO%2F6RwVsIYzlcM2KuQIoCZvAzT4AIVLek7hElpfEgHVn4NmXiIVu%2FgSVTDk3LTBBjquAlMRSHIdVMj3ius50%2FyI8OcoPTO5TGUDK26zGDtwALNd%2F8mGLYZpUDuuXxkD7Su0ECt53jWNB3hTbNix6D56DYEGoq0tneMU%2BzFBbC3DMKBFWnxz6FKymsdEmgWmDo3wOqkV8CStMuX4UqLMcm18MjSRWYkKP%2Bi43f8EmL%2BeA2DgDkmfuGuZwoBa3kSXOJkvmzSOBD0Fj3VLNVLSursDxhSc3RcakBONmDmDZsEqPZSskzLbn9rwVVvTRHMD8clcFdWpLGobyVFelJnUkFYQN9n2r0L6h91Iec9rTKWV%2FkFUGXRvEETGfGAXObeRnI8HOUf1RET70EkTaK6e86%2B3fLotvt7bFoB0WXR7Bp%2F5ha%2FaSTgiPed4XQDpk9okI9tuNQGDmGOsI7CQHJfw%2FrqR&X-Amz-Signature=90528eacb41af2d2d1d50c4bbdab8df78e073f2151e75d717b842353a3fb7bcb&X-Amz-SignedHeaders=host&response-content-disposition=inline',
     '720p': 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4', 
     '360p': 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'
   };
 
+  // 画質変更ハンドラ
   const handleQualityChange = (newQuality: '1080p' | '720p' | '360p') => {
-    setQuality(newQuality);
-    setIsPlaying(true);
-    resetControlsTimer();
+    setQuality(newQuality); // 画質設定更新
+    setIsPlaying(true); // 自動再生
+    resetControlsTimer(); // コントロール表示リセット
   };
 
+  // コントロール非表示タイマーリセット
   const resetControlsTimer = () => {
-    setShowControls(true);
+    setShowControls(true); // コントロール表示
     if (controlsTimeout) {
-      clearTimeout(controlsTimeout);
+      clearTimeout(controlsTimeout); // 既存タイマー解除
     }
+    // 3秒後にコントロール非表示
     setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
   };
 
+  // マウス移動検知 (コントロール表示維持)
   const handleMouseMove = () => {
     resetControlsTimer();
   };
 
+  // 動画データ取得
   const fetchMovie = async () => {
     try {
       setLoading(true);
@@ -77,49 +90,58 @@ export default function MoviePlayerPage() {
     fetchMovie();
   }, [id]);
 
+  // リトライ処理
   const handleRetry = () => {
-    setRetryCount(prev => prev + 1);
-    fetchMovie();
+    setRetryCount(prev => prev + 1); // リトライ回数インクリメント
+    fetchMovie(); // データ再取得
   };
 
+  // 再生/一時停止トグル
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
   };
 
+  // 音量変更
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    setVolume(value);
-    setIsMuted(value === 0);
+    setVolume(value); // 音量設定
+    setIsMuted(value === 0); // 音量0ならミュート状態に
   };
 
+  // シークバー値変更
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    setPlayed(value);
+    setPlayed(value); // 再生位置更新
   };
 
+  // シーク開始
   const handleSeekMouseDown = () => {
-    setSeeking(true);
+    setSeeking(true); // シーク中フラグON
   };
 
+  // シーク終了
   const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
-    setSeeking(false);
+    setSeeking(false); // シーク中フラグOFF
     const player = document.querySelector('video');
     if (player) {
-      player.currentTime = played * player.duration;
+      player.currentTime = played * player.duration; // 実際の再生位置更新
     }
   };
 
+  // 再生進捗更新
   const handleProgress = (state: { played: number }) => {
-    if (!seeking) {
+    if (!seeking) { // シーク中は更新しない
       setPlayed(state.played);
     }
   };
 
+  // ミュートトグル
   const handleMute = () => {
     setIsMuted(!isMuted);
-    setVolume(isMuted ? 1 : 0);
+    setVolume(isMuted ? 1 : 0); // ミュート解除時は音量1に
   };
 
+  // フルスクリーントグル
   const handleFullscreen = () => {
     const player = document.querySelector('.player-wrapper');
     if (!player) return;

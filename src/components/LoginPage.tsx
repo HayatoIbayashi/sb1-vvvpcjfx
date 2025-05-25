@@ -1,20 +1,27 @@
+// AWS Cognitoを使用したログイン機能を提供するコンポーネント
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 
+// AWS Cognitoクライアントの初期化 (東京リージョン)
 const cognito = new CognitoIdentityProviderClient({
   region: 'ap-northeast-1'
 });
 
 function LoginPage() {
+  // 認証状態とナビゲーションのフック
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // ログイン後のリダイレクト先 (前のページまたはホーム)
   const redirectTo = location.state?.from?.pathname || '/';
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  
+  // フォームの状態管理
+  const [email, setEmail] = useState(''); // メールアドレス入力
+  const [password, setPassword] = useState(''); // パスワード入力
+  const [error, setError] = useState(''); // エラーメッセージ
   console.log(auth);
   if (auth.isLoading) {
     return <div>Loading...</div>;
@@ -49,9 +56,11 @@ function LoginPage() {
       </div>
     );
   }
+  // ログイン処理
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Cognito認証パラメータの設定
       const params: {
         AuthFlow: 'USER_PASSWORD_AUTH';
         ClientId: string;
@@ -60,11 +69,11 @@ function LoginPage() {
           PASSWORD: string;
         };
       } = {
-        AuthFlow: 'USER_PASSWORD_AUTH',
-        ClientId: '51p21ae4hhsgjtd1jfakg4mpiu',
+        AuthFlow: 'USER_PASSWORD_AUTH', // ユーザー名/パスワード認証フロー
+        ClientId: '51p21ae4hhsgjtd1jfakg4mpiu', // CognitoアプリクライアントID
         AuthParameters: {
-          USERNAME: email,
-          PASSWORD: password
+          USERNAME: email, // 入力されたメールアドレス
+          PASSWORD: password // 入力されたパスワード
         }
       };
       

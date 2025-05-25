@@ -1,6 +1,16 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
 
+/**
+ * アプリケーションのヘッダーコンポーネント
+ * 
+ * @param isAuthenticated - ユーザーが認証済みかどうか
+ * @param onLogin - ログインボタンクリック時のハンドラ
+ * @param onLogout - ログアウトボタンクリック時のハンドラ
+ * @param searchQuery - 検索クエリの現在の値
+ * @param onSearchChange - 検索クエリ変更時のハンドラ
+ * @param hideMembershipLink - メンバーシップリンクを非表示にするかどうか
+ */
 interface HeaderProps {
   isAuthenticated: boolean;
   onLogin: () => void;
@@ -18,14 +28,16 @@ export function Header({
   onSearchChange,
   hideMembershipLink = false
 }: HeaderProps) {
+  // ナビゲーション用フック
   const navigate = useNavigate();
 
   return (
     <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
-          {/* Left side */}
+          {/* 左側: ロゴとナビゲーションリンク */}
           <div className="flex items-center space-x-8">
+            {/* ロゴ (クリックでホームに戻る) */}
             <h1 className="text-2xl font-bold text-white">
               <img 
                 src="../src/assets/WiiBER_logo.png" 
@@ -49,9 +61,9 @@ export function Header({
             )}
           </div>
 
-          {/* Right side */}
+          {/* 右側: 検索と認証ボタン */}
           <div className="flex items-center space-x-6">
-            {/* Search */}
+            {/* 検索バー (デスクトップのみ表示) */}
             <div className="relative hidden md:block">
               <input
                 type="text"
@@ -63,7 +75,7 @@ export function Header({
               <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             </div>
 
-            {/* Auth Button */}
+            {/* 認証ボタン (ログイン/ログアウト) */}
             {isAuthenticated ? (
               <button
                 onClick={onLogout}
