@@ -335,10 +335,6 @@ export default function MoviePlayerPage() {
                 <span className="text-gray-400">公開年:</span>{' '}
                 <span className="text-white">{movie?.release_year || '-'}</span>
               </div>
-              <div>
-                <span className="text-gray-400">評価:</span>{' '}
-                <span className="text-white">{movie?.rating ? `${movie.rating}/10` : '-'}</span>
-              </div>
             </div>
           </div>
         </div>
