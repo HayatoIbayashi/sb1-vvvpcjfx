@@ -1,6 +1,7 @@
 import type { Database } from './lib/types';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+const assets = 'https://sb1-vvvpcjfx-assets.s3.ap-northeast-1.amazonaws.com/assets/';
 
 export const MOCK_MOVIES: Movie[] = [
   {
@@ -11,9 +12,9 @@ export const MOCK_MOVIES: Movie[] = [
                 '閉ざされた島の中で事件に巻き込まれていく敏朗は、ジークンドーを極めた最強の暗殺者・黄島に命を狙われる。\n' +
                 '最新の戦闘術を身につけた"殺せない"アクション俳優が、極限状態の中で自身の力に目覚めるとき。選ばれし男たち(1%er)の闘いが始まる。\n' +
                 '©WiiBER All Rights Reserved.',
-    thumbnail: '../src/assets/ワンパーセンター.jpg',
-    thumbnail_top: '../src/assets/ワンパーセンターtop.webp',
-    thumbnail_detail: '../src/assets/ワンパーセンターdetail.jpg',
+    thumbnail: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BC.jpg',
+    thumbnail_top: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCtop.webp',
+    thumbnail_detail: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCdetail.jpg',
     release_date: '2024/12/6',
     duration: '1時間24分',
     genre: ['アクション'],
@@ -33,9 +34,9 @@ export const MOCK_MOVIES: Movie[] = [
                 'ある日、彼らがひっそり暮らす田舎町で、不可解な殺人事件が起きる。\n' +
                 'それは、ファントムと呼ばれる謎の男からの、敏郎に対する警告だった。\n' +
                 '©「リボーン」製作実行委員会\n',
-    thumbnail: '../src/assets/REBORN.jpg',
-    thumbnail_top: '../src/assets/ワンパーセンターtop.webp',
-    thumbnail_detail: '../src/assets/reborn_detail.webp',
+    thumbnail: assets + 'REBORN.jpg',
+    thumbnail_top: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCtop.webp',
+    thumbnail_detail: assets + 'reborn_detail.webp',
     release_date: '2017/8/12',
     duration: '1時間45分',
     genre: ['アクション'],
@@ -56,9 +57,9 @@ export const MOCK_MOVIES: Movie[] = [
                 '一門100人に加え、金で雇った他流派300人が決闘場のまわりに身を潜めていたが、突如現れた武蔵が襲いかかる。\n' +
                 '突然の奇襲に凍りつく吉岡一門。そして武蔵 1人対吉岡一門400人の死闘が始まった!\n' +
                 '©2020 CRAZY SAMURAI MUSASHI Film Partners\n' ,
-    thumbnail: '../src/assets/狂武蔵.jpg',
-    thumbnail_top: '../src/assets/ワンパーセンターtop.webp',
-    thumbnail_detail: '../src/assets/狂武蔵detail.webp',
+    thumbnail: assets + '%E7%8B%82%E6%AD%A6%E8%94%B5.jpg',
+    thumbnail_top: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCtop.webp',
+    thumbnail_detail: assets + '%E7%8B%82%E6%AD%A6%E8%94%B5detail.webp',
     release_date: '2020-8-21',
     duration: '1時間31分',
     genre: ['アクション'],
