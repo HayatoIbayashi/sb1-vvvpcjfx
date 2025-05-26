@@ -51,7 +51,7 @@ function MovieListPage() {
                 {/* Left side */}
                 <div className="flex items-center space-x-8">
                 <h1 className="text-2xl font-bold text-white">
-                    <img src="../src/assets/WiiBER_logo.png" alt="WiiBER" className="h-8"
+                    <img src="https://sb1-vvvpcjfx-assets.s3.ap-northeast-1.amazonaws.com/assets/WiiBER_logo.png" alt="WiiBER" className="h-8"
                     onClick={() => navigate('/')}  // Navigate to home on logo click
                     /></h1>
                 <nav className="hidden md:flex space-x-6">
