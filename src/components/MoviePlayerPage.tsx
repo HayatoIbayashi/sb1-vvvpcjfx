@@ -30,12 +30,13 @@ export default function MoviePlayerPage() {
   const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p'); // 画質設定
   const [showControls, setShowControls] = useState(true); // コントロール表示状態
   const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null); // コントロール非表示タイマー
+  const [duration, setDuration] = useState(0); // 動画の総時間(秒)
 
   // テスト用動画URL (画質別)
   const videoUrls = {
-    '1080p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVJDRZUZR3%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T045110Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgRL6UrSwNLonkAxs1cmYlLV7qGK%2FhEDF6laSSiz%2BnjDcCIQDmDgxZXeoatUE0RXYjo%2Fzm8nhS4vpQIKPzuUJaDVmz%2FiraAghWEAAaDDQ0NTU2NzA4NDEzOCIMRt1lNmkBM8heEdYRKrcCD1l%2F97%2BH8vRXbm5a3ZBZ2hEbQFTaOin0yDefw4wfM7IKW4U6Wi47vYG8AwXD2f%2Fx1RWTJLADNVlfnucy7Wvq897sF6CBjcOw7WDIYe1JCAYIGVpyrVX%2F6b9k%2FPRvA%2B60GDvffRj6TOunwQMobFUZWbntGZrZoQsk2E2Wq%2B8%2FYj9s00Hf3Up2ZuejBg1YQUcFYsYZ6lOoLw6xprgu1v6hwRuHiQgNRCGnZkbZWJx%2FRxFlAkcYl0fXMtNKZKVndpoAzzCbMXLeOHVYB3fB3HRE%2Br0QWeWugaEYq%2BZGcwOgaZRYII5SYFhq7e2HhApZKIc73BNjPfTQab%2BVvuU8pmnELRyvx7hCl%2FTEWQcEu3vV1Sfb%2BR%2FTO%2B6WtG907wKTw3bzGtF8cbYlY%2B%2Bz2Ab9eC5sAK7YhKi5wPYwrfbUwQY6rQJcm6keZr0ZuMvYT53lOlaRS%2Bh97UIgSwFmT0CDxqt8XiDHtJitRMLx1CJkPSEEXPhmcj1Z3dVDmEyv6mf7OnQXaxlnr%2B2j5rsSEuqW7XIIZLCdyz6uqzSulByXV2fYklyaUWKJcGExZt0R8dRoJddazNNdLwi7nlAtnJnzoDhJnroDhszinj5Kk%2BZHpKWEbRqXL009PP43wyGs51UPNQdQ4wnOS%2FeSFSw3AsfiqWU0%2F6IeHBT7e2cSru4uxn0JjDyBkPtVtbPK3%2FKbsnXdvOH%2B1XrIiJ2r2dR4XQGqgyx2K4LQpojH25gxaslcBnON5mNsjdhOZAK0Wovh1FP9R9yzRyLeNr6XCj49pdzq2KaHYyFOagLRUrIOEoiXLo4Zx%2BbfpUhbC4Gq3%2Fu3Cd8s&X-Amz-Signature=e8878169c1b19b4ffca1d8df4d1e4ee03fb85adc2f58a72eefe2a72e99da9f4a&X-Amz-SignedHeaders=host&response-content-disposition=inline',
-    '720p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVJDRZUZR3%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T045110Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgRL6UrSwNLonkAxs1cmYlLV7qGK%2FhEDF6laSSiz%2BnjDcCIQDmDgxZXeoatUE0RXYjo%2Fzm8nhS4vpQIKPzuUJaDVmz%2FiraAghWEAAaDDQ0NTU2NzA4NDEzOCIMRt1lNmkBM8heEdYRKrcCD1l%2F97%2BH8vRXbm5a3ZBZ2hEbQFTaOin0yDefw4wfM7IKW4U6Wi47vYG8AwXD2f%2Fx1RWTJLADNVlfnucy7Wvq897sF6CBjcOw7WDIYe1JCAYIGVpyrVX%2F6b9k%2FPRvA%2B60GDvffRj6TOunwQMobFUZWbntGZrZoQsk2E2Wq%2B8%2FYj9s00Hf3Up2ZuejBg1YQUcFYsYZ6lOoLw6xprgu1v6hwRuHiQgNRCGnZkbZWJx%2FRxFlAkcYl0fXMtNKZKVndpoAzzCbMXLeOHVYB3fB3HRE%2Br0QWeWugaEYq%2BZGcwOgaZRYII5SYFhq7e2HhApZKIc73BNjPfTQab%2BVvuU8pmnELRyvx7hCl%2FTEWQcEu3vV1Sfb%2BR%2FTO%2B6WtG907wKTw3bzGtF8cbYlY%2B%2Bz2Ab9eC5sAK7YhKi5wPYwrfbUwQY6rQJcm6keZr0ZuMvYT53lOlaRS%2Bh97UIgSwFmT0CDxqt8XiDHtJitRMLx1CJkPSEEXPhmcj1Z3dVDmEyv6mf7OnQXaxlnr%2B2j5rsSEuqW7XIIZLCdyz6uqzSulByXV2fYklyaUWKJcGExZt0R8dRoJddazNNdLwi7nlAtnJnzoDhJnroDhszinj5Kk%2BZHpKWEbRqXL009PP43wyGs51UPNQdQ4wnOS%2FeSFSw3AsfiqWU0%2F6IeHBT7e2cSru4uxn0JjDyBkPtVtbPK3%2FKbsnXdvOH%2B1XrIiJ2r2dR4XQGqgyx2K4LQpojH25gxaslcBnON5mNsjdhOZAK0Wovh1FP9R9yzRyLeNr6XCj49pdzq2KaHYyFOagLRUrIOEoiXLo4Zx%2BbfpUhbC4Gq3%2Fu3Cd8s&X-Amz-Signature=e8878169c1b19b4ffca1d8df4d1e4ee03fb85adc2f58a72eefe2a72e99da9f4a&X-Amz-SignedHeaders=host&response-content-disposition=inline',
-    '360p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVJDRZUZR3%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T045110Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgRL6UrSwNLonkAxs1cmYlLV7qGK%2FhEDF6laSSiz%2BnjDcCIQDmDgxZXeoatUE0RXYjo%2Fzm8nhS4vpQIKPzuUJaDVmz%2FiraAghWEAAaDDQ0NTU2NzA4NDEzOCIMRt1lNmkBM8heEdYRKrcCD1l%2F97%2BH8vRXbm5a3ZBZ2hEbQFTaOin0yDefw4wfM7IKW4U6Wi47vYG8AwXD2f%2Fx1RWTJLADNVlfnucy7Wvq897sF6CBjcOw7WDIYe1JCAYIGVpyrVX%2F6b9k%2FPRvA%2B60GDvffRj6TOunwQMobFUZWbntGZrZoQsk2E2Wq%2B8%2FYj9s00Hf3Up2ZuejBg1YQUcFYsYZ6lOoLw6xprgu1v6hwRuHiQgNRCGnZkbZWJx%2FRxFlAkcYl0fXMtNKZKVndpoAzzCbMXLeOHVYB3fB3HRE%2Br0QWeWugaEYq%2BZGcwOgaZRYII5SYFhq7e2HhApZKIc73BNjPfTQab%2BVvuU8pmnELRyvx7hCl%2FTEWQcEu3vV1Sfb%2BR%2FTO%2B6WtG907wKTw3bzGtF8cbYlY%2B%2Bz2Ab9eC5sAK7YhKi5wPYwrfbUwQY6rQJcm6keZr0ZuMvYT53lOlaRS%2Bh97UIgSwFmT0CDxqt8XiDHtJitRMLx1CJkPSEEXPhmcj1Z3dVDmEyv6mf7OnQXaxlnr%2B2j5rsSEuqW7XIIZLCdyz6uqzSulByXV2fYklyaUWKJcGExZt0R8dRoJddazNNdLwi7nlAtnJnzoDhJnroDhszinj5Kk%2BZHpKWEbRqXL009PP43wyGs51UPNQdQ4wnOS%2FeSFSw3AsfiqWU0%2F6IeHBT7e2cSru4uxn0JjDyBkPtVtbPK3%2FKbsnXdvOH%2B1XrIiJ2r2dR4XQGqgyx2K4LQpojH25gxaslcBnON5mNsjdhOZAK0Wovh1FP9R9yzRyLeNr6XCj49pdzq2KaHYyFOagLRUrIOEoiXLo4Zx%2BbfpUhbC4Gq3%2Fu3Cd8s&X-Amz-Signature=e8878169c1b19b4ffca1d8df4d1e4ee03fb85adc2f58a72eefe2a72e99da9f4a&X-Amz-SignedHeaders=host&response-content-disposition=inline',
+    '1080p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
+    '720p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
+    '360p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
   };
 
   // 画質変更ハンドラ
@@ -55,9 +56,21 @@ export default function MoviePlayerPage() {
     setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
   };
 
+  // 時間をHH:MM:SS形式にフォーマット
+  const formatTime = (seconds: number) => {
+    const date = new Date(0);
+    date.setSeconds(seconds);
+    return date.toISOString().substring(11, 19);
+  };
+
   // マウス移動検知 (コントロール表示維持)
   const handleMouseMove = () => {
     resetControlsTimer();
+  };
+
+  // 動画の長さを取得
+  const handleDuration = (duration: number) => {
+    setDuration(duration);
   };
 
   // 動画データ取得
@@ -237,6 +250,7 @@ export default function MoviePlayerPage() {
               volume={volume}
               muted={isMuted}
               onProgress={handleProgress}
+              onDuration={handleDuration}
             />
 
             {/* Custom Controls */}
@@ -245,18 +259,34 @@ export default function MoviePlayerPage() {
                 showControls ? 'opacity-100' : 'opacity-0'
               }`}
             >
-              {/* Progress Bar */}
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step="any"
-                value={played}
-                onChange={handleSeekChange}
-                onMouseDown={handleSeekMouseDown}
-                onMouseUp={handleSeekMouseUp}
-                className="w-full mb-4 accent-primary"
-              />
+              {/* Progress Bar with Time Display */}
+              <div className="relative w-full mb-4">
+                {/* Current Time Tooltip */}
+                <div
+                  className="absolute -top-6 bg-gray-800 px-2 py-1 rounded text-white text-xs whitespace-nowrap"
+                  style={{
+                    left: `${played * 100}%`,
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  {formatTime(played * duration)}
+                </div>
+                {/* Total Time (fixed right) */}
+                <div className="absolute -top-6 right-0 text-xs text-gray-400">
+                  {formatTime(duration)}
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step="any"
+                  value={played}
+                  onChange={handleSeekChange}
+                  onMouseDown={handleSeekMouseDown}
+                  onMouseUp={handleSeekMouseUp}
+                  className="w-full accent-primary"
+                />
+              </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
