@@ -4,16 +4,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from 'lucide-react';
 import type { Database } from '../lib/types';
+import { getUrl } from 'aws-amplify/storage';
+import { linkToStorageFile } from '../lib/storageUtils';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 export default function MoviePlayerPage() {
+  // 動画URL取得関数 (storageUtils.ts の linkToStorageFile を使用可能)
   // ルーティング関連
   const { id } = useParams(); // URLパラメータから動画ID取得
   const navigate = useNavigate();
 
   // 動画データ状態
   const [movie, setMovie] = useState<Movie | null>(null);
+  const [storageUrl, setStorageUrl] = useState<string>('');
 
   // プレーヤー制御状態
   const [isPlaying, setIsPlaying] = useState(false); // 再生/一時停止状態
@@ -101,6 +105,18 @@ export default function MoviePlayerPage() {
 
   useEffect(() => {
     fetchMovie();
+
+    // Amplify StorageからURLを取得
+    const fetchStorageUrl = async () => {
+      try {
+        const url = await linkToStorageFile('public/1h無題の動画sample_output1.mp4');
+        setStorageUrl(url);
+      } catch (error) {
+        console.error('Error fetching storage URL:', error);
+      }
+    };
+
+    fetchStorageUrl();
   }, [id]);
 
   // リトライ処理
@@ -364,10 +380,18 @@ export default function MoviePlayerPage() {
               <div>
                 <span className="text-gray-400">公開年:</span>{' '}
                 <span className="text-white">{movie?.release_year || '-'}</span>
-              </div>
+            </div>
+          </div>
+
+          {/* Storage URL テスト表示 */}
+          <div className="mt-8 p-4 bg-gray-800 rounded-lg">
+            <h3 className="text-lg font-bold text-white mb-2">Storage URL (テスト表示)</h3>
+            <div className="text-xs text-gray-300 break-all">
+              {storageUrl || 'URLを取得中...'}
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
