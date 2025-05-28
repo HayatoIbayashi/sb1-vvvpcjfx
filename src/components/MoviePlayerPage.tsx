@@ -36,11 +36,11 @@ export default function MoviePlayerPage() {
   const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null); // コントロール非表示タイマー
   const [duration, setDuration] = useState(0); // 動画の総時間(秒)
 
-  // テスト用動画URL (画質別)
+  // 動画URL (すべての解像度で同じURLを使用)
   const videoUrls = {
-    '1080p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
-    '720p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
-    '360p': 'https://testvod-destination920a3c57-6w4ta3lpux2q.s3.ap-northeast-1.amazonaws.com/1h%E7%84%A1%E9%A1%8C%E3%81%AE%E5%8B%95%E7%94%BBsample.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAWPPO6EZVM7STU7OD%2F20250527%2Fap-northeast-1%2Fs3%2Faws4_request&X-Amz-Date=20250527T055642Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEI7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDmFwLW5vcnRoZWFzdC0xIkcwRQIgaAejGy4yFmGqo9PEHPWc1BjsWSiT1KCOzf3bIUhm9g8CIQDM8Ac9963hQKrq%2Fm1ArV6jh1JZYLA9MZ0bra%2FRS4JHayraAghXEAAaDDQ0NTU2NzA4NDEzOCIMNFTXx0Qst%2FiluZanKrcCwJ7vt1kBkq12PrwmpzZU%2FDl0%2BX7u6OXIAQb7pqji%2BdKpbqDtAH8wWZXIfwwHBoydim%2B34Yq8hfe1hifdrdDqTfa688Mr5qzMsfJ2dq2JJniUJh%2B7iBGa5OdHTOlakhK2%2FLTVNeowFM4IUIX8BGBCRMv6k1%2B7dadJUBZBP3Nm9Ku3bt19FyygO9kaOT4UQ6avyV2xj2BDmH%2B0doIySU5ygIOuu42O%2FF%2F33NdlgAqFKFMybGRFUXZzrP18J5Sjo7Zlu1j13pM6O%2F9%2FNAwk%2BbzgtGJ0xhSzD8wUxdYMk07ccbV72nBq2jTBnGmJaPkR%2FOVqDak02J1JEi0M87ov%2FhT%2BxbT4Xwl9kGHtGpsjc4YyGorAvlYkT9QCgIdX6ppOBFIt9%2FciEj9YUT7TgGbXpevwc%2FgGFpZem5MwrfbUwQY6rQJ7KFQspkoU9GH0WGzRGb%2FMEQPld%2FIEbSMi%2BNo24GJ03Tuxp%2Bdw3YyOpr04Ybu8m8RJ458%2Fk2w6sDpPu349Ndgo7WS%2BVnKKhb3JVcQuhlg40%2BRAoduSK91%2FrOPYaPi%2FUNYEb9fxMrQ77dHNZsjznZmR%2BU2v2x88QYUfeeggFcSKWDalm04yw3JKIuuZiy9CpYsdfYEjByuL1NEWCxfv%2F5uYPhW4qnTTnKCmKvzMGnO6CNr73w4WGypsqz0lF3VdNmQwHcRqJGn%2BqBKGdg9Td9Qt9NQyh1fRG%2FQzstGW1y%2Fj8%2BuBsURDmPGQZCHkZlfyvQeGyRtplOt1XTpWSP8DTWiHefj3U12VRiBnYBNbNZT2EYkQCZEVnZPpjzK1fX7M36Umz9H0DKvOI8rJ2vPN&X-Amz-Signature=bf2fcdfad0bacdeeaf2a58a268a6a8c901cb80726774f04683e2659065e5f540&X-Amz-SignedHeaders=host&response-content-disposition=inline',
+    '1080p': storageUrl,
+    '720p': storageUrl, 
+    '360p': storageUrl,
   };
 
   // 画質変更ハンドラ
@@ -111,6 +111,7 @@ export default function MoviePlayerPage() {
       try {
         const url = await linkToStorageFile('public/1h無題の動画sample_output1.mp4');
         setStorageUrl(url);
+        console.log('Storage URL:', url);
       } catch (error) {
         console.error('Error fetching storage URL:', error);
       }
@@ -341,7 +342,7 @@ export default function MoviePlayerPage() {
                         className="w-20 accent-primary"
                       />
                     </div>
-                    <select 
+                    <select
                       value={quality}
                       onChange={(e) => handleQualityChange(e.target.value as '1080p' | '720p' | '360p')}
                       className="bg-gray-800 text-white text-sm rounded px-2 py-1"
@@ -380,14 +381,6 @@ export default function MoviePlayerPage() {
               <div>
                 <span className="text-gray-400">公開年:</span>{' '}
                 <span className="text-white">{movie?.release_year || '-'}</span>
-            </div>
-          </div>
-
-          {/* Storage URL テスト表示 */}
-          <div className="mt-8 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-bold text-white mb-2">Storage URL (テスト表示)</h3>
-            <div className="text-xs text-gray-300 break-all">
-              {storageUrl || 'URLを取得中...'}
             </div>
           </div>
         </div>

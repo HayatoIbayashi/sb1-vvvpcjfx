@@ -1,23 +1,19 @@
-import { Amplify, Storage } from 'aws-amplify';
+import { Amplify } from "aws-amplify";
+import { getUrl } from '@aws-amplify/storage';
 import amplifyConfig from '../../amplify_outputs.json';
 
 Amplify.configure(amplifyConfig);
 
 /**
  * Amplify Storageからファイルの署名付きURLを取得
- * @param path - ストレージ内のファイルパス
- * @param expiresIn - URLの有効期間(秒)
- * @returns 署名付きURL
  */
-export const linkToStorageFile = async (
-  path: string, 
-  expiresIn: number = 3600
-): Promise<string> => {
+
+export const linkToStorageFile = async (path: string): Promise<string> => {
   try {
-    const url = await Storage.get(path, { expiresIn });
-    return url.toString();
-  } catch (error) {
-    console.error('Failed to get storage URL:', error);
-    throw new Error('ファイルの取得に失敗しました');
+    const { url } = await getUrl({ path });
+    return url.href;
+  } catch (err) {
+    console.error('Storage Error:', err);
+    throw err;
   }
 };
