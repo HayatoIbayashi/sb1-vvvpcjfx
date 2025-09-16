@@ -1,20 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, CreditCard, Calendar } from 'lucide-react';
 import { SubscriptionPlans } from '../SubscriptionPlans';
 import { Header } from './common/Header';
+import { useAuth } from 'react-oidc-context';
+import { useAuthStatus } from '../lib/authBridge';
 
 export default function SubscriptionPage() {
   const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [step, setStep] = useState<'plans' | 'payment'>('plans');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  useEffect(() => {
-    const storedTokens = localStorage.getItem('cognito_tokens');
-    setIsAuthenticated(!!storedTokens);
-  }, []);
+  const auth = useAuth();
+  const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
 
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
@@ -37,11 +35,8 @@ export default function SubscriptionPage() {
     <div className="min-h-screen bg-gray-900">
       <Header
         isAuthenticated={isAuthenticated}
-        onLogin={() => navigate('/login')}
-        onLogout={() => {
-          localStorage.removeItem('cognito_tokens');
-          window.location.reload();
-        }}
+        onLogin={loginHosted}
+        onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}
         hideMembershipLink={true}

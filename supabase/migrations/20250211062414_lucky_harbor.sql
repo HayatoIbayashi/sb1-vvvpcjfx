@@ -1,19 +1,30 @@
 /*
-  # Add purchases management
+  # Add user profile fields and purchases management
 
-  1. New Tables
+  1. Updates to profiles table
+    - Add `gender` (text)
+    - Add `age` (integer)
+    - Add `prefecture` (text)
+  
+  2. New Tables
     - `purchases`
       - `id` (uuid, primary key)
       - `user_id` (uuid, references auth.users)
       - `movie_id` (integer)
       - `purchased_at` (timestamp)
   
-  2. Security
+  3. Security
     - Enable RLS on `purchases` table
     - Add policies for users to:
       - Read their own purchases
       - Create their own purchases
 */
+
+-- Add new columns to profiles table
+ALTER TABLE profiles 
+ADD COLUMN IF NOT EXISTS gender TEXT,
+ADD COLUMN IF NOT EXISTS age INTEGER,
+ADD COLUMN IF NOT EXISTS prefecture TEXT;
 
 CREATE TABLE IF NOT EXISTS purchases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

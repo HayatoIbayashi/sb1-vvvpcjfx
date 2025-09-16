@@ -5,6 +5,8 @@ import { Header } from './common/Header';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
+import { useAuth } from 'react-oidc-context';
+import { useAuthStatus } from '../lib/authBridge';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -12,12 +14,12 @@ function MovieDetailPage() {
     const navigate = useNavigate();
     const [movie, setMovie] = useState<Movie | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const auth = useAuth();
+    const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
 
     useEffect(() => {
         // 初期ロード時にlocalStorageから認証状態をチェック
-        const storedTokens = localStorage.getItem('cognito_tokens');
-        setIsAuthenticated(!!storedTokens);
+        // Hosted UI 統一のため localStorage でのトークン判定は不要
     }, []);
     const movieId = window.location.pathname.split('/').pop();
 
@@ -37,7 +39,7 @@ function MovieDetailPage() {
 
     const handlePurchase = async (event: React.MouseEvent, isRental = false) => {
         if (!isAuthenticated) {
-            navigate('/login');
+            loginHosted();
             return;
         }
 
@@ -78,12 +80,8 @@ function MovieDetailPage() {
         navigate(`/movies/${movie?.id}`);
     };
 
-    const handleLogin = () => navigate('/login');
-    const handleLogout = () => {
-        localStorage.removeItem('cognito_tokens');
-        setIsAuthenticated(false);
-        window.location.reload();
-    };
+    const handleLogin = () => loginHosted();
+    const handleLogout = () => logoutAll();
 
     return (
         <div className="min-h-screen bg-gray-900">

@@ -1,51 +1,30 @@
-import Stripe from 'stripe';
-import { supabase } from '../src/lib/supabase';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
   try {
-    const { movieId, amount } = await req.json();
+    const payload = await req.json();
+    const url = process.env.LAMBDA_PAYMENTS_URL;
+    if (!url) return new Response('Missing LAMBDA_PAYMENTS_URL', { status: 500 });
 
-    // Get user from session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'jpy',
-      metadata: {
-        movieId,
-        userId: session.user.id,
-      },
+    const forward = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
-    // Create purchase record
-    const { error: purchaseError } = await supabase
-      .from('purchases')
-      .insert({
-        user_id: session.user.id,
-        movie_id: movieId,
-        payment_intent_id: paymentIntent.id,
-        status: 'pending',
-      });
-
-    if (purchaseError) {
-      throw purchaseError;
+    if (!forward.ok) {
+      const msg = await forward.text().catch(() => 'Upstream error');
+      return new Response(msg, { status: 502 });
     }
 
-    return new Response(JSON.stringify({ clientSecret: paymentIntent.client_secret }), {
+    const data = await forward.json();
+    return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Payment intent creation error:', error);
+    console.error('Payment intent proxy error:', error);
     return new Response('Internal server error', { status: 500 });
   }
 }
