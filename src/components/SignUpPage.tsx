@@ -1,12 +1,9 @@
 import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
-import { useState } from 'react';
 
 function SignUpPage() {
   const auth = useAuth();
   const { isAuthenticated, logoutAll } = useAuthStatus();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   if (auth.isLoading) {
     return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading...</div>;
@@ -30,44 +27,15 @@ function SignUpPage() {
   }
 
   const handleHostedSignup = () => {
-    // Hosted UI へ遷移。login_hint でメールを事前入力ヒントとして渡す
-    auth.signinRedirect({
-      extraQueryParams: {
-        login_hint: email || undefined,
-        screen_hint: 'signup', // サインアップ画面表示をヒント（対応環境のみ）
-      },
-    });
+    // Hosted UI のサインイン画面から「サインアップ」を選択
+    auth.signinRedirect();
   };
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-96">
         <h1 className="text-2xl font-bold text-white mb-6">アカウント作成</h1>
-        <div className="space-y-4 mb-4">
-          <div>
-            <label className="block text-gray-300 mb-2" htmlFor="email">メールアドレス</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div>
-            <label className="block text-gray-300 mb-2" htmlFor="password">パスワード</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-              placeholder="8文字以上を推奨"
-            />
-            <p className="text-xs text-gray-400 mt-2">注意: Hosted UI に遷移後、パスワードは再入力が必要です（セキュリティ上、自動入力はできません）。</p>
-          </div>
-        </div>
+        <p className="text-gray-300 mb-4">Cognito Hosted UI にてサインアップを行います。</p>
         <button
           onClick={handleHostedSignup}
           className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700"
@@ -80,3 +48,4 @@ function SignUpPage() {
 }
 
 export default SignUpPage;
+
