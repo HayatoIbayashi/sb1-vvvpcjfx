@@ -1,0 +1,23 @@
+{
+  "name": "infra-cdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "cdk": "./node_modules/.bin/cdk"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cdk": "cdk",
+    "synth": "npm run build && cdk synth",
+    "deploy": "npm run build && cdk deploy",
+    "diff": "npm run build && cdk diff"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.11.30",
+    "aws-cdk-lib": "^2.139.0",
+    "constructs": "^10.3.0"
+  }
+}
+

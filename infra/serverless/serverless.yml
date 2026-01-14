@@ -1,0 +1,104 @@
+service: auth-signup-hostedui
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-northeast-1
+  memorySize: 256
+  timeout: 10
+  vpc:
+    subnetIds:
+      - ${env:SUBNET_ID_1}
+      - ${env:SUBNET_ID_2}
+      - ${env:SUBNET_ID_3}
+    securityGroupIds:
+      - Ref: LambdaSecurityGroup
+  httpApi:
+    cors:
+      allowedMethods:
+        - POST
+        - OPTIONS
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Authorization
+        - Content-Type
+  environment:
+    COGNITO_REGION: ${aws:region}
+    COGNITO_CLIENT_ID: !Ref UserPoolClient
+    DATABASE_URL: ${env:DATABASE_URL}
+
+functions:
+  authSignup:
+    handler: lambda/auth-signup/dist/handler.handler
+    events:
+      - httpApi:
+          path: /v1/auth/signup
+          method: POST
+
+resources:
+  Resources:
+    LambdaSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Lambda SG for RDS access
+        VpcId: ${env:VPC_ID}
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+    UserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: auth-signup-user-pool
+        AutoVerifiedAttributes: [email]
+        UsernameAttributes: [email]
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: false
+            RequireUppercase: false
+            RequireNumbers: false
+            RequireSymbols: false
+        AccountRecoverySetting:
+          RecoveryMechanisms:
+            - Name: verified_email
+              Priority: 1
+    UserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        UserPoolId: !Ref UserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        AllowedOAuthFlows:
+          - code
+        AllowedOAuthScopes:
+          - phone
+          - email
+          - openid
+          - aws.cognito.signin.user.admin
+        AllowedOAuthFlowsUserPoolClient: true
+        CallbackURLs:
+          - http://localhost:5173/
+        LogoutURLs:
+          - http://localhost:5173/
+
+    # 任意: 既存RDS SGに対するインバウンド許可（RDS_SG_ID を環境変数で渡した場合のみ有効にしてください）
+    # RdsIngressFromLambda:
+    #   Type: AWS::EC2::SecurityGroupIngress
+    #   Properties:
+    #     GroupId: ${env:RDS_SG_ID}
+    #     SourceSecurityGroupId:
+    #       Ref: LambdaSecurityGroup
+    #     IpProtocol: tcp
+    #     FromPort: 5432
+    #     ToPort: 5432
+
+plugins: []
+
+package:
+  patterns:
+    - '!**'
+    - 'lambda/auth-signup/dist/**'

@@ -10,6 +10,7 @@ export function VideoManagement() {
   const [videos, setVideos] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -64,10 +65,11 @@ export function VideoManagement() {
       </div>
 
       {/* New Video Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-          <div className="bg-dark-lighter p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold text-white mb-4">新規動画登録</h3>
+      {isModalOpen && !selectedVideo && (
+        <div className="fixed inset-0 z-50 bg-black/90 overflow-y-auto">
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div className="bg-dark-lighter p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-semibold text-white mb-4">新規動画登録</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left Column - Video Upload */}
@@ -290,12 +292,20 @@ export function VideoManagement() {
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* Video List */}
       <div className="bg-dark-lighter rounded-lg overflow-hidden">
-        <div className="p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">アップロード済み動画</h2>
+        <div className="p-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-white">アップロード済み動画</h2>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="タイトル・説明・監督・出演者で検索"
+            className="w-full max-w-md px-3 py-2 bg-dark rounded border border-dark-light text-white outline-none focus:border-gray-600"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -307,7 +317,22 @@ export function VideoManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark">
-              {videos.map((video) => (
+              {videos
+                .filter((v) => {
+                  const q = query.trim().toLowerCase();
+                  if (!q) return true;
+                  const fields = [
+                    v.title || '',
+                    v.description || '',
+                    v.director || '',
+                    (v.genre || []).join(' '),
+                    (v.cast || []).join(' '),
+                  ]
+                    .join(' ')
+                    .toLowerCase();
+                  return fields.includes(q);
+                })
+                .map((video) => (
                 <tr key={video.id}>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -357,6 +382,27 @@ export function VideoManagement() {
                   </td>
                 </tr>
               ))}
+              {videos.length > 0 &&
+                videos.filter((v) => {
+                  const q = query.trim().toLowerCase();
+                  if (!q) return true;
+                  const fields = [
+                    v.title || '',
+                    v.description || '',
+                    v.director || '',
+                    (v.genre || []).join(' '),
+                    (v.cast || []).join(' '),
+                  ]
+                    .join(' ')
+                    .toLowerCase();
+                  return fields.includes(q);
+                }).length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-10 text-center text-gray-400">
+                      該当する動画が見つかりません
+                    </td>
+                  </tr>
+              )}
             </tbody>
           </table>
         </div>

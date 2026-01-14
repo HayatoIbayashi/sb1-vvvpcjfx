@@ -35,7 +35,7 @@ export default function SubscriptionPage() {
     <div className="min-h-screen bg-gray-900">
       <Header
         isAuthenticated={isAuthenticated}
-        onLogin={loginHosted}
+        onLogin={() => navigate('/login')}
         onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}

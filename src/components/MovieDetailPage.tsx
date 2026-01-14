@@ -7,6 +7,8 @@ import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
+import ReviewSection from './ReviewSection';
+import { Crown } from 'lucide-react';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -80,7 +82,7 @@ function MovieDetailPage() {
         navigate(`/movies/${movie?.id}`);
     };
 
-    const handleLogin = () => loginHosted();
+    const handleLogin = () => navigate('/login');
     const handleLogout = () => logoutAll();
 
     return (
@@ -133,11 +135,19 @@ function MovieDetailPage() {
                                 </div>
                             ) : (
                                 <div className="flex flex-wrap gap-4">
+                                    <Link
+                                        to="/subscription"
+                                        className="relative flex items-center justify-center gap-2 text-white px-6 py-4 rounded-xl font-bold transition flex-[2] min-w-[220px] text-center shadow-lg bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 hover:opacity-95 ring-2 ring-amber-300/60"
+                                    >
+                                        <span className="absolute -top-3 right-3 text-xs bg-white/90 text-amber-600 px-2 py-0.5 rounded-full shadow">おすすめ</span>
+                                        <Crown className="w-5 h-5" />
+                                        メンバーシップ登録（見放題）
+                                    </Link>
                                     <button
                                         onClick={(e) => handlePurchase(e, false)}
                                         className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
                                     >
-                                        <div>{isAuthenticated ? '購入する' : 'ログインして購入'}</div>
+                                        <div>{isAuthenticated ? '単品購入' : 'ログインして購入'}</div>
                                         <div className="text-sm font-normal">
                                             {movie?.price ? `¥${movie.price.toLocaleString()}` : '価格未設定'}
                                         </div>
@@ -146,22 +156,21 @@ function MovieDetailPage() {
                                         onClick={handleRental}
                                         className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
                                     >
-                                        <div>{isAuthenticated ? 'レンタルする' : 'ログインしてレンタル'}</div>
+                                        <div>{isAuthenticated ? 'レンタル' : 'ログインしてレンタル'}</div>
                                         <div className="text-sm font-normal">
                                             {movie?.rental_price ? `¥${movie.rental_price.toLocaleString()}` : '価格未設定'}
                                         </div>
                                     </button>
-                                    <Link
-                                        to="/subscription"
-                                        className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px] text-center"
-                                    >
-                                        メンバーシップ登録
-                                    </Link>
                                 </div>
                             )}
                         </div>
-                    </div>
                 </div>
+                </div>
+            )}
+            {movieId && (
+              <div className="container mx-auto px-4 pb-10">
+                <ReviewSection movieId={movieId} />
+              </div>
             )}
         </div>
     );

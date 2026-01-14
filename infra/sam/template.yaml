@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Auth Signup (Hosted UI誘導) - SAM Template
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 256
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    Description: PostgreSQL connection string
+  VpcId:
+    Type: String
+    Description: Existing VPC Id
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: Private Subnet Ids for Lambda (at least two)
+  RdsSecurityGroupId:
+    Type: String
+    Default: ""
+    Description: (Optional) Existing RDS Security Group Id to allow inbound from Lambda SG
+  ExistingCognitoClientId:
+    Type: String
+    Default: ""
+    Description: (Optional) Use existing Hosted UI App Client Id (set this when reusing an existing User Pool)
+
+Conditions:
+  HasRdsSg: !Not [!Equals [!Ref RdsSecurityGroupId, ""]]
+  UseExistingCognito: !Not [!Equals [!Ref ExistingCognitoClientId, ""]]
+  CreateCognito: !Equals [!Ref ExistingCognitoClientId, ""]
+
+Resources:
+  UserPool:
+    Condition: CreateCognito
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: auth-signup-user-pool
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireUppercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  UserPoolClient:
+    Condition: CreateCognito
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - phone
+        - email
+        - openid
+        - aws.cognito.signin.user.admin
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs:
+        - http://localhost:5173/
+      LogoutURLs:
+        - http://localhost:5173/
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods: [POST, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type]
+        AllowOrigins: ['*']
+
+  AuthSignupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: auth-signup
+      CodeUri: ../../lambda/auth-signup/dist
+      Handler: handler.handler
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_CLIENT_ID: !If [UseExistingCognito, !Ref ExistingCognitoClientId, !Ref UserPoolClient]
+          DATABASE_URL: !Ref DatabaseUrl
+      Events:
+        Signup:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/auth/signup
+            Method: POST
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda SG for RDS access
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  RdsIngressFromLambda:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasRdsSg
+    Properties:
+      GroupId: !Ref RdsSecurityGroupId
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+
+Outputs:
+  ApiEndpoint:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  UserPoolId:
+    Value: !If [CreateCognito, !Ref UserPool, ""]
+  UserPoolClientId:
+    Value: !If [UseExistingCognito, !Ref ExistingCognitoClientId, !Ref UserPoolClient]
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup

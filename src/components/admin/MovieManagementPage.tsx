@@ -11,6 +11,7 @@ export default function MovieManagementPage() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -187,13 +188,40 @@ export default function MovieManagementPage() {
           </div>
         )}
 
+        {/* Search Bar */}
+        <div className="mb-6">
+          <label className="block text-gray-300 mb-2">作品検索</label>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="タイトル・説明・監督・出演者・ジャンルで検索"
+            className="w-full px-4 py-2 bg-dark-light text-white rounded border border-transparent focus:border-gray-600 outline-none"
+          />
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
           </div>
         ) : (
           <div className="grid gap-6">
-            {movies.map((movie) => (
+            {movies
+              .filter((m) => {
+                const q = query.trim().toLowerCase();
+                if (!q) return true;
+                const fields = [
+                  m.title || '',
+                  m.description || '',
+                  m.director || '',
+                  (m.genre || []).join(' '),
+                  (m.cast || []).join(' '),
+                ]
+                  .join(' ')
+                  .toLowerCase();
+                return fields.includes(q);
+              })
+              .map((movie) => (
               <div
                 key={movie.id}
                 className="bg-dark-lighter rounded-lg shadow-lg overflow-hidden"
@@ -238,6 +266,25 @@ export default function MovieManagementPage() {
                 </div>
               </div>
             ))}
+            {movies.length > 0 &&
+              movies.filter((m) => {
+                const q = query.trim().toLowerCase();
+                if (!q) return true;
+                const fields = [
+                  m.title || '',
+                  m.description || '',
+                  m.director || '',
+                  (m.genre || []).join(' '),
+                  (m.cast || []).join(' '),
+                ]
+                  .join(' ')
+                  .toLowerCase();
+                return fields.includes(q);
+              }).length === 0 && (
+                <div className="text-center text-gray-400 py-12 border border-dashed border-gray-700 rounded-lg">
+                  該当する作品が見つかりません
+                </div>
+            )}
           </div>
         )}
       </main>

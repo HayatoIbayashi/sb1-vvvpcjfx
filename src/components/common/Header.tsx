@@ -62,7 +62,7 @@ export function Header({
           </div>
 
           {/* 右側: 検索と認証ボタン */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-8">
             {/* 検索バー (デスクトップのみ表示) */}
             <div className="relative hidden md:block">
               <input
@@ -70,24 +70,27 @@ export function Header({
                 placeholder="作品を検索..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-64 px-4 py-1 pl-10 bg-gray-800 text-white rounded-full border border-gray-700 focus:outline-none focus:border-gray-500"
+                className="w-80 md:w-96 px-4 py-2 pl-10 bg-gray-800 text-white rounded-full border border-gray-700 focus:outline-none focus:border-gray-500"
               />
               <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             </div>
 
             {/* 認証ボタン (ログイン/ログアウト) */}
             {isAuthenticated ? (
-              <button
-                onClick={onLogout}
-                className="text-gray-400 hover:text-white flex items-center"
-              >
-                <LogOut className="h-5 w-5" />
-                <span>ログアウト</span>
-              </button>
+              <div className="flex items-center gap-4">
+                <Link to="/account" className="text-gray-300 hover:text-white px-3 py-1.5 rounded-md hover:bg-gray-800/60">設定</Link>
+                <button
+                  onClick={onLogout}
+                  className="text-gray-300 hover:text-white flex items-center px-3 py-1.5 rounded-md hover:bg-gray-800/60"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>ログアウト</span>
+                </button>
+              </div>
             ) : (
               <button
                 onClick={onLogin}
-                className="text-gray-400 hover:text-white flex items-center gap-2"
+                className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-gray-800/60"
               >
                 <LogIn className="h-5 w-5" />
                 <span>ログイン</span>

@@ -8,6 +8,7 @@ import MoviePlayerPage from './components/MoviePlayerPage';
 import MovieManagementPage from './components/admin/MovieManagementPage';
 import AdminDashboard from './components/AdminDashboard';
 import SubscriptionPage from './components/SubscriptionPage';
+import AccountSettingsPage from './components/AccountSettingsPage';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
+        <Route path="/account" element={<AccountSettingsPage />} />
       </Routes>
     </Router>
   );

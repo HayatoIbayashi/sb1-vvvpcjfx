@@ -54,9 +54,10 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-      <div className="bg-dark-lighter p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-semibold text-white mb-4">動画情報の編集</h3>
+    <div className="fixed inset-0 z-50 bg-black/90 overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center p-4">
+        <div className="bg-dark-lighter p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+          <h3 className="text-xl font-semibold text-white mb-4">動画情報の編集</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Column */}
           <div className="space-y-4">
@@ -216,6 +217,7 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
           </button>
         </div>
       </div>
+    </div>
     </div>
   );
 }

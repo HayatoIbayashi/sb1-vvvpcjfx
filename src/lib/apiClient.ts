@@ -3,9 +3,10 @@ const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 export type SignUpPayload = {
   email: string;
   password: string;
-  gender: string | null;
-  age: number;
-  prefecture: string | null;
+  gender?: string | null;
+  age?: number;
+  prefecture?: string | null;
+  displayName?: string | null;
 };
 
 export type GetTokenFn = () => Promise<string | null> | string | null;
@@ -53,6 +54,17 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
         { method: 'POST', body: JSON.stringify({ movieId, amount }) },
       );
     },
+    // Reviews
+    getReviews(movieId: string) {
+      const qs = new URLSearchParams({ movieId }).toString();
+      return request<{ items: Review[] }>(`/reviews?${qs}`, { method: 'GET' });
+    },
+    addReview(movieId: string, rating: number, comment: string) {
+      return request<void>('/reviews', {
+        method: 'POST',
+        body: JSON.stringify({ movieId, rating, comment }),
+      });
+    },
     request,
   };
 }
@@ -60,3 +72,12 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 export const apiClient = createApiClient();
 export default apiClient;
 
+export type Review = {
+  id: string;
+  movieId: string;
+  userId: string;
+  displayName: string | null;
+  rating: number; // 1..5
+  comment: string;
+  createdAt: string; // ISO timestamp
+};
