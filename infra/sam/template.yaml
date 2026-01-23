@@ -88,8 +88,9 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: auth-signup
-      CodeUri: ../../lambda/auth-signup/dist
-      Handler: handler.handler
+      # ルートを CodeUri にし、ビルド成果物 dist/ と node_modules を一緒にデプロイする
+      CodeUri: ../../lambda/auth-signup
+      Handler: dist/handler.handler
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup

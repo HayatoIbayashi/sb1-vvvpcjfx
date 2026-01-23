@@ -60,6 +60,16 @@ export default function AccountSettingsPage() {
   const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean | null>(LS_MEMBER, false));
   const [purchases, setPurchases] = useState<Purchase[]>(() => loadJSON<Purchase[]>(LS_PURCHASES, []));
   const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
+  const pointSummary = useMemo(
+    () => ({
+      total: 2300,
+      expiringAmount: 500,
+      expiringDate: '2025-12-01',
+      paid: 1300,
+      free: 1000,
+    }),
+    [],
+  );
 
   // 登録日（参照用）。保存されていなければOIDCのクレームや現在時刻を使用して初期化
   const initialRegisteredAt = useMemo(() => {
@@ -186,6 +196,39 @@ export default function AccountSettingsPage() {
             <button onClick={handleChangePayment} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">お支払い方法を変更</button>
           </div>
           <p className="text-gray-300 text-sm">テスト環境ではモック操作です。</p>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-3">
+            <div>
+              <p className="text-sm text-gray-400">ポイント残高</p>
+              <p className="text-3xl font-bold text-white">{pointSummary.total.toLocaleString()} pt</p>
+              <p className="text-sm text-gray-300 mt-1">
+                うち {pointSummary.expiringAmount.toLocaleString()} pt が {pointSummary.expiringDate} に失効予定
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <div className="bg-gray-700/60 px-4 py-2 rounded-lg">
+                <p className="text-xs text-gray-400">有償</p>
+                <p className="text-lg font-semibold text-white">{pointSummary.paid.toLocaleString()} pt</p>
+              </div>
+              <div className="bg-gray-700/60 px-4 py-2 rounded-lg">
+                <p className="text-xs text-gray-400">無償</p>
+                <p className="text-lg font-semibold text-white">{pointSummary.free.toLocaleString()} pt</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <p className="text-xs text-gray-400">
+              ※ポイントは有効期限の早いものから自動的に優先して利用されます。詳細はポイント画面で確認できます。
+            </p>
+            <button
+              onClick={() => navigate('/account/points')}
+              className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 text-sm"
+            >
+              ポイント画面を開く
+            </button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
