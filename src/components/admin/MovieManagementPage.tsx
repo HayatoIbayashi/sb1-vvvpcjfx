@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, Upload, ArrowLeft } from 'lucide-react';
 import type { Database } from '../../lib/types';
 import { MOCK_MOVIES } from '../../mockData';
+import useApiClient from '../../lib/useApiClient';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -12,14 +13,20 @@ export default function MovieManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const api = useApiClient();
+  const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
 
   useEffect(() => {
     const fetchMovies = async () => {
       try {
         setIsLoading(true);
-        // 模擬API呼び出し (実際にはmockデータを使用)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setMovies(MOCK_MOVIES);
+        if (useMockMovies) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          setMovies(MOCK_MOVIES);
+          return;
+        }
+        const res = await api.getAdminMovies();
+        setMovies(res.items);
       } catch (err) {
         setError('作品データの取得に失敗しました');
         console.error('Error fetching movies:', err);
@@ -29,7 +36,7 @@ export default function MovieManagementPage() {
     };
 
     fetchMovies();
-  }, []);
+  }, [api, useMockMovies]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [formData, setFormData] = useState<Partial<Movie>>({

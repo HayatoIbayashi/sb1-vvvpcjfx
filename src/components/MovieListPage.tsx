@@ -15,6 +15,7 @@ function MovieListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
   const api = useApiClient();
+  const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const [ratingMap, setRatingMap] = useState<Record<string, number>>({});
   const [topRated, setTopRated] = useState<Movie[]>([]);
 
@@ -31,9 +32,25 @@ function MovieListPage() {
   };
 
   useEffect(() => {
-    // Mock データを使用
-    setMovies(MOCK_MOVIES);
-  }, []);
+    let cancelled = false;
+    const loadMovies = async () => {
+      if (useMockMovies) {
+        if (!cancelled) setMovies(MOCK_MOVIES);
+        return;
+      }
+      try {
+        const res = await api.getMovies();
+        if (!cancelled) setMovies(res.items);
+      } catch (error) {
+        console.error('Error fetching movies:', error);
+        if (!cancelled) setMovies(MOCK_MOVIES);
+      }
+    };
+    loadMovies();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, useMockMovies]);
 
   // 各作品の平均評価を取得して「高評価作品」を作成
   useEffect(() => {

@@ -102,7 +102,7 @@ export class AuthSignupStack extends Stack {
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       corsPreflight: {
         allowHeaders: ['Authorization', 'Content-Type'],
-        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.OPTIONS],
+        allowMethods: [apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.OPTIONS],
         allowOrigins: ['*'],
       },
     });
@@ -112,6 +112,42 @@ export class AuthSignupStack extends Stack {
       path: '/v1/auth/signup',
       methods: [apigwv2.HttpMethod.POST],
       integration,
+    });
+
+    const moviesFn = new lambda.Function(this, 'MoviesListFn', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset('../../lambda/movies/dist'),
+      timeout: Duration.seconds(10),
+      memorySize: 256,
+      vpc,
+      vpcSubnets: subnets ? { subnets } : undefined,
+      securityGroups: lambdaSg ? [lambdaSg] : undefined,
+      environment: {
+        DATABASE_URL: process.env.DATABASE_URL ?? '',
+      },
+    });
+
+    const moviesIntegration = new integrations.HttpLambdaIntegration('MoviesListIntegration', moviesFn);
+    httpApi.addRoutes({
+      path: '/v1/movies',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/movies/{id}',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/admin/movies',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/admin/movies/{id}',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
     });
 
     new CfnOutput(this, 'HttpApiUrl', { value: httpApi.apiEndpoint });

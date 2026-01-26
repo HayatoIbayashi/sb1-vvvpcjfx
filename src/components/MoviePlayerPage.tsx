@@ -6,6 +6,8 @@ import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from '
 import type { Database } from '../lib/types';
 import { getUrl } from 'aws-amplify/storage';
 import { linkToStorageFile } from '../lib/storageUtils';
+import useApiClient from '../lib/useApiClient';
+import { MOCK_MOVIES } from '../mockData';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -14,6 +16,8 @@ export default function MoviePlayerPage() {
   // ルーティング関連
   const { id } = useParams(); // URLパラメータから動画ID取得
   const navigate = useNavigate();
+  const api = useApiClient();
+  const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
 
   // 動画データ状態
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -83,11 +87,19 @@ export default function MoviePlayerPage() {
       setLoading(true);
       setError(null);
 
-      if (!movie) {
-        //throw new Error('作品が見つかりませんでした');
+      if (!id) {
+        throw new Error('movie id is required');
       }
 
-      setMovie(movie);
+      if (useMockMovies) {
+        const found = MOCK_MOVIES.find((m) => m.id === id);
+        if (!found) throw new Error('movie not found');
+        setMovie(found);
+        return;
+      }
+
+      const item = await api.getMovie(id);
+      setMovie(item);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch')) {
@@ -118,7 +130,7 @@ export default function MoviePlayerPage() {
     };
 
     fetchStorageUrl();
-  }, [id]);
+  }, [id, api, useMockMovies]);
 
   // リトライ処理
   const handleRetry = () => {

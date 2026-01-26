@@ -1,4 +1,8 @@
+import type { Database } from './types';
+
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export type Movie = Database['public']['Tables']['movies']['Row'];
 
 export type SignUpPayload = {
   email: string;
@@ -44,6 +48,28 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
   return {
     signUp(payload: SignUpPayload) {
       return request<void>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) });
+    },
+    getMovies(query?: { q?: string; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.q) qs.set('q', query.q);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: Movie[] }>(`/movies${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    getMovie(id: string) {
+      return request<Movie>(`/movies/${encodeURIComponent(id)}`, { method: 'GET' });
+    },
+    getAdminMovies(query?: { q?: string; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.q) qs.set('q', query.q);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: Movie[] }>(`/admin/movies${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    getAdminMovie(id: string) {
+      return request<Movie>(`/admin/movies/${encodeURIComponent(id)}`, { method: 'GET' });
     },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });

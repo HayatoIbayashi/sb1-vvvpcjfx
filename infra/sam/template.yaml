@@ -80,7 +80,7 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowMethods: [POST, OPTIONS]
+        AllowMethods: [GET, POST, OPTIONS]
         AllowHeaders: [Authorization, Content-Type]
         AllowOrigins: ['*']
 
@@ -107,6 +107,45 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/auth/signup
             Method: POST
+
+  MoviesListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: movies-list
+      CodeUri: ../../lambda/movies
+      Handler: dist/handler.handler
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+      Events:
+        PublicMovies:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/movies
+            Method: GET
+        PublicMovieDetail:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/movies/{id}
+            Method: GET
+        AdminMovies:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies
+            Method: GET
+        AdminMovieDetail:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: GET
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

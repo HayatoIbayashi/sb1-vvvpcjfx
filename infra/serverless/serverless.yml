@@ -17,6 +17,7 @@ provider:
   httpApi:
     cors:
       allowedMethods:
+        - GET
         - POST
         - OPTIONS
       allowedOrigins:
@@ -36,6 +37,24 @@ functions:
       - httpApi:
           path: /v1/auth/signup
           method: POST
+
+  moviesList:
+    handler: lambda/movies/dist/handler.handler
+    environment:
+      DATABASE_URL: ${env:DATABASE_URL}
+    events:
+      - httpApi:
+          path: /v1/movies
+          method: GET
+      - httpApi:
+          path: /v1/movies/{id}
+          method: GET
+      - httpApi:
+          path: /v1/admin/movies
+          method: GET
+      - httpApi:
+          path: /v1/admin/movies/{id}
+          method: GET
 
 resources:
   Resources:
@@ -102,3 +121,4 @@ package:
   patterns:
     - '!**'
     - 'lambda/auth-signup/dist/**'
+    - 'lambda/movies/dist/**'

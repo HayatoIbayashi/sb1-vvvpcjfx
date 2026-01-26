@@ -9,6 +9,7 @@ import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
 import ReviewSection from './ReviewSection';
 import { Crown } from 'lucide-react';
+import useApiClient from '../lib/useApiClient';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -18,6 +19,8 @@ function MovieDetailPage() {
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const auth = useAuth();
     const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
+    const api = useApiClient();
+    const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
 
     useEffect(() => {
         // 初期ロード時にlocalStorageから認証状態をチェック
@@ -31,13 +34,31 @@ function MovieDetailPage() {
         if (queryParams.get('payment_success') === 'true') {
             setPaymentSuccess(true);
         }
-
-        // Find movie from mock data instead of fetching from DB
-        const foundMovie = MOCK_MOVIES.find(m => m.id === movieId);
-        if (foundMovie) {
-            setMovie(foundMovie);
-        }
     }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadMovie = async () => {
+            if (!movieId) return;
+            if (useMockMovies) {
+                const foundMovie = MOCK_MOVIES.find(m => m.id === movieId);
+                if (!cancelled && foundMovie) setMovie(foundMovie);
+                return;
+            }
+            try {
+                const item = await api.getMovie(movieId);
+                if (!cancelled) setMovie(item);
+            } catch (error) {
+                console.error('Error fetching movie:', error);
+                const fallback = MOCK_MOVIES.find(m => m.id === movieId);
+                if (!cancelled && fallback) setMovie(fallback);
+            }
+        };
+        loadMovie();
+        return () => {
+            cancelled = true;
+        };
+    }, [api, movieId, useMockMovies]);
 
     const handlePurchase = async (event: React.MouseEvent, isRental = false) => {
         if (!isAuthenticated) {
