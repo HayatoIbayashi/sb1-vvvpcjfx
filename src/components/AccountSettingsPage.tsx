@@ -25,6 +25,24 @@ type Watch = {
   watchedAt: string; // ISO
 };
 
+const GENDER_OPTIONS = [
+  { value: 'male', label: '男性' },
+  { value: 'female', label: '女性' },
+  { value: 'other', label: 'その他' },
+  { value: 'prefer_not_to_say', label: '回答しない' },
+];
+
+const PREFECTURES = [
+  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
+  '岐阜県', '静岡県', '愛知県', '三重県',
+  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
+  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
+  '徳島県', '香川県', '愛媛県', '高知県',
+  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
+];
+
 const LS_PROFILE = 'mock_account_profile_v1';
 const LS_MEMBER = 'mock_is_member_v1';
 const LS_PURCHASES = 'mock_purchase_history_v1';
@@ -227,7 +245,7 @@ export default function AccountSettingsPage() {
       try {
         const updated = await api.updateProfile({
           email: profile.email || null,
-          gender: profile.gender || null,
+          gender: profile.gender && profile.gender !== 'prefer_not_to_say' ? profile.gender : null,
           age: profile.age === '' ? null : Number(profile.age),
           prefecture: profile.prefecture || null,
         });
@@ -315,13 +333,16 @@ export default function AccountSettingsPage() {
             </div>
             <div>
               <label className="block text-gray-300 mb-2">性別</label>
-              <input
-                type="text"
+              <select
                 value={profile.gender}
                 onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-                placeholder="男性 / 女性 / その他"
-              />
+              >
+                <option value="">選択してください</option>
+                {GENDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-gray-300 mb-2">年齢</label>
@@ -340,13 +361,16 @@ export default function AccountSettingsPage() {
             </div>
             <div>
               <label className="block text-gray-300 mb-2">都道府県</label>
-              <input
-                type="text"
+              <select
                 value={profile.prefecture}
                 onChange={(e) => setProfile({ ...profile, prefecture: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-                placeholder="例: 東京都"
-              />
+              >
+                <option value="">選択してください</option>
+                {PREFECTURES.map((prefecture) => (
+                  <option key={prefecture} value={prefecture}>{prefecture}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-gray-300 mb-2">登録日</label>
