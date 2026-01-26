@@ -230,6 +230,47 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(200, { items: rows });
     }
 
+    const subscriptionsMatch = path.match(/^\/v1\/subscriptions\/current$/);
+    if (subscriptionsMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      const sql = `
+        SELECT
+          s.id,
+          s.user_id,
+          s.plan_id,
+          s.status,
+          s.started_at,
+          s.renews_at,
+          s.canceled_at,
+          s.ended_at,
+          s.created_at,
+          s.updated_at,
+          p.name AS plan_name,
+          p.price_monthly,
+          p.is_active AS plan_is_active
+        FROM subscriptions s
+        JOIN subscription_plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1
+        ORDER BY s.created_at DESC
+        LIMIT 1
+      `;
+      const { rows } = await getPool().query(sql, [userId]);
+      if (!rows.length) {
+        return response(200, { active: false, subscription: null });
+      }
+      const subscription = rows[0];
+      const active = subscription.status === 'active';
+      return response(200, { active, subscription });
+    }
+
     if (method !== 'GET') {
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }

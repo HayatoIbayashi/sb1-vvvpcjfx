@@ -115,4 +115,19 @@ describe('apiClient movies', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it('builds subscription current request', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ active: false, subscription: null }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getSubscriptionCurrent();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/subscriptions/current',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });

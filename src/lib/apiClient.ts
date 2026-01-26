@@ -97,6 +97,9 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     getPurchase(id: string) {
       return request<PurchaseItem>(`/purchases/${encodeURIComponent(id)}`, { method: 'GET' });
     },
+    getSubscriptionCurrent() {
+      return request<SubscriptionCurrent>('/subscriptions/current', { method: 'GET' });
+    },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });
     },
@@ -145,4 +148,23 @@ export type PurchaseItem = {
   expires_at: string | null;
   created_at: string;
   title: string;
+};
+
+export type SubscriptionCurrent = {
+  active: boolean;
+  subscription: {
+    id: string;
+    user_id: string;
+    plan_id: string;
+    status: string;
+    started_at: string | null;
+    renews_at: string | null;
+    canceled_at: string | null;
+    ended_at: string | null;
+    created_at: string;
+    updated_at: string;
+    plan_name: string;
+    price_monthly: number;
+    plan_is_active: boolean;
+  } | null;
 };

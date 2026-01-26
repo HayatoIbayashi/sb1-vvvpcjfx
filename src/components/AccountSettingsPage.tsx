@@ -48,6 +48,7 @@ export default function AccountSettingsPage() {
   const navigate = useNavigate();
   const api = useApiClient();
   const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
+  const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
 
   const initialProfile: Profile = useMemo(() => {
     const stored = loadJSON<Profile | null>(LS_PROFILE, null as any);
@@ -124,6 +125,24 @@ export default function AccountSettingsPage() {
       cancelled = true;
     };
   }, [api, isAuthenticated, useMockPurchases]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSubscription = async () => {
+      if (!isAuthenticated || useMockSubscriptions) return;
+      try {
+        const res = await api.getSubscriptionCurrent();
+        if (cancelled) return;
+        setIsMember(res.active);
+      } catch (error) {
+        console.error('Error fetching subscription:', error);
+      }
+    };
+    loadSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, useMockSubscriptions]);
 
   if (!isAuthenticated) {
     return (

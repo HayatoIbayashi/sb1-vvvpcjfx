@@ -71,6 +71,9 @@ functions:
       - httpApi:
           path: /v1/purchases/{id}
           method: GET
+      - httpApi:
+          path: /v1/subscriptions/current
+          method: GET
 
 resources:
   Resources:
