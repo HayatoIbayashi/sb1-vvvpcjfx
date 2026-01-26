@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
+import useApiClient from '../lib/useApiClient';
 
 type Profile = {
   displayName: string;
@@ -45,6 +46,8 @@ export default function AccountSettingsPage() {
   const { isAuthenticated } = useAuthStatus();
   const auth = useAuth();
   const navigate = useNavigate();
+  const api = useApiClient();
+  const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
 
   const initialProfile: Profile = useMemo(() => {
     const stored = loadJSON<Profile | null>(LS_PROFILE, null as any);
@@ -97,6 +100,30 @@ export default function AccountSettingsPage() {
   useEffect(() => {
     setProfile(initialProfile);
   }, [initialProfile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPurchases = async () => {
+      if (!isAuthenticated || useMockPurchases) return;
+      try {
+        const res = await api.getPurchases({ status: 'completed' });
+        if (cancelled) return;
+        const mapped = res.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          amount: item.amount_total,
+          purchasedAt: item.created_at,
+        }));
+        setPurchases(mapped);
+      } catch (error) {
+        console.error('Error fetching purchases:', error);
+      }
+    };
+    loadPurchases();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, useMockPurchases]);
 
   if (!isAuthenticated) {
     return (

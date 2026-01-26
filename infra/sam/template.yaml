@@ -164,6 +164,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/watchlist/{movieId}
             Method: DELETE
+        PurchasesGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/purchases
+            Method: GET
+        PurchaseDetailGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/purchases/{id}
+            Method: GET
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

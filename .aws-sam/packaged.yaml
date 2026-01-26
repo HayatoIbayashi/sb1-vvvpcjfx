@@ -142,7 +142,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: movies-list
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/53cf655c3541fb6f180716f3ce66e16b
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/5aa2074f4ffec201cbd2dcb63662c4a5
       Handler: dist/handler.handler
       VpcConfig:
         SecurityGroupIds:
@@ -203,6 +203,20 @@ Resources:
               Ref: HttpApi
             Path: /v1/watchlist/{movieId}
             Method: DELETE
+        PurchasesGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/purchases
+            Method: GET
+        PurchaseDetailGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/purchases/{id}
+            Method: GET
     Metadata:
       SamResourceId: MoviesListFunction
   LambdaSecurityGroup:

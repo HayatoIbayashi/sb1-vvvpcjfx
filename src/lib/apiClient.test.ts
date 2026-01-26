@@ -93,4 +93,26 @@ describe('apiClient movies', () => {
       expect.objectContaining({ method: 'DELETE' }),
     );
   });
+
+  it('builds purchases requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ items: [] }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getPurchases({ status: 'completed', limit: 5 });
+    await client.getPurchase('purchase-1');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/purchases?status=completed&limit=5',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/purchases/purchase-1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });

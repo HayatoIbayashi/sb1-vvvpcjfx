@@ -164,6 +164,16 @@ export class AuthSignupStack extends Stack {
       methods: [apigwv2.HttpMethod.DELETE],
       integration: moviesIntegration,
     });
+    httpApi.addRoutes({
+      path: '/v1/purchases',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/purchases/{id}',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
 
     new CfnOutput(this, 'HttpApiUrl', { value: httpApi.apiEndpoint });
     new CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });

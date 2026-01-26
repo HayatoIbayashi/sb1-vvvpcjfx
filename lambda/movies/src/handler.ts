@@ -152,6 +152,84 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
+    const purchasesMatch = path.match(/^\/v1\/purchases(?:\/([^/]+))?$/);
+    if (purchasesMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      const purchaseId = purchasesMatch[1] ? decodeURIComponent(purchasesMatch[1]) : null;
+      if (purchaseId) {
+        const sql = `
+          SELECT
+            p.id,
+            p.movie_id,
+            p.payment_method,
+            p.amount_total,
+            p.amount_cash,
+            p.amount_points,
+            p.status,
+            p.expires_at,
+            p.created_at,
+            m.title
+          FROM purchases p
+          JOIN movies m ON m.id = p.movie_id
+          WHERE p.user_id = $1 AND p.id = $2
+        `;
+        const { rows } = await getPool().query(sql, [userId, purchaseId]);
+        if (!rows.length) {
+          return response(404, { code: 'NOT_FOUND', message: 'Purchase not found' });
+        }
+        return response(200, rows[0]);
+      }
+
+      const status = event.queryStringParameters?.status?.trim();
+      const limit = parseLimit(event.queryStringParameters?.limit);
+      const offset = parseOffset(event.queryStringParameters?.offset);
+      const params: Array<string | number> = [userId];
+      const whereParts: string[] = ['p.user_id = $1'];
+
+      if (status) {
+        params.push(status);
+        whereParts.push(`p.status = $${params.length}`);
+      }
+
+      let sql = `
+        SELECT
+          p.id,
+          p.movie_id,
+          p.payment_method,
+          p.amount_total,
+          p.amount_cash,
+          p.amount_points,
+          p.status,
+          p.expires_at,
+          p.created_at,
+          m.title
+        FROM purchases p
+        JOIN movies m ON m.id = p.movie_id
+        WHERE ${whereParts.join(' AND ')}
+        ORDER BY p.created_at DESC
+      `;
+
+      if (limit != null) {
+        params.push(limit);
+        sql += ` LIMIT $${params.length}`;
+      }
+      if (offset != null) {
+        params.push(offset);
+        sql += ` OFFSET $${params.length}`;
+      }
+
+      const { rows } = await getPool().query(sql, params);
+      return response(200, { items: rows });
+    }
+
     if (method !== 'GET') {
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }

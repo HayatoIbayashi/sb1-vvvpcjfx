@@ -86,6 +86,17 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
         { method: 'DELETE' },
       );
     },
+    getPurchases(query?: { status?: string; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.status) qs.set('status', query.status);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: PurchaseItem[] }>(`/purchases${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    getPurchase(id: string) {
+      return request<PurchaseItem>(`/purchases/${encodeURIComponent(id)}`, { method: 'GET' });
+    },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });
     },
@@ -121,4 +132,17 @@ export type Review = {
   rating: number; // 1..5
   comment: string;
   createdAt: string; // ISO timestamp
+};
+
+export type PurchaseItem = {
+  id: string;
+  movie_id: string;
+  payment_method: string;
+  amount_total: number;
+  amount_cash: number;
+  amount_points: number;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  title: string;
 };
