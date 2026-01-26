@@ -24,6 +24,7 @@ function PasswordResetPage() {
     );
   }
 
+  // パスワードリセットは Hosted UI 側で実行
   const handleHostedReset = () => {
     // Hosted UI の「パスワードをお忘れですか？」からフローに入れるため、サインイン画面へ誘導
     auth.signinRedirect();
@@ -46,4 +47,3 @@ function PasswordResetPage() {
 }
 
 export default PasswordResetPage;
-

@@ -116,6 +116,7 @@ export default function MoviePlayerPage() {
   };
 
   useEffect(() => {
+    // 作品情報と再生URLを初期ロード
     fetchMovie();
 
     // Amplify StorageからURLを取得

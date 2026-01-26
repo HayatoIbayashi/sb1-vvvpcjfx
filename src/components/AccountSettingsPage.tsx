@@ -31,6 +31,7 @@ const LS_PURCHASES = 'mock_purchase_history_v1';
 const LS_WATCH = 'mock_watch_history_v1';
 const LS_REGISTERED_AT = 'mock_registered_at_v1';
 
+// localStorage から安全に読み込み（パース失敗時は fallback）
 function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -54,6 +55,7 @@ export default function AccountSettingsPage() {
   const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
 
+  // ローカル保存値があればそれを優先し、なければOIDCのクレームから初期値を作成
   const initialProfile: Profile = useMemo(() => {
     const stored = loadJSON<Partial<Profile> | null>(LS_PROFILE, null as any);
     const email = (auth.user?.profile.email as string) || '';
@@ -111,6 +113,7 @@ export default function AccountSettingsPage() {
     setProfile(initialProfile);
   }, [initialProfile]);
 
+  // プロフィールはサインイン済みかつモックOFF時のみAPIから取得
   useEffect(() => {
     let cancelled = false;
     const loadProfile = async () => {
@@ -135,6 +138,7 @@ export default function AccountSettingsPage() {
     };
   }, [api, isAuthenticated, useMockProfile]);
 
+  // 購入履歴の取得
   useEffect(() => {
     let cancelled = false;
     const loadPurchases = async () => {
@@ -159,6 +163,7 @@ export default function AccountSettingsPage() {
     };
   }, [api, isAuthenticated, useMockPurchases]);
 
+  // ウォレット（ポイント）概要の取得
   useEffect(() => {
     let cancelled = false;
     const loadWallet = async () => {
@@ -183,6 +188,7 @@ export default function AccountSettingsPage() {
     };
   }, [api, isAuthenticated, useMockWallet]);
 
+  // サブスク状態の取得
   useEffect(() => {
     let cancelled = false;
     const loadSubscription = async () => {
@@ -214,6 +220,7 @@ export default function AccountSettingsPage() {
     );
   }
 
+  // プロフィール更新（モック時はローカル保存のみ）
   const handleSave = async () => {
     let nextProfile = profile;
     if (!useMockProfile) {
@@ -249,6 +256,7 @@ export default function AccountSettingsPage() {
     alert('お支払い方法の変更は現在準備中です。');
   };
 
+  // 退会は現状モックのみ
   const handleCancelMembership = () => {
     if (!isMember) return;
     if (!confirm('メンバーシップを退会しますか？')) return;
@@ -257,6 +265,7 @@ export default function AccountSettingsPage() {
     alert('退会手続きが完了しました（モック）。');
   };
 
+  // UI確認用にモック履歴を生成
   const seedMock = () => {
     // デモ用に履歴を投入
     const now = new Date();

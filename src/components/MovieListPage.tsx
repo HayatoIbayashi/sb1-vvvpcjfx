@@ -31,6 +31,7 @@ function MovieListPage() {
     navigate(`/movies/${movieId}`);
   };
 
+  // 作品一覧を取得（モック優先、失敗時はモックにフォールバック）
   useEffect(() => {
     let cancelled = false;
     const loadMovies = async () => {
@@ -101,6 +102,7 @@ function MovieListPage() {
     };
   }, [movies, api]);
 
+  // 検索クエリで一覧を絞り込み
   const filteredMovies = movies.filter((movie) =>
     movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (movie.description?.toLowerCase() || '').includes(searchQuery.toLowerCase()),

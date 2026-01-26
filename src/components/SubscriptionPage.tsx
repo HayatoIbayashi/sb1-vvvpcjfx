@@ -14,10 +14,12 @@ export default function SubscriptionPage() {
   const auth = useAuth();
   const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
 
+  // プラン選択状態を保持
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
   };
 
+  // 決済処理（現状はモックの待機）
   const handleSubscribe = async () => {
     try {
       setIsProcessing(true);

@@ -13,6 +13,7 @@ function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  // 認証状態に応じて画面を切り替え
   if (auth.isLoading) {
     return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading...</div>;
   }
@@ -39,6 +40,7 @@ function LoginPage() {
     );
   }
 
+  // Cognito の USER_PASSWORD_AUTH でサインインしてトークンを保存
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');

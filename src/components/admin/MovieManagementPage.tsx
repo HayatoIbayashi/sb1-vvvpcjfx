@@ -16,6 +16,7 @@ export default function MovieManagementPage() {
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
 
+  // 管理者向けの作品一覧を取得（モック切替あり）
   useEffect(() => {
     const fetchMovies = async () => {
       try {
@@ -55,6 +56,7 @@ export default function MovieManagementPage() {
     cast: [],
   });
 
+  // 作品の新規作成（現状はフロントのみで追加）
   const handleCreate = async () => {
     try {
       const newMovie: Movie = {
@@ -99,6 +101,7 @@ export default function MovieManagementPage() {
     }
   };
 
+  // 作品の更新（現状はフロントのみで更新）
   const handleUpdate = async (id: string) => {
     try {
       setMovies(movies.map(movie => 
@@ -115,6 +118,7 @@ export default function MovieManagementPage() {
     }
   };
 
+  // 作品の削除（現状はフロントのみで削除）
   const handleDelete = async (id: string) => {
     if (!confirm('本当にこの作品を削除しますか？')) return;
 
@@ -126,6 +130,7 @@ export default function MovieManagementPage() {
     }
   };
 
+  // 編集モーダルに選択作品をセット
   const openEditModal = (movie: Movie) => {
     setSelectedMovie(movie);
     setFormData({

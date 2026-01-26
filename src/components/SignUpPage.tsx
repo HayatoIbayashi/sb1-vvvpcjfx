@@ -33,6 +33,7 @@ function SignUpPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 認証済みの場合はサインアップ不要
   if (auth.isLoading) {
     return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading...</div>;
   }
@@ -51,6 +52,7 @@ function SignUpPage() {
     );
   }
 
+  // 入力バリデーション後にサインアップAPI → Hosted UI へ遷移
   const handleHostedSignup = async () => {
     try {
       setError('');

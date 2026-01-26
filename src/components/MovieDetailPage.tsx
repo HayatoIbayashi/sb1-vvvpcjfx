@@ -60,6 +60,7 @@ function MovieDetailPage() {
         };
     }, [api, movieId, useMockMovies]);
 
+    // Stripe Checkout にリダイレクトして購入フローを開始
     const handlePurchase = async (event: React.MouseEvent, isRental = false) => {
         if (!isAuthenticated) {
             loginHosted();

@@ -54,6 +54,7 @@ export default function PointsPage() {
     { id: 'h4', date: '2025-08-01', title: '??????', diff: -300, type: 'debit' },
   ]);
 
+  // ウォレット概要（残高/失効予定）を取得
   useEffect(() => {
     let cancelled = false;
     const loadWallet = async () => {
@@ -86,6 +87,7 @@ export default function PointsPage() {
     };
   }, [api, useMockWallet]);
 
+  // 取引履歴を取得
   useEffect(() => {
     let cancelled = false;
     const loadHistory = async () => {
