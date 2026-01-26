@@ -142,7 +142,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: movies-list
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/92e7198f0144abe8964d801858ef1c75
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/1559e886de4987189f6b80c3c60d6407
       Handler: dist/handler.handler
       VpcConfig:
         SecurityGroupIds:
@@ -223,6 +223,20 @@ Resources:
             ApiId:
               Ref: HttpApi
             Path: /v1/subscriptions/current
+            Method: GET
+        WalletCurrentGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/wallets/current
+            Method: GET
+        WalletTransactionsGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/wallets/transactions
             Method: GET
     Metadata:
       SamResourceId: MoviesListFunction

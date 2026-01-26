@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import useApiClient from '../lib/useApiClient';
 
 type ExpirationItem = {
   date: string;
   amount: number;
-  type: '有償' | '無償';
+  type: 'paid' | 'bonus';
   note?: string;
 };
 
@@ -13,11 +14,13 @@ type HistoryItem = {
   date: string;
   title: string;
   diff: number;
-  type: '加算' | '利用';
+  type: 'credit' | 'debit';
 };
 
+const NO_EXPIRY_DATE = 'no-expiry';
+
 function formatDate(date: string) {
-  if (date === '期限なし') return date;
+  if (date === NO_EXPIRY_DATE) return '????';
   return new Date(date).toLocaleDateString();
 }
 
@@ -27,36 +30,85 @@ export default function PointsPage() {
   const expirationRef = useRef<HTMLDivElement | null>(null);
 
   // 表示用のモックデータ。実データ連携時は API/ストアと置き換え想定。
-  const { summary, buckets, expirations, history } = useMemo(() => {
-    const expiringSoonDate = '2025-12-01';
-    const expiringSoonAmount = 500;
-    const total = 2300;
-    const paid = 1300;
-    const free = 1000;
+  const api = useApiClient();
+  const useMockWallet = import.meta.env.VITE_USE_MOCK_WALLET === 'true';
 
-    const items: ExpirationItem[] = [
-      { date: '2025-12-01', amount: 300, type: '有償' },
-      { date: '2025-12-20', amount: 200, type: '有償' },
-      { date: '期限なし', amount: 1000, type: '無償', note: 'ボーナス' },
-    ];
+  const [summary, setSummary] = useState({
+    total: 2300,
+    expiringSoonAmount: 500,
+    expiringSoonDate: NO_EXPIRY_DATE,
+  });
+  const [buckets, setBuckets] = useState([
+    { label: '??', amount: 1300, hint: '?????? ??' },
+    { label: '??', amount: 1000, hint: '??' },
+  ]);
+  const [expirations, setExpirations] = useState<ExpirationItem[]>([
+    { date: '2025-12-01', amount: 300, type: 'paid' },
+    { date: '2025-12-20', amount: 200, type: 'paid' },
+    { date: '??', amount: 1000, type: 'bonus', note: '??' },
+  ]);
+  const [history, setHistory] = useState<HistoryItem[]>([
+    { id: 'h1', date: '2025-09-05', title: '??????', diff: -400, type: 'debit' },
+    { id: 'h2', date: '2025-08-28', title: '????????', diff: 1000, type: 'credit' },
+    { id: 'h3', date: '2025-08-15', title: '????????', diff: 500, type: 'credit' },
+    { id: 'h4', date: '2025-08-01', title: '??????', diff: -300, type: 'debit' },
+  ]);
 
-    const historyItems: HistoryItem[] = [
-      { id: 'h1', date: '2025-09-05', title: '映画レンタル利用', diff: -400, type: '利用' },
-      { id: 'h2', date: '2025-08-28', title: 'チャージ（クレジットカード）', diff: 1000, type: '加算' },
-      { id: 'h3', date: '2025-08-15', title: 'ボーナスポイント付与', diff: 500, type: '加算' },
-      { id: 'h4', date: '2025-08-01', title: '映画レンタル利用', diff: -300, type: '利用' },
-    ];
-
-    return {
-      summary: { total, expiringSoonAmount, expiringSoonDate },
-      buckets: [
-        { label: '有償', amount: paid, hint: `最短失効 ${expiringSoonDate}` },
-        { label: '無償', amount: free, hint: '期限なし' },
-      ],
-      expirations: items,
-      history: historyItems,
+  useEffect(() => {
+    let cancelled = false;
+    const loadWallet = async () => {
+      if (useMockWallet) return;
+      try {
+        const res = await api.getWalletSummary();
+        if (cancelled) return;
+        setSummary({
+          total: res.total_points,
+          expiringSoonAmount: res.expiring_soon_amount,
+          expiringSoonDate: res.expiring_soon_date || NO_EXPIRY_DATE,
+        });
+        setBuckets([
+          { label: '??', amount: res.paid_points, hint: res.expiring_soon_date ? `?????? ${res.expiring_soon_date}` : '?????? ??' },
+          { label: '??', amount: res.bonus_points, hint: '??' },
+        ]);
+        setExpirations(res.expirations.map((item) => ({
+          date: item.date,
+          amount: item.amount,
+          type: item.type,
+          note: item.note || undefined,
+        })));
+      } catch (error) {
+        console.error('Error fetching wallet summary:', error);
+      }
     };
-  }, []);
+    loadWallet();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, useMockWallet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadHistory = async () => {
+      if (useMockWallet) return;
+      try {
+        const res = await api.getWalletTransactions();
+        if (cancelled) return;
+        setHistory(res.items.map((item) => ({
+          id: item.id,
+          date: item.date,
+          title: item.title,
+          diff: item.diff,
+          type: item.type,
+        })));
+      } catch (error) {
+        console.error('Error fetching wallet transactions:', error);
+      }
+    };
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, useMockWallet]);
 
   const handleJumpToExpirations = () => {
     expirationRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,12 +126,16 @@ export default function PointsPage() {
                 <span className="text-4xl font-bold text-white">{summary.total.toLocaleString()} pt</span>
                 <span className="text-sm text-gray-200">現在保有</span>
               </div>
-              <button
-                onClick={handleJumpToExpirations}
-                className="mt-2 text-sm text-blue-200 underline underline-offset-4 decoration-dotted hover:text-blue-100"
-              >
-                うち {summary.expiringSoonAmount.toLocaleString()} pt が {summary.expiringSoonDate} に失効予定（クリックで詳細へ）
-              </button>
+              {summary.expiringSoonAmount > 0 && summary.expiringSoonDate !== NO_EXPIRY_DATE ? (
+                <button
+                  onClick={handleJumpToExpirations}
+                  className="mt-2 text-sm text-blue-200 underline underline-offset-4 decoration-dotted hover:text-blue-100"
+                >
+                  ?? {summary.expiringSoonAmount.toLocaleString()} pt ? {summary.expiringSoonDate} ???????????????
+                </button>
+              ) : (
+                <div className="mt-2 text-sm text-blue-200">??????????</div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -127,7 +183,7 @@ export default function PointsPage() {
               <div key={`${item.date}-${item.amount}`} className="flex flex-col md:flex-row md:items-center md:justify-between px-6 py-4 gap-2">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-100 font-semibold">
-                    {item.type}
+                    {item.type === 'paid' ? '??' : '??'}
                   </div>
                   <div>
                     <p className="text-lg font-semibold">{item.amount.toLocaleString()} pt</p>
@@ -135,7 +191,7 @@ export default function PointsPage() {
                   </div>
                 </div>
                 <div className="text-sm text-gray-300 bg-gray-700/60 px-3 py-1 rounded-full border border-gray-600">
-                  {item.date === '期限なし' ? '失効なし' : 'この日を過ぎると失効'}
+                  {item.date === NO_EXPIRY_DATE ? '????' : '??????????'}
                 </div>
               </div>
             ))}
@@ -202,7 +258,7 @@ export default function PointsPage() {
                         <td className={`px-6 py-3 text-right font-semibold ${item.diff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {item.diff >= 0 ? '+' : ''}{item.diff.toLocaleString()} pt
                         </td>
-                        <td className="px-6 py-3 text-gray-200">{item.type}</td>
+                        <td className="px-6 py-3 text-gray-200">{item.type === 'credit' ? '??' : '??'}</td>
                       </tr>
                     ))}
                   </tbody>

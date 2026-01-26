@@ -63,17 +63,17 @@ export default function AccountSettingsPage() {
 
   const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean | null>(LS_MEMBER, false));
   const [purchases, setPurchases] = useState<Purchase[]>(() => loadJSON<Purchase[]>(LS_PURCHASES, []));
-  const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
-  const pointSummary = useMemo(
-    () => ({
+  const [pointSummary, setPointSummary] = useState(() =>
+    ({
       total: 2300,
       expiringAmount: 500,
       expiringDate: '2025-12-01',
       paid: 1300,
       free: 1000,
-    }),
-    [],
+    })
   );
+  const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
+  const useMockWallet = import.meta.env.VITE_USE_MOCK_WALLET === 'true';
 
   // 登録日（参照用）。保存されていなければOIDCのクレームや現在時刻を使用して初期化
   const initialRegisteredAt = useMemo(() => {
@@ -125,6 +125,30 @@ export default function AccountSettingsPage() {
       cancelled = true;
     };
   }, [api, isAuthenticated, useMockPurchases]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadWallet = async () => {
+      if (!isAuthenticated || useMockWallet) return;
+      try {
+        const res = await api.getWalletSummary();
+        if (cancelled) return;
+        setPointSummary({
+          total: res.total_points,
+          expiringAmount: res.expiring_soon_amount,
+          expiringDate: res.expiring_soon_date || '未定',
+          paid: res.paid_points,
+          free: res.bonus_points,
+        });
+      } catch (error) {
+        console.error('Error fetching wallet summary:', error);
+      }
+    };
+    loadWallet();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, useMockWallet]);
 
   useEffect(() => {
     let cancelled = false;

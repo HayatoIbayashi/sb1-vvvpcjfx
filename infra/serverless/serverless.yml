@@ -74,6 +74,12 @@ functions:
       - httpApi:
           path: /v1/subscriptions/current
           method: GET
+      - httpApi:
+          path: /v1/wallets/current
+          method: GET
+      - httpApi:
+          path: /v1/wallets/transactions
+          method: GET
 
 resources:
   Resources:

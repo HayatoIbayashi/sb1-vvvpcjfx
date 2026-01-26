@@ -271,6 +271,123 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(200, { active, subscription });
     }
 
+    const walletsCurrentMatch = path.match(/^\/v1\/wallets\/current$/);
+    if (walletsCurrentMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      const walletRes = await getPool().query(
+        'SELECT total_points, paid_points, bonus_points, updated_at FROM wallets WHERE user_id = $1',
+        [userId],
+      );
+      const wallet = walletRes.rows[0] || { total_points: 0, paid_points: 0, bonus_points: 0, updated_at: null };
+
+      const lotsRes = await getPool().query(
+        `SELECT remaining_points, expires_at, is_paid, source_type
+         FROM point_lots
+         WHERE user_id = $1 AND remaining_points > 0 AND expires_at IS NOT NULL
+         ORDER BY expires_at ASC`,
+        [userId],
+      );
+
+      const expirations = lotsRes.rows.map((row: any) => ({
+        date: row.expires_at,
+        amount: row.remaining_points,
+        type: row.is_paid ? 'paid' : 'bonus',
+        note: row.source_type || null,
+      }));
+
+      let expiringSoonDate: string | null = null;
+      let expiringSoonAmount = 0;
+      if (expirations.length) {
+        expiringSoonDate = expirations[0].date;
+        expiringSoonAmount = expirations
+          .filter((item: any) => item.date === expiringSoonDate)
+          .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+      }
+
+      return response(200, {
+        total_points: Number(wallet.total_points || 0),
+        paid_points: Number(wallet.paid_points || 0),
+        bonus_points: Number(wallet.bonus_points || 0),
+        expiring_soon_amount: expiringSoonAmount,
+        expiring_soon_date: expiringSoonDate,
+        expirations,
+      });
+    }
+
+    const walletTransactionsMatch = path.match(/^\/v1\/wallets\/transactions$/);
+    if (walletTransactionsMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      const limit = parseLimit(event.queryStringParameters?.limit);
+      const offset = parseOffset(event.queryStringParameters?.offset);
+      const params: Array<string | number> = [userId];
+
+      let sql = `
+        SELECT
+          wt.id,
+          wt.created_at,
+          wt.type,
+          wt.amount,
+          wt.balance_after,
+          m.title AS movie_title
+        FROM wallet_transactions wt
+        LEFT JOIN purchases p ON p.id = wt.related_purchase_id
+        LEFT JOIN movies m ON m.id = p.movie_id
+        WHERE wt.user_id = $1
+        ORDER BY wt.created_at DESC
+      `;
+
+      if (limit != null) {
+        params.push(limit);
+        sql += ` LIMIT $${params.length}`;
+      }
+      if (offset != null) {
+        params.push(offset);
+        sql += ` OFFSET $${params.length}`;
+      }
+
+      const { rows } = await getPool().query(sql, params);
+      const items = rows.map((row: any) => {
+        const amount = Number(row.amount || 0);
+        let diff = amount;
+        if (row.type === 'USE_PURCHASE' || row.type === 'EXPIRE') diff = -Math.abs(amount);
+        if (row.type === 'CHARGE' || row.type === 'BONUS') diff = Math.abs(amount);
+
+        let title = 'ポイント取引';
+        if (row.type === 'CHARGE') title = 'ポイントチャージ';
+        if (row.type === 'BONUS') title = 'ボーナスポイント';
+        if (row.type === 'USE_PURCHASE') title = row.movie_title ? `購入: ${row.movie_title}` : 'ポイント利用';
+        if (row.type === 'EXPIRE') title = 'ポイント失効';
+        if (row.type === 'ADJUST') title = 'ポイント調整';
+
+        return {
+          id: row.id,
+          date: row.created_at,
+          title,
+          diff,
+          type: diff >= 0 ? 'credit' : 'debit',
+          balance_after: Number(row.balance_after || 0),
+        };
+      });
+
+      return response(200, { items });
+    }
+
     if (method !== 'GET') {
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }

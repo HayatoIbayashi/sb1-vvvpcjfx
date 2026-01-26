@@ -100,6 +100,19 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     getSubscriptionCurrent() {
       return request<SubscriptionCurrent>('/subscriptions/current', { method: 'GET' });
     },
+    getWalletSummary() {
+      return request<WalletSummary>('/wallets/current', { method: 'GET' });
+    },
+    getWalletTransactions(query?: { limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: WalletTransactionItem[] }>(
+        `/wallets/transactions${suffix ? `?${suffix}` : ''}`,
+        { method: 'GET' },
+      );
+    },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });
     },
@@ -167,4 +180,27 @@ export type SubscriptionCurrent = {
     price_monthly: number;
     plan_is_active: boolean;
   } | null;
+};
+
+export type WalletSummary = {
+  total_points: number;
+  paid_points: number;
+  bonus_points: number;
+  expiring_soon_amount: number;
+  expiring_soon_date: string | null;
+  expirations: {
+    date: string;
+    amount: number;
+    type: 'paid' | 'bonus';
+    note: string | null;
+  }[];
+};
+
+export type WalletTransactionItem = {
+  id: string;
+  date: string;
+  title: string;
+  diff: number;
+  type: 'credit' | 'debit';
+  balance_after: number;
 };

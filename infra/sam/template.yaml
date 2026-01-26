@@ -182,6 +182,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/subscriptions/current
             Method: GET
+        WalletCurrentGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/wallets/current
+            Method: GET
+        WalletTransactionsGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/wallets/transactions
+            Method: GET
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

@@ -130,4 +130,26 @@ describe('apiClient movies', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it('builds wallet requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ items: [], total_points: 0 }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getWalletSummary();
+    await client.getWalletTransactions({ limit: 10, offset: 5 });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/wallets/current',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/wallets/transactions?limit=10&offset=5',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });
