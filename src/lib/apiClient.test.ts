@@ -152,4 +152,34 @@ describe('apiClient movies', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it('builds profile requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({
+        id: 'user-1',
+        email: 'user@example.com',
+        gender: null,
+        age: null,
+        prefecture: null,
+        created_at: null,
+        updated_at: null,
+      }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getProfile();
+    await client.updateProfile({ email: 'new@example.com', gender: 'male', age: 30, prefecture: 'Tokyo' });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/profile',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/profile',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
 });

@@ -152,6 +152,107 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
+    const profileMatch = path.match(/^\/v1\/profile$/);
+    if (profileMatch) {
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      if (method === 'GET') {
+        const sql = `
+          SELECT
+            u.id,
+            u.email,
+            p.gender,
+            p.age,
+            p.prefecture,
+            p.created_at,
+            p.updated_at
+          FROM users u
+          LEFT JOIN profiles p ON p.id = u.id
+          WHERE u.id = $1
+        `;
+        const { rows } = await getPool().query(sql, [userId]);
+        if (!rows.length) {
+          return response(404, { code: 'NOT_FOUND', message: 'User not found' });
+        }
+        return response(200, rows[0]);
+      }
+
+      if (method === 'PUT') {
+        const body = parseJsonBody(event);
+        if (!body) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' });
+        }
+
+        const email = typeof body.email === 'string' ? body.email.trim() : null;
+        const gender = typeof body.gender === 'string' ? body.gender : null;
+        const age = typeof body.age === 'number' ? body.age : null;
+        const prefecture = typeof body.prefecture === 'string' ? body.prefecture : null;
+
+        if (age != null && (age < 0 || age > 120)) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'age must be 0..120' });
+        }
+
+        const client = await getPool().connect();
+        try {
+          await client.query('BEGIN');
+
+          let currentEmail = email;
+          if (email) {
+            await client.query(
+              'UPDATE users SET email = $2, updated_at = now() WHERE id = $1',
+              [userId, email],
+            );
+          } else {
+            const existing = await client.query('SELECT email FROM users WHERE id = $1', [userId]);
+            currentEmail = existing.rows[0]?.email ?? null;
+          }
+
+          await client.query(
+            `INSERT INTO profiles (id, email, gender, age, prefecture, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, now(), now())
+             ON CONFLICT (id) DO UPDATE SET
+               email = EXCLUDED.email,
+               gender = EXCLUDED.gender,
+               age = EXCLUDED.age,
+               prefecture = EXCLUDED.prefecture,
+               updated_at = now()`,
+            [userId, currentEmail, gender, age, prefecture],
+          );
+
+          await client.query('COMMIT');
+        } catch (e: any) {
+          await client.query('ROLLBACK');
+          if (e?.code === '23505') {
+            return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
+          }
+          return response(500, { code: 'DB_ERROR', message: e?.message || 'DB error' });
+        } finally {
+          client.release();
+        }
+
+        const sql = `
+          SELECT
+            u.id,
+            u.email,
+            p.gender,
+            p.age,
+            p.prefecture,
+            p.created_at,
+            p.updated_at
+          FROM users u
+          LEFT JOIN profiles p ON p.id = u.id
+          WHERE u.id = $1
+        `;
+        const { rows } = await getPool().query(sql, [userId]);
+        return response(200, rows[0]);
+      }
+
+      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+    }
+
     const purchasesMatch = path.match(/^\/v1\/purchases(?:\/([^/]+))?$/);
     if (purchasesMatch) {
       if (method !== 'GET') {

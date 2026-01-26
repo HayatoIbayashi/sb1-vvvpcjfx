@@ -19,6 +19,7 @@ provider:
       allowedMethods:
         - GET
         - POST
+        - PUT
         - DELETE
         - OPTIONS
       allowedOrigins:
@@ -80,6 +81,12 @@ functions:
       - httpApi:
           path: /v1/wallets/transactions
           method: GET
+      - httpApi:
+          path: /v1/profile
+          method: GET
+      - httpApi:
+          path: /v1/profile
+          method: PUT
 
 resources:
   Resources:

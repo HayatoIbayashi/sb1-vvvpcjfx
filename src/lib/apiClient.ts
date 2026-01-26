@@ -13,6 +13,23 @@ export type SignUpPayload = {
   displayName?: string | null;
 };
 
+export type ProfileResponse = {
+  id: string;
+  email: string;
+  gender: string | null;
+  age: number | null;
+  prefecture: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ProfileUpdatePayload = {
+  email?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  prefecture?: string | null;
+};
+
 export type GetTokenFn = () => Promise<string | null> | string | null;
 
 export type CreateApiClientOptions = {
@@ -112,6 +129,12 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
         `/wallets/transactions${suffix ? `?${suffix}` : ''}`,
         { method: 'GET' },
       );
+    },
+    getProfile() {
+      return request<ProfileResponse>('/profile', { method: 'GET' });
+    },
+    updateProfile(payload: ProfileUpdatePayload) {
+      return request<ProfileResponse>('/profile', { method: 'PUT', body: JSON.stringify(payload) });
     },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });

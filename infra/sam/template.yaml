@@ -80,7 +80,7 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowMethods: [GET, POST, DELETE, OPTIONS]
+        AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
         AllowHeaders: [Authorization, Content-Type]
         AllowOrigins: ['*']
 
@@ -194,6 +194,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/wallets/transactions
             Method: GET
+        ProfileGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/profile
+            Method: GET
+        ProfilePut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/profile
+            Method: PUT
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

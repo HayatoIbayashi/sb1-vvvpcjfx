@@ -7,6 +7,9 @@ import useApiClient from '../lib/useApiClient';
 type Profile = {
   displayName: string;
   email: string;
+  gender: string;
+  age: number | '';
+  prefecture: string;
 };
 
 type Purchase = {
@@ -47,15 +50,21 @@ export default function AccountSettingsPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const api = useApiClient();
+  const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
   const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
 
   const initialProfile: Profile = useMemo(() => {
-    const stored = loadJSON<Profile | null>(LS_PROFILE, null as any);
-    if (stored) return stored;
+    const stored = loadJSON<Partial<Profile> | null>(LS_PROFILE, null as any);
     const email = (auth.user?.profile.email as string) || '';
-    const displayName = (auth.user?.profile.name as string) || 'ユーザー';
-    return { displayName, email };
+    const displayName = (auth.user?.profile.name as string) || 'User';
+    return {
+      displayName: stored?.displayName ?? displayName,
+      email: stored?.email ?? email,
+      gender: stored?.gender ?? '',
+      age: stored?.age ?? '',
+      prefecture: stored?.prefecture ?? '',
+    };
   }, [auth.user]);
 
   const [profile, setProfile] = useState<Profile>(initialProfile);
@@ -101,6 +110,30 @@ export default function AccountSettingsPage() {
   useEffect(() => {
     setProfile(initialProfile);
   }, [initialProfile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadProfile = async () => {
+      if (!isAuthenticated || useMockProfile) return;
+      try {
+        const res = await api.getProfile();
+        if (cancelled) return;
+        setProfile((current) => ({
+          ...current,
+          email: res.email ?? current.email,
+          gender: res.gender ?? '',
+          age: res.age ?? '',
+          prefecture: res.prefecture ?? '',
+        }));
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, useMockProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,9 +214,33 @@ export default function AccountSettingsPage() {
     );
   }
 
-  const handleSave = () => {
-    saveJSON(LS_PROFILE, profile);
-    setSaved('保存しました');
+  const handleSave = async () => {
+    let nextProfile = profile;
+    if (!useMockProfile) {
+      try {
+        const updated = await api.updateProfile({
+          email: profile.email || null,
+          gender: profile.gender || null,
+          age: profile.age === '' ? null : Number(profile.age),
+          prefecture: profile.prefecture || null,
+        });
+        nextProfile = {
+          ...profile,
+          email: updated.email ?? profile.email,
+          gender: updated.gender ?? profile.gender,
+          age: updated.age ?? profile.age,
+          prefecture: updated.prefecture ?? profile.prefecture,
+        };
+        setProfile(nextProfile);
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        setSaved('Save failed.');
+        setTimeout(() => setSaved(''), 2500);
+        return;
+      }
+    }
+    saveJSON(LS_PROFILE, nextProfile);
+    setSaved('Saved.');
     setTimeout(() => setSaved(''), 2000);
   };
 
@@ -245,6 +302,41 @@ export default function AccountSettingsPage() {
                 onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-700 text-white rounded"
                 placeholder="you@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 mb-2">性別</label>
+              <input
+                type="text"
+                value={profile.gender}
+                onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                placeholder="男性 / 女性 / その他"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 mb-2">年齢</label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={profile.age}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setProfile({ ...profile, age: next === '' ? '' : Number(next) });
+                }}
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                placeholder="例: 29"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 mb-2">都道府県</label>
+              <input
+                type="text"
+                value={profile.prefecture}
+                onChange={(e) => setProfile({ ...profile, prefecture: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                placeholder="例: 東京都"
               />
             </div>
             <div>

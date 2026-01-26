@@ -105,6 +105,7 @@ export class AuthSignupStack extends Stack {
         allowMethods: [
           apigwv2.CorsHttpMethod.GET,
           apigwv2.CorsHttpMethod.POST,
+          apigwv2.CorsHttpMethod.PUT,
           apigwv2.CorsHttpMethod.DELETE,
           apigwv2.CorsHttpMethod.OPTIONS,
         ],
@@ -187,6 +188,11 @@ export class AuthSignupStack extends Stack {
     httpApi.addRoutes({
       path: '/v1/wallets/transactions',
       methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/profile',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.PUT],
       integration: moviesIntegration,
     });
 
