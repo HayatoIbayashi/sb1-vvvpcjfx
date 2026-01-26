@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SubscriptionPage from './components/SubscriptionPage';
 import AccountSettingsPage from './components/AccountSettingsPage';
 import PointsPage from './components/PointsPage';
+import SearchResultsPage from './components/SearchResultsPage';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/password-reset" element={<PasswordResetPage />} />
         <Route path="/movies/:id" element={<MovieDetailPage />} />
         <Route path="/watch/:id" element={<MoviePlayerPage />} />
+        <Route path="/search" element={<SearchResultsPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />

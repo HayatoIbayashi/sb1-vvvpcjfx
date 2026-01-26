@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
 import type { Database } from '../lib/types';
@@ -29,6 +29,13 @@ function MovieListPage() {
 
   const handleMovieClick = (movieId: string) => {
     navigate(`/movies/${movieId}`);
+  };
+
+  const handleSearchSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
   // 作品一覧を取得（モック優先、失敗時はモックにフォールバック）
@@ -102,11 +109,7 @@ function MovieListPage() {
     };
   }, [movies, api]);
 
-  // 検索クエリで一覧を絞り込み
-  const filteredMovies = movies.filter((movie) =>
-    movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (movie.description?.toLowerCase() || '').includes(searchQuery.toLowerCase()),
-  );
+  const displayMovies = movies;
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -141,7 +144,7 @@ function MovieListPage() {
             {/* Right side */}
             <div className="flex items-center space-x-8">
               {/* Search */}
-              <div className="relative hidden md:block">
+              <form className="relative hidden md:block" onSubmit={handleSearchSubmit}>
                 <input
                   type="text"
                   placeholder="作品を検索..."
@@ -149,8 +152,14 @@ function MovieListPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-80 md:w-96 px-4 py-2 pl-10 bg-gray-800 text-white rounded-full border border-gray-700 focus:outline-none focus:border-gray-500"
                 />
-                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-              </div>
+                <button
+                  type="submit"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                  aria-label="検索"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+              </form>
 
               {/* Auth Button */}
               {isAuthenticated ? (
@@ -199,7 +208,7 @@ function MovieListPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">新着動画</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredMovies.map((movie) => (
+            {displayMovies.map((movie) => (
               <div
                 key={movie.id}
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
@@ -223,7 +232,7 @@ function MovieListPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">メンバーシップ限定動画</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredMovies.slice(0, 10).map((movie) => (
+            {displayMovies.slice(0, 10).map((movie) => (
               <div
                 key={movie.id}
                 className="group relative rounded-lg overflow-hidden ring-2 ring-yellow-500/60 hover:ring-yellow-400 transition cursor-pointer"
@@ -246,7 +255,7 @@ function MovieListPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">あなたの好みに合わせた動画</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredMovies.slice(2, 12).map((movie) => (
+            {displayMovies.slice(2, 12).map((movie) => (
               <div
                 key={movie.id}
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
@@ -269,7 +278,7 @@ function MovieListPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">おすすめ動画</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredMovies.slice().reverse().slice(0, 10).map((movie) => (
+            {displayMovies.slice().reverse().slice(0, 10).map((movie) => (
               <div
                 key={movie.id}
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
