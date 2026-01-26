@@ -20,7 +20,7 @@ type HistoryItem = {
 const NO_EXPIRY_DATE = 'no-expiry';
 
 function formatDate(date: string) {
-  if (date === NO_EXPIRY_DATE) return '????';
+  if (date === NO_EXPIRY_DATE) return '期限なし';
   return new Date(date).toLocaleDateString();
 }
 
@@ -36,22 +36,22 @@ export default function PointsPage() {
   const [summary, setSummary] = useState({
     total: 2300,
     expiringSoonAmount: 500,
-    expiringSoonDate: NO_EXPIRY_DATE,
+    expiringSoonDate: '2025-12-01',
   });
   const [buckets, setBuckets] = useState([
-    { label: '??', amount: 1300, hint: '?????? ??' },
-    { label: '??', amount: 1000, hint: '??' },
+    { label: '有償', amount: 1300, hint: '失効予定 2025-12-01' },
+    { label: 'ボーナス', amount: 1000, hint: '期限なし' },
   ]);
   const [expirations, setExpirations] = useState<ExpirationItem[]>([
     { date: '2025-12-01', amount: 300, type: 'paid' },
     { date: '2025-12-20', amount: 200, type: 'paid' },
-    { date: '??', amount: 1000, type: 'bonus', note: '??' },
+    { date: NO_EXPIRY_DATE, amount: 1000, type: 'bonus', note: 'キャンペーン' },
   ]);
   const [history, setHistory] = useState<HistoryItem[]>([
-    { id: 'h1', date: '2025-09-05', title: '??????', diff: -400, type: 'debit' },
-    { id: 'h2', date: '2025-08-28', title: '????????', diff: 1000, type: 'credit' },
-    { id: 'h3', date: '2025-08-15', title: '????????', diff: 500, type: 'credit' },
-    { id: 'h4', date: '2025-08-01', title: '??????', diff: -300, type: 'debit' },
+    { id: 'h1', date: '2025-09-05', title: 'ポイント利用', diff: -400, type: 'debit' },
+    { id: 'h2', date: '2025-08-28', title: 'ポイント付与', diff: 1000, type: 'credit' },
+    { id: 'h3', date: '2025-08-15', title: 'ボーナス付与', diff: 500, type: 'credit' },
+    { id: 'h4', date: '2025-08-01', title: 'ポイント利用', diff: -300, type: 'debit' },
   ]);
 
   // ウォレット概要（残高/失効予定）を取得
@@ -68,8 +68,8 @@ export default function PointsPage() {
           expiringSoonDate: res.expiring_soon_date || NO_EXPIRY_DATE,
         });
         setBuckets([
-          { label: '??', amount: res.paid_points, hint: res.expiring_soon_date ? `?????? ${res.expiring_soon_date}` : '?????? ??' },
-          { label: '??', amount: res.bonus_points, hint: '??' },
+          { label: '有償', amount: res.paid_points, hint: res.expiring_soon_date ? `失効予定 ${res.expiring_soon_date}` : '失効予定なし' },
+          { label: 'ボーナス', amount: res.bonus_points, hint: '期限なし' },
         ]);
         setExpirations(res.expirations.map((item) => ({
           date: item.date,
@@ -133,10 +133,10 @@ export default function PointsPage() {
                   onClick={handleJumpToExpirations}
                   className="mt-2 text-sm text-blue-200 underline underline-offset-4 decoration-dotted hover:text-blue-100"
                 >
-                  ?? {summary.expiringSoonAmount.toLocaleString()} pt ? {summary.expiringSoonDate} ???????????????
+                  うち {summary.expiringSoonAmount.toLocaleString()} pt が {summary.expiringSoonDate} に失効予定
                 </button>
               ) : (
-                <div className="mt-2 text-sm text-blue-200">??????????</div>
+                <div className="mt-2 text-sm text-blue-200">失効予定なし</div>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -185,7 +185,7 @@ export default function PointsPage() {
               <div key={`${item.date}-${item.amount}`} className="flex flex-col md:flex-row md:items-center md:justify-between px-6 py-4 gap-2">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-100 font-semibold">
-                    {item.type === 'paid' ? '??' : '??'}
+                    {item.type === 'paid' ? '有償' : '無償'}
                   </div>
                   <div>
                     <p className="text-lg font-semibold">{item.amount.toLocaleString()} pt</p>
@@ -193,7 +193,7 @@ export default function PointsPage() {
                   </div>
                 </div>
                 <div className="text-sm text-gray-300 bg-gray-700/60 px-3 py-1 rounded-full border border-gray-600">
-                  {item.date === NO_EXPIRY_DATE ? '????' : '??????????'}
+                  {item.date === NO_EXPIRY_DATE ? '期限なし' : '失効予定'}
                 </div>
               </div>
             ))}
@@ -260,7 +260,7 @@ export default function PointsPage() {
                         <td className={`px-6 py-3 text-right font-semibold ${item.diff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {item.diff >= 0 ? '+' : ''}{item.diff.toLocaleString()} pt
                         </td>
-                        <td className="px-6 py-3 text-gray-200">{item.type === 'credit' ? '??' : '??'}</td>
+                        <td className="px-6 py-3 text-gray-200">{item.type === 'credit' ? '付与' : '利用'}</td>
                       </tr>
                     ))}
                   </tbody>
