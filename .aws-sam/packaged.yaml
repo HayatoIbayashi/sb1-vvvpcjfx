@@ -97,6 +97,7 @@ Resources:
         AllowMethods:
         - GET
         - POST
+        - DELETE
         - OPTIONS
         AllowHeaders:
         - Authorization
@@ -141,7 +142,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: movies-list
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/37b13cb4e88ff3b5b5079338e71b8ac5
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-4ntl0jfqs1fo/53cf655c3541fb6f180716f3ce66e16b
       Handler: dist/handler.handler
       VpcConfig:
         SecurityGroupIds:
@@ -181,6 +182,27 @@ Resources:
               Ref: HttpApi
             Path: /v1/admin/movies/{id}
             Method: GET
+        WatchlistGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist
+            Method: GET
+        WatchlistPost:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist
+            Method: POST
+        WatchlistDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist/{movieId}
+            Method: DELETE
     Metadata:
       SamResourceId: MoviesListFunction
   LambdaSecurityGroup:

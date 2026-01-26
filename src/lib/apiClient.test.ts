@@ -65,4 +65,32 @@ describe('apiClient movies', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it('builds watchlist requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ ok: true, added: true, deleted: true, items: [] }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getWatchlist();
+    await client.addToWatchlist('movie-3');
+    await client.removeFromWatchlist('movie-3');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/watchlist',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/watchlist',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/watchlist/movie-3',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
 });

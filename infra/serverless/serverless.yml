@@ -19,6 +19,7 @@ provider:
       allowedMethods:
         - GET
         - POST
+        - DELETE
         - OPTIONS
       allowedOrigins:
         - '*'
@@ -55,6 +56,15 @@ functions:
       - httpApi:
           path: /v1/admin/movies/{id}
           method: GET
+      - httpApi:
+          path: /v1/watchlist
+          method: GET
+      - httpApi:
+          path: /v1/watchlist
+          method: POST
+      - httpApi:
+          path: /v1/watchlist/{movieId}
+          method: DELETE
 
 resources:
   Resources:

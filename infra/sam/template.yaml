@@ -80,7 +80,7 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowMethods: [GET, POST, OPTIONS]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
         AllowHeaders: [Authorization, Content-Type]
         AllowOrigins: ['*']
 
@@ -146,6 +146,24 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies/{id}
             Method: GET
+        WatchlistGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watchlist
+            Method: GET
+        WatchlistPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watchlist
+            Method: POST
+        WatchlistDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watchlist/{movieId}
+            Method: DELETE
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

@@ -71,6 +71,21 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     getAdminMovie(id: string) {
       return request<Movie>(`/admin/movies/${encodeURIComponent(id)}`, { method: 'GET' });
     },
+    getWatchlist() {
+      return request<{ items: Movie[] }>('/watchlist', { method: 'GET' });
+    },
+    addToWatchlist(movieId: string) {
+      return request<{ ok: true; added: boolean }>(
+        '/watchlist',
+        { method: 'POST', body: JSON.stringify({ movieId }) },
+      );
+    },
+    removeFromWatchlist(movieId: string) {
+      return request<{ ok: true; deleted: boolean }>(
+        `/watchlist/${encodeURIComponent(movieId)}`,
+        { method: 'DELETE' },
+      );
+    },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });
     },

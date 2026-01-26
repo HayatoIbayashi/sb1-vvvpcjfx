@@ -102,7 +102,12 @@ export class AuthSignupStack extends Stack {
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       corsPreflight: {
         allowHeaders: ['Authorization', 'Content-Type'],
-        allowMethods: [apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.OPTIONS],
+        allowMethods: [
+          apigwv2.CorsHttpMethod.GET,
+          apigwv2.CorsHttpMethod.POST,
+          apigwv2.CorsHttpMethod.DELETE,
+          apigwv2.CorsHttpMethod.OPTIONS,
+        ],
         allowOrigins: ['*'],
       },
     });
@@ -147,6 +152,16 @@ export class AuthSignupStack extends Stack {
     httpApi.addRoutes({
       path: '/v1/admin/movies/{id}',
       methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/watchlist',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/watchlist/{movieId}',
+      methods: [apigwv2.HttpMethod.DELETE],
       integration: moviesIntegration,
     });
 
