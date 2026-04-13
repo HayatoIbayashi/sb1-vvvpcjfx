@@ -11,7 +11,7 @@ interface CommonProps {
   className?: string;
 }
 
-interface TabsListProps extends CommonProps {}
+type TabsListProps = CommonProps;
 interface TabsTriggerProps extends CommonProps {
   value: string;
   activeTab?: string;
@@ -79,7 +79,6 @@ export function TabsTrigger({
   activeTab, 
   setActiveTab,
   className = '',
-  ...props 
 }: TabsTriggerProps & { 
   activeTab?: string;
   setActiveTab?: (value: string) => void;
@@ -88,7 +87,7 @@ export function TabsTrigger({
   
   return (
     <button
-      className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
+      className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${className} ${
         isActive 
           ? 'text-white bg-gray-800 border-b-2 border-blue-500' 
           : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
@@ -105,11 +104,10 @@ export function TabsContent({
   children, 
   activeTab,
   className = '',
-  ...props 
 }: TabsContentProps & { 
   activeTab?: string 
 }) {
   if (activeTab !== value) return null;
   
-  return <div className="pt-6">{children}</div>;
+  return <div className={`pt-6 ${className}`}>{children}</div>;
 }

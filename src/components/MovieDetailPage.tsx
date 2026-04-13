@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { stripePromise } from '../lib/stripe';
 import { Header } from './common/Header';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
-import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
 import ReviewSection from './ReviewSection';
 import { Crown } from 'lucide-react';
@@ -17,7 +15,6 @@ function MovieDetailPage() {
     const navigate = useNavigate();
     const [movie, setMovie] = useState<Movie | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const auth = useAuth();
     const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
     const api = useApiClient();
     const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';

@@ -1,10 +1,9 @@
 // 動画再生ページコンポーネント (ReactPlayerを使用)
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from 'lucide-react';
 import type { Database } from '../lib/types';
-import { getUrl } from 'aws-amplify/storage';
 import { linkToStorageFile } from '../lib/storageUtils';
 import useApiClient from '../lib/useApiClient';
 import { MOCK_MOVIES } from '../mockData';
@@ -29,12 +28,10 @@ export default function MoviePlayerPage() {
   const [played, setPlayed] = useState(0); // 再生位置 (0-1)
   const [seeking, setSeeking] = useState(false); // シーク中かどうか
   const [isMuted, setIsMuted] = useState(false); // ミュート状態
-  const [isFullscreen, setIsFullscreen] = useState(false); // フルスクリーン状態
 
   // UI状態
   const [loading, setLoading] = useState(true); // ローディング状態
   const [error, setError] = useState<string | null>(null); // エラーメッセージ
-  const [retryCount, setRetryCount] = useState(0); // リトライ回数
   const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p'); // 画質設定
   const [showControls, setShowControls] = useState(true); // コントロール表示状態
   const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null); // コントロール非表示タイマー
@@ -82,7 +79,7 @@ export default function MoviePlayerPage() {
   };
 
   // 動画データ取得
-  const fetchMovie = async () => {
+  const fetchMovie = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -113,11 +110,11 @@ export default function MoviePlayerPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [api, id, useMockMovies]);
 
   useEffect(() => {
     // 作品情報と再生URLを初期ロード
-    fetchMovie();
+    void fetchMovie();
 
     // Amplify StorageからURLを取得
     const fetchStorageUrl = async () => {
@@ -131,12 +128,11 @@ export default function MoviePlayerPage() {
     };
 
     fetchStorageUrl();
-  }, [id, api, useMockMovies]);
+  }, [fetchMovie]);
 
   // リトライ処理
   const handleRetry = () => {
-    setRetryCount(prev => prev + 1); // リトライ回数インクリメント
-    fetchMovie(); // データ再取得
+    void fetchMovie(); // データ再取得
   };
 
   // 再生/一時停止トグル
@@ -163,7 +159,7 @@ export default function MoviePlayerPage() {
   };
 
   // シーク終了
-  const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+  const handleSeekMouseUp = () => {
     setSeeking(false); // シーク中フラグOFF
     const player = document.querySelector('video');
     if (player) {
@@ -191,10 +187,8 @@ export default function MoviePlayerPage() {
 
     if (!document.fullscreenElement) {
       player.requestFullscreen();
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen();
-      setIsFullscreen(false);
     }
   };
 

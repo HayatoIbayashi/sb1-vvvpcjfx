@@ -25,6 +25,14 @@ type Watch = {
   watchedAt: string; // ISO
 };
 
+type OidcProfile = {
+  email?: string;
+  name?: string;
+  auth_time?: number | string;
+  created_at?: number | string;
+  updated_at?: number | string;
+};
+
 const GENDER_OPTIONS = [
   { value: 'male', label: '男性' },
   { value: 'female', label: '女性' },
@@ -72,12 +80,13 @@ export default function AccountSettingsPage() {
   const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
   const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
+  const oidcProfile = auth.user?.profile as OidcProfile | undefined;
 
   // ローカル保存値があればそれを優先し、なければOIDCのクレームから初期値を作成
   const initialProfile: Profile = useMemo(() => {
-    const stored = loadJSON<Partial<Profile> | null>(LS_PROFILE, null as any);
-    const email = (auth.user?.profile.email as string) || '';
-    const displayName = (auth.user?.profile.name as string) || 'User';
+    const stored = loadJSON<Partial<Profile> | null>(LS_PROFILE, null);
+    const email = oidcProfile?.email || '';
+    const displayName = oidcProfile?.name || 'User';
     return {
       displayName: stored?.displayName ?? displayName,
       email: stored?.email ?? email,
@@ -85,7 +94,7 @@ export default function AccountSettingsPage() {
       age: stored?.age ?? '',
       prefecture: stored?.prefecture ?? '',
     };
-  }, [auth.user]);
+  }, [oidcProfile]);
 
   const [profile, setProfile] = useState<Profile>(initialProfile);
   const [saved, setSaved] = useState('');
@@ -109,9 +118,8 @@ export default function AccountSettingsPage() {
     try {
       const stored = localStorage.getItem(LS_REGISTERED_AT);
       if (stored) return stored;
-      const prof: any = auth.user?.profile ?? {};
-      const authTime = prof?.auth_time; // epoch seconds
-      const created = prof?.created_at ?? prof?.updated_at; // epoch seconds or ISO
+      const authTime = oidcProfile?.auth_time; // epoch seconds
+      const created = oidcProfile?.created_at ?? oidcProfile?.updated_at; // epoch seconds or ISO
       const iso = authTime
         ? new Date(Number(authTime) * 1000).toISOString()
         : typeof created === 'number'
@@ -121,11 +129,15 @@ export default function AccountSettingsPage() {
       return iso;
     } catch {
       const now = new Date().toISOString();
-      try { localStorage.setItem(LS_REGISTERED_AT, now); } catch {}
+      try {
+        localStorage.setItem(LS_REGISTERED_AT, now);
+      } catch {
+        return now;
+      }
       return now;
     }
-  }, [auth.user]);
-  const [registeredAt, setRegisteredAt] = useState<string>(initialRegisteredAt);
+  }, [oidcProfile]);
+  const registeredAt = initialRegisteredAt;
 
   useEffect(() => {
     setProfile(initialProfile);

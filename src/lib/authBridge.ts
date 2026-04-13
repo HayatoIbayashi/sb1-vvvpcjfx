@@ -7,6 +7,13 @@ type StoredTokens = {
   refresh_token?: string;
 };
 
+type AuthUserWithTokens = {
+  access_token?: string;
+  accessToken?: string;
+  id_token?: string;
+  idToken?: string;
+};
+
 export function getStoredTokens(): StoredTokens | null {
   try {
     const raw = localStorage.getItem('cognito_tokens');
@@ -20,15 +27,18 @@ export function getStoredTokens(): StoredTokens | null {
 export function clearStoredTokens() {
   try {
     localStorage.removeItem('cognito_tokens');
-  } catch {}
+  } catch {
+    return;
+  }
 }
 
 export function getBestToken(auth: ReturnType<typeof useAuth>): string | null {
   // 優先順位: OIDC access_token -> OIDC id_token -> localStorage access_token -> localStorage id_token
-  const access = (auth.user as any)?.access_token ?? (auth.user as any)?.accessToken ?? auth.user?.access_token;
-  const idt = (auth.user as any)?.id_token ?? (auth.user as any)?.idToken ?? auth.user?.id_token;
-  if (access) return access as string;
-  if (idt) return idt as string;
+  const user = auth.user as (typeof auth.user & AuthUserWithTokens) | null;
+  const access = user?.access_token ?? user?.accessToken;
+  const idt = user?.id_token ?? user?.idToken;
+  if (access) return access;
+  if (idt) return idt;
   const stored = getStoredTokens();
   if (stored?.access_token) return stored.access_token;
   if (stored?.id_token) return stored.id_token;
@@ -50,4 +60,3 @@ export function useAuthStatus() {
 
   return { isAuthenticated, ...actions };
 }
-

@@ -14,6 +14,24 @@ function response(statusCode: number, body: unknown, headers?: Record<string, st
   };
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return fallback;
+}
+
+function getErrorName(error: unknown) {
+  if (error instanceof Error && error.name) return error.name;
+  if (typeof error === 'object' && error && 'name' in error) {
+    const name = (error as { name?: unknown }).name;
+    if (typeof name === 'string' && name) return name;
+  }
+  return null;
+}
+
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
   try {
     if (event.requestContext.http.method !== 'POST') {
@@ -36,8 +54,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     try {
       const { userSub: sub } = await signUpToCognito(payload.email, payload.password);
       userSub = sub;
-    } catch (e: any) {
-      const msg = e?.name || e?.message || 'Cognito error';
+    } catch (error: unknown) {
+      const msg = getErrorName(error) || getErrorMessage(error, 'Cognito error');
       if (msg === 'UsernameExistsException') {
         return response(409, { code: 'USERNAME_EXISTS', message: 'User already exists' });
       }
@@ -54,12 +72,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         prefecture: payload.prefecture ?? null,
         displayName: payload.displayName ?? null,
       });
-    } catch (e: any) {
-      return response(500, { code: 'DB_ERROR', message: e?.message || 'DB error' });
+    } catch (error: unknown) {
+      return response(500, { code: 'DB_ERROR', message: getErrorMessage(error, 'DB error') });
     }
 
     return response(200, { ok: true });
-  } catch (e: any) {
-    return response(500, { code: 'UNEXPECTED', message: e?.message || 'Unexpected error' });
+  } catch (error: unknown) {
+    return response(500, { code: 'UNEXPECTED', message: getErrorMessage(error, 'Unexpected error') });
   }
 };

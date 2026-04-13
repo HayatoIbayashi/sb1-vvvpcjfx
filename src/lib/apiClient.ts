@@ -116,9 +116,8 @@ function createRequester(baseUrl: string, getToken?: GetTokenFn) {
       throw new Error(msg || `Request failed: ${res.status}`);
     }
     const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) return (await res.json()) as T;
-    // @ts-ignore allow empty body
-    return undefined as T;
+    if (!contentType.includes('application/json')) return undefined as T;
+    return (await res.json()) as T;
   };
 }
 

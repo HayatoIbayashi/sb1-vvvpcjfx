@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, CreditCard, Calendar } from 'lucide-react';
 import { SubscriptionPlans } from '../SubscriptionPlans';
 import { Header } from './common/Header';
-import { useAuth } from 'react-oidc-context';
 import { useAuthStatus } from '../lib/authBridge';
 
 export default function SubscriptionPage() {
@@ -11,8 +10,7 @@ export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [step, setStep] = useState<'plans' | 'payment'>('plans');
   const [isProcessing, setIsProcessing] = useState(false);
-  const auth = useAuth();
-  const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
 
   // プラン選択状態を保持
   const handlePlanSelect = (planId: string) => {

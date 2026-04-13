@@ -1,13 +1,13 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { createApiClient } from './apiClient';
 import { getBestToken } from './authBridge';
 
 export function useApiClient() {
   const auth = useAuth();
-  const getToken = async () => getBestToken(auth);
+  const getToken = useCallback(async () => getBestToken(auth), [auth]);
 
-  return useMemo(() => createApiClient({ getToken }), [auth.user]);
+  return useMemo(() => createApiClient({ getToken }), [getToken]);
 }
 
 export default useApiClient;

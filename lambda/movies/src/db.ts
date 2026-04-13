@@ -7,7 +7,6 @@ const {
   DB_NAME,
   DB_USER,
   DB_PASSWORD,
-  DB_SSL,
 } = process.env;
 
 let pool: Pool | null = null;

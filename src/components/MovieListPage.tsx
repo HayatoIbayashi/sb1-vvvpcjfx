@@ -14,7 +14,7 @@ function MovieListPage() {
   const navigate = useNavigate();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const [ratingMap, setRatingMap] = useState<Record<string, number>>({});

@@ -38,6 +38,23 @@ function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   };
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return fallback;
+}
+
+function getErrorCode(error: unknown) {
+  if (typeof error === 'object' && error && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === 'string' && code) return code;
+  }
+  return null;
+}
+
 function getAuthHeader(headers: Record<string, string | undefined> | undefined) {
   if (!headers) return null;
   return headers.authorization || headers.Authorization || null;
@@ -119,6 +136,29 @@ type AdminAccountUpdateInput = {
   email: string;
   name: string | null;
   role: AdminAccountRole;
+};
+
+type WalletExpirationRow = {
+  remaining_points: number | string | null;
+  expires_at: string | null;
+  is_paid: boolean | null;
+  source_type: string | null;
+};
+
+type WalletExpirationItem = {
+  date: string | null;
+  amount: number | string | null;
+  type: 'paid' | 'bonus';
+  note: string | null;
+};
+
+type WalletTransactionRow = {
+  id: string;
+  created_at: string;
+  type: string;
+  amount: number | string | null;
+  balance_after: number | string | null;
+  movie_title: string | null;
 };
 
 function normalizeString(value: unknown) {
@@ -423,12 +463,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           );
 
           await client.query('COMMIT');
-        } catch (e: any) {
+        } catch (error: unknown) {
           await client.query('ROLLBACK');
-          if (e?.code === '23505') {
+          if (getErrorCode(error) === '23505') {
             return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
           }
-          return response(500, { code: 'DB_ERROR', message: e?.message || 'DB error' });
+          return response(500, { code: 'DB_ERROR', message: getErrorMessage(error, 'DB error') });
         } finally {
           client.release();
         }
@@ -597,20 +637,23 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         [userId],
       );
 
-      const expirations = lotsRes.rows.map((row: any) => ({
-        date: row.expires_at,
-        amount: row.remaining_points,
-        type: row.is_paid ? 'paid' : 'bonus',
-        note: row.source_type || null,
-      }));
+      const expirations: WalletExpirationItem[] = lotsRes.rows.map((row) => {
+        const item = row as WalletExpirationRow;
+        return {
+          date: item.expires_at,
+          amount: item.remaining_points,
+          type: item.is_paid ? 'paid' : 'bonus',
+          note: item.source_type || null,
+        };
+      });
 
       let expiringSoonDate: string | null = null;
       let expiringSoonAmount = 0;
       if (expirations.length) {
         expiringSoonDate = expirations[0].date;
         expiringSoonAmount = expirations
-          .filter((item: any) => item.date === expiringSoonDate)
-          .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+          .filter((item) => item.date === expiringSoonDate)
+          .reduce((sum, item) => sum + Number(item.amount || 0), 0);
       }
 
       return response(200, {
@@ -663,26 +706,27 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       const { rows } = await getPool().query(sql, params);
-      const items = rows.map((row: any) => {
-        const amount = Number(row.amount || 0);
+      const items = rows.map((row) => {
+        const transaction = row as WalletTransactionRow;
+        const amount = Number(transaction.amount || 0);
         let diff = amount;
-        if (row.type === 'USE_PURCHASE' || row.type === 'EXPIRE') diff = -Math.abs(amount);
-        if (row.type === 'CHARGE' || row.type === 'BONUS') diff = Math.abs(amount);
+        if (transaction.type === 'USE_PURCHASE' || transaction.type === 'EXPIRE') diff = -Math.abs(amount);
+        if (transaction.type === 'CHARGE' || transaction.type === 'BONUS') diff = Math.abs(amount);
 
         let title = 'ポイント取引';
-        if (row.type === 'CHARGE') title = 'ポイントチャージ';
-        if (row.type === 'BONUS') title = 'ボーナスポイント';
-        if (row.type === 'USE_PURCHASE') title = row.movie_title ? `購入: ${row.movie_title}` : 'ポイント利用';
-        if (row.type === 'EXPIRE') title = 'ポイント失効';
-        if (row.type === 'ADJUST') title = 'ポイント調整';
+        if (transaction.type === 'CHARGE') title = 'ポイントチャージ';
+        if (transaction.type === 'BONUS') title = 'ボーナスポイント';
+        if (transaction.type === 'USE_PURCHASE') title = transaction.movie_title ? `購入: ${transaction.movie_title}` : 'ポイント利用';
+        if (transaction.type === 'EXPIRE') title = 'ポイント失効';
+        if (transaction.type === 'ADJUST') title = 'ポイント調整';
 
         return {
-          id: row.id,
-          date: row.created_at,
+          id: transaction.id,
+          date: transaction.created_at,
           title,
           diff,
           type: diff >= 0 ? 'credit' : 'debit',
-          balance_after: Number(row.balance_after || 0),
+          balance_after: Number(transaction.balance_after || 0),
         };
       });
 
@@ -796,9 +840,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             );
 
             await client.query('COMMIT');
-          } catch (error: any) {
+          } catch (error: unknown) {
             await client.query('ROLLBACK');
-            if (error?.code === '23505') {
+            if (getErrorCode(error) === '23505') {
               return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
             }
             throw error;
@@ -1061,7 +1105,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
     const { rows } = await getPool().query(sql, params);
     return response(200, { items: rows });
-  } catch (e: any) {
-    return response(500, { code: 'DB_ERROR', message: e?.message || 'DB error' });
+  } catch (error: unknown) {
+    return response(500, { code: 'DB_ERROR', message: getErrorMessage(error, 'DB error') });
   }
 };

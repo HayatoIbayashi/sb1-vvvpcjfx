@@ -23,7 +23,7 @@ export default function SearchResultsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
-  const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
 
   useEffect(() => {
     setSearchQuery(query);

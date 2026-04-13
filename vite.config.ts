@@ -7,8 +7,7 @@ export default defineConfig({
   
   plugins: [react()],
   define: {
-    // @ts-ignore
-    global: {},
+    global: 'globalThis',
   },
   optimizeDeps: {
     exclude: ['lucide-react'],

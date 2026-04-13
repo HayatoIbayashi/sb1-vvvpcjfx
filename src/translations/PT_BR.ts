@@ -54,6 +54,7 @@ export const PT_BR = {
     'Password must have at least 8 characters': 'パスワードは8文字以上にしてください',
     'Your passwords must match': 'パスワードがマッチしません',
     'Password did not conform with policy: Password not long enough':'パスワードは8文字以上にしてください',
+    // eslint-disable-next-line no-useless-escape -- Cognito の固定エラーメッセージをそのままキーに使う
     "2 validation errors detected: Value at 'password' failed to satisfy constraint: Member must have length greater than or equal to 6; Value at 'password' failed to satisfy constraint: Member must satisfy regular expression pattern: ^[\S]+.*[\S]+$": 'パスワードは8文字以上、大文字小文字を含む英数字を指定してください',
     'User does not exist.': 'ユーザーが存在しません',
     'Incorrect username or password.': 'ユーザー名またはパスワードが違います',
