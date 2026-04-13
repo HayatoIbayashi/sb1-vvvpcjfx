@@ -12,11 +12,44 @@ const {
 
 let pool: Pool | null = null;
 
+export function normalizeConnectionString(connectionString: string) {
+  try {
+    const url = new URL(connectionString);
+    url.searchParams.delete('ssl');
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('sslcert');
+    url.searchParams.delete('sslkey');
+    url.searchParams.delete('sslrootcert');
+    return url.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
+export function shouldUseSsl(env: NodeJS.ProcessEnv = process.env) {
+  const explicit = (env.DB_SSL || '').toLowerCase();
+  if (explicit === 'require' || explicit === 'true') return true;
+  if (explicit === 'disable' || explicit === 'false') return false;
+
+  const connectionString = env.DATABASE_URL;
+  if (!connectionString) return false;
+
+  try {
+    const url = new URL(connectionString);
+    const ssl = (url.searchParams.get('ssl') || '').toLowerCase();
+    const sslMode = (url.searchParams.get('sslmode') || '').toLowerCase();
+    if (ssl === 'true' || ssl === '1') return true;
+    return ['prefer', 'require', 'verify-ca', 'verify-full', 'no-verify'].includes(sslMode);
+  } catch {
+    return false;
+  }
+}
+
 function buildPoolConfig(): PoolConfig {
   // DATABASE_URL 優先。個別指定のときは DB_* を使用。
   if (DATABASE_URL) {
     return {
-      connectionString: DATABASE_URL,
+      connectionString: normalizeConnectionString(DATABASE_URL),
       max: 5,
       idleTimeoutMillis: 30_000,
       ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
@@ -37,10 +70,6 @@ function buildPoolConfig(): PoolConfig {
     idleTimeoutMillis: 30_000,
     ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
   };
-}
-
-function shouldUseSsl() {
-  return (DB_SSL || '').toLowerCase() === 'require' || (DB_SSL || '').toLowerCase() === 'true';
 }
 
 export function getPool() {

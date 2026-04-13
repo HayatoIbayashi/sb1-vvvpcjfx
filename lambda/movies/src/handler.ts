@@ -69,6 +69,102 @@ function parseJsonBody(event: APIGatewayProxyEventV2) {
   }
 }
 
+class ValidationError extends Error {
+  code = 'VALIDATION_ERROR';
+}
+
+type AdminMovieWriteInput = {
+  title: string;
+  description: string | null;
+  thumbnail: string | null;
+  thumbnail_top: string | null;
+  thumbnail_detail: string | null;
+  release_date: string | null;
+  duration: string | null;
+  genre: string[];
+  cast: string[];
+  director: string | null;
+  release_year: number | null;
+  price: number;
+  rental_price: number;
+  is_published: boolean;
+  publish_at: string | null;
+  unpublish_at: string | null;
+  view_window_days: number;
+};
+
+function normalizeString(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function requireString(value: unknown, fieldName: string) {
+  const normalized = normalizeString(value);
+  if (!normalized) throw new ValidationError(`${fieldName} is required`);
+  return normalized;
+}
+
+function parseInteger(value: unknown, fieldName: string, fallback: number | null) {
+  if (value == null || value === '') return fallback;
+  const normalized = typeof value === 'string' ? Number.parseInt(value, 10) : value;
+  if (!Number.isFinite(normalized) || !Number.isInteger(normalized)) {
+    throw new ValidationError(`${fieldName} must be an integer`);
+  }
+  return Number(normalized);
+}
+
+function parseNonNegativeInteger(value: unknown, fieldName: string, fallback: number) {
+  const parsed = parseInteger(value, fieldName, fallback);
+  if (parsed == null || parsed < 0) {
+    throw new ValidationError(`${fieldName} must be 0 or greater`);
+  }
+  return parsed;
+}
+
+function parseStringArray(value: unknown) {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  throw new ValidationError('genre/cast must be string arrays');
+}
+
+function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminMovieWriteInput {
+  if (!body) throw new ValidationError('Invalid JSON body');
+
+  const thumbnail = normalizeString(body.thumbnail);
+
+  return {
+    title: requireString(body.title, 'title'),
+    description: normalizeString(body.description),
+    thumbnail,
+    thumbnail_top: normalizeString(body.thumbnail_top) ?? thumbnail,
+    thumbnail_detail: normalizeString(body.thumbnail_detail) ?? thumbnail,
+    release_date: normalizeString(body.release_date),
+    duration: normalizeString(body.duration),
+    genre: parseStringArray(body.genre),
+    cast: parseStringArray(body.cast),
+    director: normalizeString(body.director),
+    release_year: parseInteger(body.release_year, 'release_year', null),
+    price: parseNonNegativeInteger(body.price, 'price', 0),
+    rental_price: parseNonNegativeInteger(body.rental_price, 'rental_price', 0),
+    is_published: typeof body.is_published === 'boolean' ? body.is_published : false,
+    publish_at: normalizeString(body.publish_at),
+    unpublish_at: normalizeString(body.unpublish_at),
+    view_window_days: parseNonNegativeInteger(body.view_window_days, 'view_window_days', 2),
+  };
+}
+
 function buildSearchClause(isAdmin: boolean) {
   const fields = isAdmin
     ? [
@@ -489,14 +585,138 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(200, { items });
     }
 
-    if (method !== 'GET') {
-      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
-    }
-
     const isAdmin = path.startsWith('/v1/admin/movies');
     const table = isAdmin ? 'movies' : 'public_movies';
     const detailMatch = path.match(/^\/v1\/(?:admin\/)?movies\/([^/]+)$/);
     const movieId = detailMatch ? decodeURIComponent(detailMatch[1]) : null;
+
+    if (isAdmin) {
+      if (method === 'POST' && path === '/v1/admin/movies') {
+        try {
+          const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const sql = `
+            INSERT INTO movies (
+              title,
+              description,
+              thumbnail,
+              thumbnail_top,
+              thumbnail_detail,
+              release_date,
+              duration,
+              genre,
+              "cast",
+              director,
+              release_year,
+              price,
+              rental_price,
+              is_published,
+              publish_at,
+              unpublish_at,
+              view_window_days
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+            )
+            RETURNING ${MOVIE_COLUMNS.join(', ')}
+          `;
+          const { rows } = await getPool().query(sql, [
+            input.title,
+            input.description,
+            input.thumbnail,
+            input.thumbnail_top,
+            input.thumbnail_detail,
+            input.release_date,
+            input.duration,
+            input.genre,
+            input.cast,
+            input.director,
+            input.release_year,
+            input.price,
+            input.rental_price,
+            input.is_published,
+            input.publish_at,
+            input.unpublish_at,
+            input.view_window_days,
+          ]);
+          return response(201, rows[0]);
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            return response(400, { code: error.code, message: error.message });
+          }
+          throw error;
+        }
+      }
+
+      if (movieId && method === 'PUT') {
+        try {
+          const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const sql = `
+            UPDATE movies
+            SET
+              title = $2,
+              description = $3,
+              thumbnail = $4,
+              thumbnail_top = $5,
+              thumbnail_detail = $6,
+              release_date = $7,
+              duration = $8,
+              genre = $9,
+              "cast" = $10,
+              director = $11,
+              release_year = $12,
+              price = $13,
+              rental_price = $14,
+              is_published = $15,
+              publish_at = $16,
+              unpublish_at = $17,
+              view_window_days = $18,
+              updated_at = now()
+            WHERE id = $1
+            RETURNING ${MOVIE_COLUMNS.join(', ')}
+          `;
+          const { rows } = await getPool().query(sql, [
+            movieId,
+            input.title,
+            input.description,
+            input.thumbnail,
+            input.thumbnail_top,
+            input.thumbnail_detail,
+            input.release_date,
+            input.duration,
+            input.genre,
+            input.cast,
+            input.director,
+            input.release_year,
+            input.price,
+            input.rental_price,
+            input.is_published,
+            input.publish_at,
+            input.unpublish_at,
+            input.view_window_days,
+          ]);
+          if (!rows.length) {
+            return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+          }
+          return response(200, rows[0]);
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            return response(400, { code: error.code, message: error.message });
+          }
+          throw error;
+        }
+      }
+
+      if (movieId && method === 'DELETE') {
+        const deleted = await getPool().query('DELETE FROM movies WHERE id = $1', [movieId]);
+        if (!deleted.rowCount) {
+          return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+        }
+        return response(200, { ok: true, deleted: true });
+      }
+    }
+
+    if (method !== 'GET') {
+      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+    }
 
     if (movieId) {
       const sql = `SELECT ${MOVIE_COLUMNS.join(', ')} FROM ${table} WHERE id = $1`;

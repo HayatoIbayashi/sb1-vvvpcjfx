@@ -55,8 +55,17 @@ functions:
           path: /v1/admin/movies
           method: GET
       - httpApi:
+          path: /v1/admin/movies
+          method: POST
+      - httpApi:
           path: /v1/admin/movies/{id}
           method: GET
+      - httpApi:
+          path: /v1/admin/movies/{id}
+          method: PUT
+      - httpApi:
+          path: /v1/admin/movies/{id}
+          method: DELETE
       - httpApi:
           path: /v1/watchlist
           method: GET

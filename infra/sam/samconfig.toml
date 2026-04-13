@@ -8,7 +8,7 @@ region = "ap-northeast-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 disable_rollback = true
-parameter_overrides = "DatabaseUrl=\"postgres://app_rw:1qazZAQ%21@database-1.cpgqmsiso90v.ap-northeast-1.rds.amazonaws.com:5432/vod_app?sslmode=require\" VpcId=\"vpc-00703a41b5f694bcf\" SubnetIds=\"subnet-06ac809812411b993,subnet-0ccff348855b7f706,subnet-0b7cb1f4854c99e3b\" RdsSecurityGroupId=\"sg-039108c1d3d71c9aa\" ExistingCognitoClientId=\"51p21ae4hhsgjtd1jfakg4\""
+parameter_overrides = "DatabaseUrl=\"postgres://postgres:gTuUC2s8C2kDwMxKqLzAu8F3@database-1.cpgqmsiso90v.ap-northeast-1.rds.amazonaws.com:5432/postgres?sslmode=require\" VpcId=\"vpc-00703a41b5f694bcf\" SubnetIds=\"subnet-06ac809812411b993,subnet-0ccff348855b7f706,subnet-0b7cb1f4854c99e3b\" RdsSecurityGroupId=\"sg-039108c1d3d71c9aa\" ExistingCognitoClientId=\"51p21ae4hhsgjtd1jfakg4\""
 image_repositories = []
 
 [default.deploy.parameters]
@@ -19,5 +19,5 @@ region = "ap-northeast-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 disable_rollback = true
-parameter_overrides = "DatabaseUrl=\"postgres://app_rw:vqs3vtVai899@database-1.cpgqmsiso90v.ap-northeast-1.rds.amazonaws.com:5432/db\" VpcId=\"vpc-00703a41b5f694bcf\" SubnetIds=\"subnet-06ac809812411b993,subnet-0ccff348855b7f706,subnet-0b7cb1f4854c99e3b\" RdsSecurityGroupId=\"sg-039108c1d3d71c9aa\" ExistingCognitoClientId=\"\""
+parameter_overrides = "DatabaseUrl=\"postgres://postgres:gTuUC2s8C2kDwMxKqLzAu8F3@database-1.cpgqmsiso90v.ap-northeast-1.rds.amazonaws.com:5432/postgres?sslmode=require\" VpcId=\"vpc-00703a41b5f694bcf\" SubnetIds=\"subnet-06ac809812411b993,subnet-0ccff348855b7f706,subnet-0b7cb1f4854c99e3b\" RdsSecurityGroupId=\"sg-039108c1d3d71c9aa\" ExistingCognitoClientId=\"51p21ae4hhsgjtd1jfakg4\""
 image_repositories = []

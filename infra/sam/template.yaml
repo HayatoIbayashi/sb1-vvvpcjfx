@@ -140,12 +140,30 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies
             Method: GET
+        AdminMoviesCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies
+            Method: POST
         AdminMovieDetail:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies/{id}
             Method: GET
+        AdminMovieUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: PUT
+        AdminMovieDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: DELETE
         WatchlistGet:
           Type: HttpApi
           Properties:

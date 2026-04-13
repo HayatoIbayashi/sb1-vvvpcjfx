@@ -66,6 +66,43 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds admin movie mutation requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ id: 'movie-2', ok: true, deleted: true }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    const payload = {
+      title: 'New title',
+      description: 'desc',
+      price: 1200,
+      rental_price: 500,
+      genre: ['Action'],
+      cast: ['Actor A'],
+    };
+
+    await client.createAdminMovie(payload);
+    await client.updateAdminMovie('movie-2', payload);
+    await client.deleteAdminMovie('movie-2');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/admin/movies',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/admin/movies/movie-2',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/admin/movies/movie-2',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('builds watchlist requests', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
       jsonResponse({ ok: true, added: true, deleted: true, items: [] }),

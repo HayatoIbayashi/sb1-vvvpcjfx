@@ -1,5 +1,5 @@
 export default async function handler(req: Request) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'PUT' && req.method !== 'DELETE') {
     return new Response('Method not allowed', { status: 405 });
   }
 
@@ -14,8 +14,12 @@ export default async function handler(req: Request) {
     const forwardUrl = `${base.replace(/\/$/, '')}/${encodeURIComponent(id)}`;
     const auth = req.headers.get('authorization');
     const forward = await fetch(forwardUrl, {
-      method: 'GET',
-      headers: auth ? { Authorization: auth } : undefined,
+      method: req.method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? { Authorization: auth } : {}),
+      },
+      body: req.method === 'PUT' ? await req.text() : undefined,
     });
 
     const text = await forward.text();

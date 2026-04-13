@@ -147,12 +147,12 @@ export class AuthSignupStack extends Stack {
     });
     httpApi.addRoutes({
       path: '/v1/admin/movies',
-      methods: [apigwv2.HttpMethod.GET],
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
       path: '/v1/admin/movies/{id}',
-      methods: [apigwv2.HttpMethod.GET],
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
       integration: moviesIntegration,
     });
     httpApi.addRoutes({

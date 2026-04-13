@@ -30,6 +30,26 @@ export type ProfileUpdatePayload = {
   prefecture?: string | null;
 };
 
+export type AdminMovieWritePayload = {
+  title: string;
+  description?: string | null;
+  thumbnail?: string | null;
+  thumbnail_top?: string | null;
+  thumbnail_detail?: string | null;
+  release_date?: string | null;
+  duration?: string | null;
+  genre?: string[] | null;
+  cast?: string[] | null;
+  director?: string | null;
+  release_year?: number | null;
+  price?: number;
+  rental_price?: number;
+  is_published?: boolean;
+  publish_at?: string | null;
+  unpublish_at?: string | null;
+  view_window_days?: number;
+};
+
 export type GetTokenFn = () => Promise<string | null> | string | null;
 
 export type CreateApiClientOptions = {
@@ -87,6 +107,20 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     getAdminMovie(id: string) {
       return request<Movie>(`/admin/movies/${encodeURIComponent(id)}`, { method: 'GET' });
+    },
+    createAdminMovie(payload: AdminMovieWritePayload) {
+      return request<Movie>('/admin/movies', { method: 'POST', body: JSON.stringify(payload) });
+    },
+    updateAdminMovie(id: string, payload: AdminMovieWritePayload) {
+      return request<Movie>(`/admin/movies/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+    deleteAdminMovie(id: string) {
+      return request<{ ok: true; deleted: boolean }>(`/admin/movies/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
     },
     getWatchlist() {
       return request<{ items: Movie[] }>('/watchlist', { method: 'GET' });
