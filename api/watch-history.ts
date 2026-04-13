@@ -1,14 +1,18 @@
 export default async function handler(req: Request) {
-  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
   try {
-    const base = process.env.LAMBDA_SUBSCRIPTIONS_URL;
-    if (!base) return new Response('Missing LAMBDA_SUBSCRIPTIONS_URL', { status: 500 });
+    const base = process.env.LAMBDA_WATCH_HISTORY_URL;
+    if (!base) return new Response('Missing LAMBDA_WATCH_HISTORY_URL', { status: 500 });
+
+    const incomingUrl = new URL(req.url);
+    const forwardUrl = new URL(base);
+    forwardUrl.search = incomingUrl.search;
 
     const auth = req.headers.get('authorization');
-    const forward = await fetch(base, {
+    const forward = await fetch(forwardUrl.toString(), {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
@@ -23,7 +27,7 @@ export default async function handler(req: Request) {
       headers: { 'Content-Type': forward.headers.get('Content-Type') || 'application/json' },
     });
   } catch (error) {
-    console.error('Subscriptions current proxy error:', error);
+    console.error('Watch history proxy error:', error);
     return new Response('Internal server error', { status: 500 });
   }
 }

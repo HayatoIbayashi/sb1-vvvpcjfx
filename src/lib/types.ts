@@ -13,6 +13,7 @@ export interface Database {
         Row: {
           id: string
           email: string | null
+          display_name: string | null
           gender: string | null
           age: number | null
           prefecture: string | null
@@ -22,6 +23,7 @@ export interface Database {
         Insert: {
           id: string
           email?: string | null
+          display_name?: string | null
           gender?: string | null
           age?: number | null
           prefecture?: string | null
@@ -31,6 +33,7 @@ export interface Database {
         Update: {
           id?: string
           email?: string | null
+          display_name?: string | null
           gender?: string | null
           age?: number | null
           prefecture?: string | null
@@ -138,6 +141,32 @@ export interface Database {
           user_id?: string
           movie_id?: string
           created_at?: string
+        }
+      }
+      watch_history: {
+        Row: {
+          id: string
+          user_id: string
+          movie_id: string
+          watched_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          movie_id: string
+          watched_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          movie_id?: string
+          watched_at?: string
+          created_at?: string
+          updated_at?: string
         }
       }
     }

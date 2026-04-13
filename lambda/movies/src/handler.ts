@@ -138,6 +138,10 @@ type AdminAccountUpdateInput = {
   role: AdminAccountRole;
 };
 
+type SubscriptionCreateInput = {
+  plan_id: string;
+};
+
 type WalletExpirationRow = {
   remaining_points: number | string | null;
   expires_at: string | null;
@@ -310,6 +314,14 @@ function buildAdminAccountUpdateInput(body: Record<string, unknown> | null): Adm
   };
 }
 
+function buildSubscriptionCreateInput(body: Record<string, unknown> | null): SubscriptionCreateInput {
+  if (!body) throw new ValidationError('Invalid JSON body');
+
+  return {
+    plan_id: requireString(body.plan_id, 'plan_id'),
+  };
+}
+
 function buildSearchClause(isAdmin: boolean) {
   const fields = isAdmin
     ? [
@@ -392,6 +404,82 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
+    const watchHistoryMatch = path.match(/^\/v1\/watch-history$/);
+    if (watchHistoryMatch) {
+      const userId = getUserIdFromAuth(event.headers);
+      if (!userId) {
+        return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      if (method === 'GET') {
+        const limit = parseLimit(event.queryStringParameters?.limit);
+        const offset = parseOffset(event.queryStringParameters?.offset);
+        const params: Array<string | number> = [userId];
+        let sql = `
+          SELECT
+            wh.id,
+            wh.movie_id,
+            wh.watched_at,
+            m.title,
+            m.thumbnail
+          FROM watch_history wh
+          JOIN movies m ON m.id = wh.movie_id
+          WHERE wh.user_id = $1
+          ORDER BY wh.watched_at DESC
+        `;
+
+        if (limit !== null) {
+          params.push(limit);
+          sql += ` LIMIT $${params.length}`;
+        }
+        if (offset !== null) {
+          params.push(offset);
+          sql += ` OFFSET $${params.length}`;
+        }
+
+        const { rows } = await getPool().query(sql, params);
+        return response(200, { items: rows });
+      }
+
+      if (method === 'POST') {
+        const body = parseJsonBody(event);
+        const inputMovieId = typeof body?.movieId === 'string' ? body.movieId : null;
+        if (!inputMovieId) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'movieId is required' });
+        }
+
+        const movieRes = await getPool().query(
+          'SELECT id, title, thumbnail FROM movies WHERE id = $1',
+          [inputMovieId],
+        );
+        const movie = movieRes.rows[0];
+        if (!movie) {
+          return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+        }
+
+        const result = await getPool().query(
+          `INSERT INTO watch_history (user_id, movie_id, watched_at, created_at, updated_at)
+           VALUES ($1, $2, now(), now(), now())
+           ON CONFLICT (user_id, movie_id) DO UPDATE SET
+             watched_at = EXCLUDED.watched_at,
+             updated_at = now()
+           RETURNING id, movie_id, watched_at`,
+          [userId, inputMovieId],
+        );
+
+        return response(200, {
+          ok: true,
+          item: {
+            ...result.rows[0],
+            title: movie.title,
+            thumbnail: movie.thumbnail,
+          },
+        });
+      }
+
+      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+    }
+
     const profileMatch = path.match(/^\/v1\/profile$/);
     if (profileMatch) {
       const userId = getUserIdFromAuth(event.headers);
@@ -404,6 +492,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           SELECT
             u.id,
             u.email,
+            p.display_name,
             p.gender,
             p.age,
             p.prefecture,
@@ -427,6 +516,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         }
 
         const email = typeof body.email === 'string' ? body.email.trim() : null;
+        const displayName =
+          typeof body.displayName === 'string'
+            ? body.displayName.trim()
+            : typeof body.display_name === 'string'
+              ? body.display_name.trim()
+              : null;
         const gender = typeof body.gender === 'string' ? body.gender : null;
         const age = typeof body.age === 'number' ? body.age : null;
         const prefecture = typeof body.prefecture === 'string' ? body.prefecture : null;
@@ -451,15 +546,16 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           }
 
           await client.query(
-            `INSERT INTO profiles (id, email, gender, age, prefecture, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, now(), now())
+            `INSERT INTO profiles (id, email, display_name, gender, age, prefecture, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, now(), now())
              ON CONFLICT (id) DO UPDATE SET
-               email = EXCLUDED.email,
-               gender = EXCLUDED.gender,
-               age = EXCLUDED.age,
-               prefecture = EXCLUDED.prefecture,
-               updated_at = now()`,
-            [userId, currentEmail, gender, age, prefecture],
+                email = EXCLUDED.email,
+                display_name = EXCLUDED.display_name,
+                gender = EXCLUDED.gender,
+                age = EXCLUDED.age,
+                prefecture = EXCLUDED.prefecture,
+                updated_at = now()`,
+            [userId, currentEmail, displayName, gender, age, prefecture],
           );
 
           await client.query('COMMIT');
@@ -477,6 +573,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           SELECT
             u.id,
             u.email,
+            p.display_name,
             p.gender,
             p.age,
             p.prefecture,
@@ -571,15 +668,201 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(200, { items: rows });
     }
 
+    const subscriptionPlansMatch = path.match(/^\/v1\/subscription-plans$/);
+    if (subscriptionPlansMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const { rows } = await getPool().query(
+        `SELECT id, name, description, price_monthly, is_active, created_at, updated_at
+         FROM subscription_plans
+         WHERE is_active = TRUE
+         ORDER BY price_monthly ASC, created_at ASC`,
+      );
+      return response(200, { items: rows });
+    }
+
     const subscriptionsMatch = path.match(/^\/v1\/subscriptions\/current$/);
     if (subscriptionsMatch) {
-      if (method !== 'GET') {
+      if (method !== 'GET' && method !== 'POST' && method !== 'DELETE') {
         return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
       }
 
       const userId = getUserIdFromAuth(event.headers);
       if (!userId) {
         return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      if (method === 'POST') {
+        try {
+          const input = buildSubscriptionCreateInput(parseJsonBody(event));
+          const client = await getPool().connect();
+
+          try {
+            await client.query('BEGIN');
+
+            const planRes = await client.query(
+              `SELECT id, name, description, price_monthly, is_active, created_at, updated_at
+               FROM subscription_plans
+               WHERE id = $1`,
+              [input.plan_id],
+            );
+            const plan = planRes.rows[0];
+
+            if (!plan) {
+              await client.query('ROLLBACK');
+              return response(404, { code: 'PLAN_NOT_FOUND', message: 'Subscription plan not found' });
+            }
+
+            if (!plan.is_active) {
+              await client.query('ROLLBACK');
+              return response(409, { code: 'PLAN_INACTIVE', message: 'Subscription plan is inactive' });
+            }
+
+            const currentRes = await client.query(
+              `SELECT
+                 s.id,
+                 s.user_id,
+                 s.plan_id,
+                 s.status,
+                 s.started_at,
+                 s.renews_at,
+                 s.canceled_at,
+                 s.ended_at,
+                 s.created_at,
+                 s.updated_at,
+                 p.name AS plan_name,
+                 p.price_monthly,
+                 p.is_active AS plan_is_active
+               FROM subscriptions s
+               JOIN subscription_plans p ON p.id = s.plan_id
+               WHERE s.user_id = $1
+                 AND s.status = 'active'
+               ORDER BY s.created_at DESC
+               LIMIT 1`,
+              [userId],
+            );
+            const current = currentRes.rows[0];
+
+            if (current && current.plan_id === input.plan_id) {
+              await client.query('COMMIT');
+              return response(200, { active: true, subscription: current });
+            }
+
+            await client.query(
+              `UPDATE subscriptions
+               SET status = 'canceled',
+                   canceled_at = COALESCE(canceled_at, now()),
+                   ended_at = COALESCE(ended_at, now()),
+                   updated_at = now()
+               WHERE user_id = $1
+                 AND status = 'active'`,
+              [userId],
+            );
+
+            const insertRes = await client.query(
+              `INSERT INTO subscriptions (
+                 user_id,
+                 plan_id,
+                 status,
+                 started_at,
+                 renews_at
+               )
+               VALUES ($1, $2, 'active', now(), now() + interval '1 month')
+               RETURNING id, user_id, plan_id, status, started_at, renews_at, canceled_at, ended_at, created_at, updated_at`,
+              [userId, input.plan_id],
+            );
+            const created = insertRes.rows[0];
+
+            await client.query('COMMIT');
+            return response(201, {
+              active: true,
+              subscription: {
+                ...created,
+                plan_name: plan.name,
+                price_monthly: Number(plan.price_monthly || 0),
+                plan_is_active: Boolean(plan.is_active),
+              },
+            });
+          } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+          } finally {
+            client.release();
+          }
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            return response(400, { code: error.code, message: error.message });
+          }
+          throw error;
+        }
+      }
+
+      if (method === 'DELETE') {
+        const client = await getPool().connect();
+        try {
+          await client.query('BEGIN');
+
+          const currentRes = await client.query(
+            `SELECT
+               s.id,
+               s.user_id,
+               s.plan_id,
+               s.status,
+               s.started_at,
+               s.renews_at,
+               s.canceled_at,
+               s.ended_at,
+               s.created_at,
+               s.updated_at,
+               p.name AS plan_name,
+               p.price_monthly,
+               p.is_active AS plan_is_active
+             FROM subscriptions s
+             JOIN subscription_plans p ON p.id = s.plan_id
+             WHERE s.user_id = $1
+               AND s.status = 'active'
+             ORDER BY s.created_at DESC
+             LIMIT 1`,
+            [userId],
+          );
+          const current = currentRes.rows[0];
+
+          if (!current) {
+            await client.query('COMMIT');
+            return response(200, { active: false, subscription: null });
+          }
+
+          const updatedRes = await client.query(
+            `UPDATE subscriptions
+             SET status = 'canceled',
+                 canceled_at = COALESCE(canceled_at, now()),
+                 ended_at = COALESCE(ended_at, now()),
+                 updated_at = now()
+             WHERE id = $1
+             RETURNING id, user_id, plan_id, status, started_at, renews_at, canceled_at, ended_at, created_at, updated_at`,
+            [current.id],
+          );
+
+          await client.query('COMMIT');
+
+          const updated = updatedRes.rows[0];
+          return response(200, {
+            active: false,
+            subscription: {
+              ...updated,
+              plan_name: current.plan_name,
+              price_monthly: Number(current.price_monthly || 0),
+              plan_is_active: Boolean(current.plan_is_active),
+            },
+          });
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
       }
 
       const sql = `

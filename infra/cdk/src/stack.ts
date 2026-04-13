@@ -176,6 +176,11 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
+      path: '/v1/watch-history',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
       path: '/v1/purchases',
       methods: [apigwv2.HttpMethod.GET],
       integration: moviesIntegration,
@@ -187,6 +192,11 @@ export class AuthSignupStack extends Stack {
     });
     httpApi.addRoutes({
       path: '/v1/subscriptions/current',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST, apigwv2.HttpMethod.DELETE],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/subscription-plans',
       methods: [apigwv2.HttpMethod.GET],
       integration: moviesIntegration,
     });
@@ -245,6 +255,26 @@ export class AuthSignupStack extends Stack {
       path: '/v1/admin/admin-users/{id}',
       methods: [apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
       integration: adminAccountsIntegration,
+    });
+
+    const billingPortalFn = new lambda.Function(this, 'BillingPortalFn', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset('../../lambda/billing-portal/dist'),
+      timeout: Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
+        APP_BASE_URL: process.env.APP_BASE_URL ?? '',
+        STRIPE_BILLING_PORTAL_CONFIGURATION_ID: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID ?? '',
+      },
+    });
+
+    const billingPortalIntegration = new integrations.HttpLambdaIntegration('BillingPortalIntegration', billingPortalFn);
+    httpApi.addRoutes({
+      path: '/v1/billing-portal/session',
+      methods: [apigwv2.HttpMethod.POST],
+      integration: billingPortalIntegration,
     });
 
     new CfnOutput(this, 'HttpApiUrl', { value: httpApi.apiEndpoint });

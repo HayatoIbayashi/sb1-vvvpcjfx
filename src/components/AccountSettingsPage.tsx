@@ -33,6 +33,12 @@ type OidcProfile = {
   updated_at?: number | string;
 };
 
+type OidcUser = {
+  id_token?: string;
+  idToken?: string;
+  profile?: OidcProfile;
+};
+
 const GENDER_OPTIONS = [
   { value: 'male', label: '男性' },
   { value: 'female', label: '女性' },
@@ -80,7 +86,8 @@ export default function AccountSettingsPage() {
   const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
   const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
-  const oidcProfile = auth.user?.profile as OidcProfile | undefined;
+  const oidcUser = auth.user as OidcUser | null | undefined;
+  const oidcProfile = oidcUser?.profile;
 
   // ローカル保存値があればそれを優先し、なければOIDCのクレームから初期値を作成
   const initialProfile: Profile = useMemo(() => {
@@ -111,6 +118,7 @@ export default function AccountSettingsPage() {
     })
   );
   const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
+  const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
   const useMockWallet = import.meta.env.VITE_USE_MOCK_WALLET === 'true';
 
   // 登録日（参照用）。保存されていなければOIDCのクレームや現在時刻を使用して初期化
@@ -153,6 +161,7 @@ export default function AccountSettingsPage() {
         if (cancelled) return;
         setProfile((current) => ({
           ...current,
+          displayName: res.display_name ?? current.displayName,
           email: res.email ?? current.email,
           gender: res.gender ?? '',
           age: res.age ?? '',
@@ -192,6 +201,30 @@ export default function AccountSettingsPage() {
       cancelled = true;
     };
   }, [api, isAuthenticated, useMockPurchases]);
+
+  // ???????
+  useEffect(() => {
+    let cancelled = false;
+    const loadWatchHistory = async () => {
+      if (!isAuthenticated || useMockWatchHistory) return;
+      try {
+        const res = await api.getWatchHistory({ limit: 20 });
+        if (cancelled) return;
+        const mapped = res.items.map((item) => ({
+          id: item.movie_id,
+          title: item.title,
+          watchedAt: item.watched_at,
+        }));
+        setWatchHistory(mapped);
+      } catch (error) {
+        console.error('Error fetching watch history:', error);
+      }
+    };
+    loadWatchHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, useMockWatchHistory]);
 
   // ウォレット（ポイント）概要の取得
   useEffect(() => {
@@ -256,6 +289,7 @@ export default function AccountSettingsPage() {
     if (!useMockProfile) {
       try {
         const updated = await api.updateProfile({
+          displayName: profile.displayName || null,
           email: profile.email || null,
           gender: profile.gender && profile.gender !== 'prefer_not_to_say' ? profile.gender : null,
           age: profile.age === '' ? null : Number(profile.age),
@@ -263,6 +297,7 @@ export default function AccountSettingsPage() {
         });
         nextProfile = {
           ...profile,
+          displayName: updated.display_name ?? profile.displayName,
           email: updated.email ?? profile.email,
           gender: updated.gender ?? profile.gender,
           age: updated.age ?? profile.age,
@@ -282,14 +317,46 @@ export default function AccountSettingsPage() {
   };
 
   const handleChangePayment = () => {
-    // 実装予定: Stripe Customer Portal へ遷移など
-    alert('お支払い方法の変更は現在準備中です。');
+    const openBillingPortal = async () => {
+      const idToken = oidcUser?.id_token ?? oidcUser?.idToken ?? null;
+      if (!idToken) {
+        alert('お支払い方法の変更には再ログインが必要です。');
+        return;
+      }
+
+      try {
+        const session = await api.createBillingPortalSession(
+          { returnUrl: `${window.location.origin}/account` },
+          idToken,
+        );
+        window.location.assign(session.url);
+      } catch (error) {
+        console.error('Error opening billing portal:', error);
+        alert('お支払い方法変更画面の起動に失敗しました。');
+      }
+    };
+
+    void openBillingPortal();
   };
 
-  // 退会は現状モックのみ
-  const handleCancelMembership = () => {
+  // 退会処理。モック時はローカル、通常時はAPI経由で退会状態を保存
+  const handleCancelMembership = async () => {
     if (!isMember) return;
     if (!confirm('メンバーシップを退会しますか？')) return;
+
+    if (!useMockSubscriptions) {
+      try {
+        const res = await api.cancelSubscriptionCurrent();
+        setIsMember(res.active);
+        saveJSON(LS_MEMBER, res.active);
+        alert('退会手続きが完了しました。');
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+        alert('退会手続きに失敗しました。');
+      }
+      return;
+    }
+
     setIsMember(false);
     saveJSON(LS_MEMBER, false);
     alert('退会手続きが完了しました（モック）。');

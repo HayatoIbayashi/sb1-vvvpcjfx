@@ -30,6 +30,19 @@ Parameters:
     Type: String
     Default: ""
     Description: (Optional) Use existing User Pool Id for admin account operations
+  StripeSecretKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: (Optional) Stripe secret key for billing portal session creation
+  AppBaseUrl:
+    Type: String
+    Default: ""
+    Description: (Optional) Base URL used when billing portal returnUrl is omitted
+  StripeBillingPortalConfigurationId:
+    Type: String
+    Default: ""
+    Description: (Optional) Existing Stripe billing portal configuration id
 
 Conditions:
   HasRdsSg: !Not [!Equals [!Ref RdsSecurityGroupId, ""]]
@@ -204,6 +217,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/watchlist/{movieId}
             Method: DELETE
+        WatchHistoryGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watch-history
+            Method: GET
+        WatchHistoryPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watch-history
+            Method: POST
         PurchasesGet:
           Type: HttpApi
           Properties:
@@ -221,6 +246,24 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /v1/subscriptions/current
+            Method: GET
+        SubscriptionCurrentPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/subscriptions/current
+            Method: POST
+        SubscriptionCurrentDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/subscriptions/current
+            Method: DELETE
+        SubscriptionPlansGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/subscription-plans
             Method: GET
         WalletCurrentGet:
           Type: HttpApi
@@ -302,6 +345,25 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/admin-users/{id}
             Method: DELETE
+
+  BillingPortalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: billing-portal
+      CodeUri: ../../lambda/billing-portal
+      Handler: dist/handler.handler
+      Environment:
+        Variables:
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          APP_BASE_URL: !Ref AppBaseUrl
+          STRIPE_BILLING_PORTAL_CONFIGURATION_ID: !Ref StripeBillingPortalConfigurationId
+      Events:
+        BillingPortalSessionCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/billing-portal/session
+            Method: POST
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

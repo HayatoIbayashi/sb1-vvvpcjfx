@@ -106,6 +106,12 @@ functions:
           path: /v1/watchlist/{movieId}
           method: DELETE
       - httpApi:
+          path: /v1/watch-history
+          method: GET
+      - httpApi:
+          path: /v1/watch-history
+          method: POST
+      - httpApi:
           path: /v1/purchases
           method: GET
       - httpApi:
@@ -113,6 +119,15 @@ functions:
           method: GET
       - httpApi:
           path: /v1/subscriptions/current
+          method: GET
+      - httpApi:
+          path: /v1/subscriptions/current
+          method: POST
+      - httpApi:
+          path: /v1/subscriptions/current
+          method: DELETE
+      - httpApi:
+          path: /v1/subscription-plans
           method: GET
       - httpApi:
           path: /v1/wallets/current
@@ -146,6 +161,18 @@ functions:
       - httpApi:
           path: /v1/admin/admin-users/{id}
           method: DELETE
+
+  billingPortal:
+    handler: lambda/billing-portal/dist/handler.handler
+    vpc: ~
+    environment:
+      STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY, ''}
+      APP_BASE_URL: ${env:APP_BASE_URL, ''}
+      STRIPE_BILLING_PORTAL_CONFIGURATION_ID: ${env:STRIPE_BILLING_PORTAL_CONFIGURATION_ID, ''}
+    events:
+      - httpApi:
+          path: /v1/billing-portal/session
+          method: POST
 
 resources:
   Resources:
@@ -213,4 +240,5 @@ package:
     - '!**'
     - 'lambda/auth-signup/dist/**'
     - 'lambda/admin-accounts/dist/**'
+    - 'lambda/billing-portal/dist/**'
     - 'lambda/movies/dist/**'

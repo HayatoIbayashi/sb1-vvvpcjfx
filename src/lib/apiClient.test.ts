@@ -202,6 +202,50 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds watch history requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ ok: true, item: null, items: [] }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getWatchHistory({ limit: 5, offset: 2 });
+    await client.addWatchHistory('movie-3');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/watch-history?limit=5&offset=2',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/watch-history',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ movieId: 'movie-3' }),
+      }),
+    );
+  });
+
+  it('builds billing portal session request with auth override', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ url: 'https://billing.stripe.com/session/test' }));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.createBillingPortalSession({ returnUrl: 'https://example.com/account' }, 'id-token-value');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/billing-portal/session',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer id-token-value',
+        }),
+        body: JSON.stringify({ returnUrl: 'https://example.com/account' }),
+      }),
+    );
+  });
+
   it('builds purchases requests', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
       jsonResponse({ items: [] }),
@@ -236,6 +280,44 @@ describe('apiClient movies', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/subscriptions/current',
       expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('builds subscription plan and subscribe requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ items: [], active: true, subscription: null }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getSubscriptionPlans();
+    await client.subscribeCurrent({ plan_id: 'plan-1' });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/subscription-plans',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/subscriptions/current',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ plan_id: 'plan-1' }),
+      }),
+    );
+  });
+
+  it('builds subscription cancel request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ active: false, subscription: null }));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.cancelSubscriptionCurrent();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/subscriptions/current',
+      expect.objectContaining({ method: 'DELETE' }),
     );
   });
 
@@ -277,7 +359,13 @@ describe('apiClient movies', () => {
 
     const client = createApiClient({ baseUrl: '/api' });
     await client.getProfile();
-    await client.updateProfile({ email: 'new@example.com', gender: 'male', age: 30, prefecture: 'Tokyo' });
+    await client.updateProfile({
+      displayName: 'New Name',
+      email: 'new@example.com',
+      gender: 'male',
+      age: 30,
+      prefecture: 'Tokyo',
+    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -287,7 +375,16 @@ describe('apiClient movies', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/profile',
-      expect.objectContaining({ method: 'PUT' }),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          displayName: 'New Name',
+          email: 'new@example.com',
+          gender: 'male',
+          age: 30,
+          prefecture: 'Tokyo',
+        }),
+      }),
     );
   });
 });

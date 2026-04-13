@@ -6,6 +6,7 @@ import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from '
 import type { Database } from '../lib/types';
 import { linkToStorageFile } from '../lib/storageUtils';
 import useApiClient from '../lib/useApiClient';
+import { useAuthStatus } from '../lib/authBridge';
 import { MOCK_MOVIES } from '../mockData';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -16,7 +17,9 @@ export default function MoviePlayerPage() {
   const { id } = useParams(); // URLパラメータから動画ID取得
   const navigate = useNavigate();
   const api = useApiClient();
+  const { isAuthenticated } = useAuthStatus();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
+  const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
 
   // 動画データ状態
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -129,6 +132,40 @@ export default function MoviePlayerPage() {
 
     fetchStorageUrl();
   }, [fetchMovie]);
+
+  useEffect(() => {
+    const recordWatchHistory = async () => {
+      if (!movie?.id || !isAuthenticated) return;
+
+      if (useMockWatchHistory) {
+        try {
+          const key = 'mock_watch_history_v1';
+          const raw = localStorage.getItem(key);
+          const current = raw ? JSON.parse(raw) as Array<{ id: string; title: string; watchedAt: string }> : [];
+          const next = [
+            {
+              id: movie.id,
+              title: movie.title,
+              watchedAt: new Date().toISOString(),
+            },
+            ...current.filter((item) => item.id !== movie.id),
+          ];
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch (error) {
+          console.error('Error saving mock watch history:', error);
+        }
+        return;
+      }
+
+      try {
+        await api.addWatchHistory(movie.id);
+      } catch (error) {
+        console.error('Error recording watch history:', error);
+      }
+    };
+
+    void recordWatchHistory();
+  }, [api, isAuthenticated, movie, useMockWatchHistory]);
 
   // リトライ処理
   const handleRetry = () => {

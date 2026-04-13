@@ -16,6 +16,7 @@ export type SignUpPayload = {
 export type ProfileResponse = {
   id: string;
   email: string;
+  display_name: string | null;
   gender: string | null;
   age: number | null;
   prefecture: string | null;
@@ -25,9 +26,40 @@ export type ProfileResponse = {
 
 export type ProfileUpdatePayload = {
   email?: string | null;
+  displayName?: string | null;
   gender?: string | null;
   age?: number | null;
   prefecture?: string | null;
+};
+
+export type SubscriptionPlan = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_monthly: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubscriptionCreatePayload = {
+  plan_id: string;
+};
+
+export type WatchHistoryItem = {
+  id: string;
+  movie_id: string;
+  title: string;
+  thumbnail: string | null;
+  watched_at: string;
+};
+
+export type BillingPortalSessionPayload = {
+  returnUrl?: string | null;
+};
+
+export type BillingPortalSessionResponse = {
+  url: string;
 };
 
 export type AdminMovieWritePayload = {
@@ -124,6 +156,7 @@ function createRequester(baseUrl: string, getToken?: GetTokenFn) {
 export function createApiClient(opts: CreateApiClientOptions = {}) {
   const baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
   const request = createRequester(baseUrl, opts.getToken);
+  const resolveToken = async () => (opts.getToken ? await opts.getToken() : null);
 
   return {
     signUp(payload: SignUpPayload) {
@@ -226,6 +259,39 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
         { method: 'DELETE' },
       );
     },
+    getWatchHistory(query?: { limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: WatchHistoryItem[] }>(
+        `/watch-history${suffix ? `?${suffix}` : ''}`,
+        { method: 'GET' },
+      );
+    },
+    addWatchHistory(movieId: string) {
+      return request<{ ok: true; item: WatchHistoryItem }>(
+        '/watch-history',
+        { method: 'POST', body: JSON.stringify({ movieId }) },
+      );
+    },
+    async createBillingPortalSession(
+      payload: BillingPortalSessionPayload,
+      authTokenOverride?: string | null,
+    ) {
+      const token = authTokenOverride ?? await resolveToken();
+      const headers = buildHeaders({ 'Content-Type': 'application/json' }, token);
+      const res = await fetch(`${baseUrl}/billing-portal/session`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        throw new Error(msg || `Request failed: ${res.status}`);
+      }
+      return (await res.json()) as BillingPortalSessionResponse;
+    },
     getPurchases(query?: { status?: string; limit?: number; offset?: number }) {
       const qs = new URLSearchParams();
       if (query?.status) qs.set('status', query.status);
@@ -239,6 +305,18 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     getSubscriptionCurrent() {
       return request<SubscriptionCurrent>('/subscriptions/current', { method: 'GET' });
+    },
+    getSubscriptionPlans() {
+      return request<{ items: SubscriptionPlan[] }>('/subscription-plans', { method: 'GET' });
+    },
+    subscribeCurrent(payload: SubscriptionCreatePayload) {
+      return request<SubscriptionCurrent>('/subscriptions/current', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    cancelSubscriptionCurrent() {
+      return request<SubscriptionCurrent>('/subscriptions/current', { method: 'DELETE' });
     },
     getWalletSummary() {
       return request<WalletSummary>('/wallets/current', { method: 'GET' });
