@@ -131,6 +131,49 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds admin account requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ items: [], id: 'admin-1', ok: true, deleted: true }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getAdminAccounts({ q: 'ops', role: 'super_admin', limit: 10 });
+    await client.createAdminAccount({
+      email: 'admin@example.com',
+      name: '運営管理者',
+      password: 'Password123!',
+      role: 'admin',
+    });
+    await client.updateAdminAccount('admin-1', {
+      email: 'admin@example.com',
+      name: 'スーパー管理者',
+      role: 'super_admin',
+    });
+    await client.deleteAdminAccount('admin-1');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/admin/admin-users?q=ops&role=super_admin&limit=10',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/admin/admin-users',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/admin/admin-users/admin-1',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      '/api/admin/admin-users/admin-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('builds watchlist requests', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
       jsonResponse({ ok: true, added: true, deleted: true, items: [] }),

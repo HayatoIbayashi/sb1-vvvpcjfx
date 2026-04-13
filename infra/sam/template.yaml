@@ -26,6 +26,10 @@ Parameters:
     Type: String
     Default: ""
     Description: (Optional) Use existing Hosted UI App Client Id (set this when reusing an existing User Pool)
+  ExistingCognitoUserPoolId:
+    Type: String
+    Default: ""
+    Description: (Optional) Use existing User Pool Id for admin account operations
 
 Conditions:
   HasRdsSg: !Not [!Equals [!Ref RdsSecurityGroupId, ""]]
@@ -243,6 +247,62 @@ Resources:
             Path: /v1/profile
             Method: PUT
 
+  AdminAccountsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: admin-accounts
+      CodeUri: ../../lambda/admin-accounts
+      Handler: dist/handler.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminAddUserToGroup
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminDeleteUser
+                - cognito-idp:AdminDeleteUserAttributes
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminListGroupsForUser
+                - cognito-idp:AdminRemoveUserFromGroup
+                - cognito-idp:AdminSetUserPassword
+                - cognito-idp:AdminUpdateUserAttributes
+                - cognito-idp:CreateGroup
+                - cognito-idp:ListUsersInGroup
+              Resource:
+                - !If
+                  - CreateCognito
+                  - !GetAtt UserPool.Arn
+                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
+      Environment:
+        Variables:
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
+      Events:
+        AdminAccountList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/admin-users
+            Method: GET
+        AdminAccountCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/admin-users
+            Method: POST
+        AdminAccountUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/admin-users/{id}
+            Method: PUT
+        AdminAccountDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/admin-users/{id}
+            Method: DELETE
+
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -266,7 +326,7 @@ Outputs:
   ApiEndpoint:
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
   UserPoolId:
-    Value: !If [CreateCognito, !Ref UserPool, ""]
+    Value: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
   UserPoolClientId:
     Value: !If [UseExistingCognito, !Ref ExistingCognitoClientId, !Ref UserPoolClient]
   LambdaSecurityGroupId:

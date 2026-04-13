@@ -30,7 +30,28 @@ provider:
   environment:
     COGNITO_REGION: ${aws:region}
     COGNITO_CLIENT_ID: !Ref UserPoolClient
+    COGNITO_USER_POOL_ID: !Ref UserPool
     DATABASE_URL: ${env:DATABASE_URL}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminAddUserToGroup
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:AdminDeleteUserAttributes
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminListGroupsForUser
+            - cognito-idp:AdminRemoveUserFromGroup
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:CreateGroup
+            - cognito-idp:ListUsersInGroup
+          Resource:
+            - Fn::GetAtt:
+                - UserPool
+                - Arn
 
 functions:
   authSignup:
@@ -106,6 +127,26 @@ functions:
           path: /v1/profile
           method: PUT
 
+  adminAccounts:
+    handler: lambda/admin-accounts/dist/handler.handler
+    vpc: ~
+    environment:
+      COGNITO_REGION: ${aws:region}
+      COGNITO_USER_POOL_ID: !Ref UserPool
+    events:
+      - httpApi:
+          path: /v1/admin/admin-users
+          method: GET
+      - httpApi:
+          path: /v1/admin/admin-users
+          method: POST
+      - httpApi:
+          path: /v1/admin/admin-users/{id}
+          method: PUT
+      - httpApi:
+          path: /v1/admin/admin-users/{id}
+          method: DELETE
+
 resources:
   Resources:
     LambdaSecurityGroup:
@@ -171,4 +212,5 @@ package:
   patterns:
     - '!**'
     - 'lambda/auth-signup/dist/**'
+    - 'lambda/admin-accounts/dist/**'
     - 'lambda/movies/dist/**'

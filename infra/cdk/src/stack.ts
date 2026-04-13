@@ -206,6 +206,47 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
 
+    const adminAccountsFn = new lambda.Function(this, 'AdminAccountsFn', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset('../../lambda/admin-accounts/dist'),
+      timeout: Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        COGNITO_REGION: Stack.of(this).region,
+        COGNITO_USER_POOL_ID: userPool.userPoolId,
+      },
+    });
+
+    adminAccountsFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'cognito-idp:AdminAddUserToGroup',
+        'cognito-idp:AdminCreateUser',
+        'cognito-idp:AdminDeleteUser',
+        'cognito-idp:AdminDeleteUserAttributes',
+        'cognito-idp:AdminGetUser',
+        'cognito-idp:AdminListGroupsForUser',
+        'cognito-idp:AdminRemoveUserFromGroup',
+        'cognito-idp:AdminSetUserPassword',
+        'cognito-idp:AdminUpdateUserAttributes',
+        'cognito-idp:CreateGroup',
+        'cognito-idp:ListUsersInGroup',
+      ],
+      resources: [userPool.userPoolArn],
+    }));
+
+    const adminAccountsIntegration = new integrations.HttpLambdaIntegration('AdminAccountsIntegration', adminAccountsFn);
+    httpApi.addRoutes({
+      path: '/v1/admin/admin-users',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: adminAccountsIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/admin/admin-users/{id}',
+      methods: [apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
+      integration: adminAccountsIntegration,
+    });
+
     new CfnOutput(this, 'HttpApiUrl', { value: httpApi.apiEndpoint });
     new CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new CfnOutput(this, 'UserPoolClientId', { value: appClient.userPoolClientId });

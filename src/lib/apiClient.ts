@@ -68,6 +68,32 @@ export type AdminUserUpdatePayload = {
   status?: 'active' | 'suspended';
 };
 
+export type AdminAccountRole = 'admin' | 'super_admin';
+
+export type AdminAccount = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: AdminAccountRole;
+  enabled: boolean;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type AdminAccountCreatePayload = {
+  email: string;
+  name?: string | null;
+  password: string;
+  role: AdminAccountRole;
+};
+
+export type AdminAccountUpdatePayload = {
+  email: string;
+  name?: string | null;
+  role: AdminAccountRole;
+};
+
 export type GetTokenFn = () => Promise<string | null> | string | null;
 
 export type CreateApiClientOptions = {
@@ -157,6 +183,32 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     deleteAdminUser(id: string) {
       return request<{ ok: true; deleted: boolean }>(`/admin/users/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    },
+    getAdminAccounts(query?: { q?: string; role?: AdminAccountRole; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.q) qs.set('q', query.q);
+      if (query?.role) qs.set('role', query.role);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: AdminAccount[] }>(`/admin/admin-users${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    createAdminAccount(payload: AdminAccountCreatePayload) {
+      return request<AdminAccount>('/admin/admin-users', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    updateAdminAccount(id: string, payload: AdminAccountUpdatePayload) {
+      return request<AdminAccount>(`/admin/admin-users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+    deleteAdminAccount(id: string) {
+      return request<{ ok: true; deleted: boolean }>(`/admin/admin-users/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
     },
