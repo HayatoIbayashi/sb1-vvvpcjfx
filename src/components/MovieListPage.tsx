@@ -365,7 +365,7 @@ function MovieListPage() {
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800">
         <div className="container mx-auto px-4 py-8">
-          <p className="text-center text-gray-400">Copyright ﾂｩ WiiBER All Rights Reserved.</p>
+          <p className="text-center text-gray-400">Copyright WiiBER All Rights Reserved.</p>
         </div>
       </footer>
     </div>

@@ -156,6 +156,16 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
+      path: '/v1/admin/users',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/admin/users/{id}',
+      methods: [apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
       path: '/v1/watchlist',
       methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
       integration: moviesIntegration,

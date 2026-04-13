@@ -48,6 +48,26 @@ export type AdminMovieWritePayload = {
   view_window_days?: number;
 };
 
+export type AdminUser = {
+  id: string;
+  email: string;
+  gender: string | null;
+  age: number | null;
+  prefecture: string | null;
+  is_member: boolean;
+  status: 'active' | 'suspended';
+  registered_at: string;
+  updated_at: string | null;
+};
+
+export type AdminUserUpdatePayload = {
+  email?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  prefecture?: string | null;
+  status?: 'active' | 'suspended';
+};
+
 export type GetTokenFn = () => Promise<string | null> | string | null;
 
 export type CreateApiClientOptions = {
@@ -117,6 +137,26 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     deleteAdminMovie(id: string) {
       return request<{ ok: true; deleted: boolean }>(`/admin/movies/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    },
+    getAdminUsers(query?: { q?: string; status?: string; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.q) qs.set('q', query.q);
+      if (query?.status) qs.set('status', query.status);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: AdminUser[] }>(`/admin/users${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    updateAdminUser(id: string, payload: AdminUserUpdatePayload) {
+      return request<AdminUser>(`/admin/users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+    deleteAdminUser(id: string) {
+      return request<{ ok: true; deleted: boolean }>(`/admin/users/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
     },

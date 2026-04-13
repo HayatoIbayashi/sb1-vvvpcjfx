@@ -93,6 +93,14 @@ type AdminMovieWriteInput = {
   view_window_days: number;
 };
 
+type AdminUserUpdateInput = {
+  email: string;
+  gender: string | null;
+  age: number | null;
+  prefecture: string | null;
+  status: 'active' | 'suspended';
+};
+
 function normalizeString(value: unknown) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -162,6 +170,42 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     publish_at: normalizeString(body.publish_at),
     unpublish_at: normalizeString(body.unpublish_at),
     view_window_days: parseNonNegativeInteger(body.view_window_days, 'view_window_days', 2),
+  };
+}
+
+function normalizeGender(value: unknown) {
+  const normalized = normalizeString(value);
+  if (!normalized || normalized === 'prefer_not_to_say') return null;
+  if (normalized === 'male' || normalized === 'female' || normalized === 'other') {
+    return normalized;
+  }
+  throw new ValidationError('gender must be male, female, other, or prefer_not_to_say');
+}
+
+function parseUserStatus(value: unknown): 'active' | 'suspended' {
+  if (value === 'active' || value === 'suspended') return value;
+  throw new ValidationError('status must be active or suspended');
+}
+
+function buildAdminUserUpdateInput(body: Record<string, unknown> | null): AdminUserUpdateInput {
+  if (!body) throw new ValidationError('Invalid JSON body');
+
+  const age = parseInteger(body.age, 'age', null);
+  if (age != null && (age < 0 || age > 120)) {
+    throw new ValidationError('age must be 0..120');
+  }
+
+  const email = requireString(body.email, 'email');
+  if (!email.includes('@')) {
+    throw new ValidationError('email must be valid');
+  }
+
+  return {
+    email,
+    gender: normalizeGender(body.gender),
+    age,
+    prefecture: normalizeString(body.prefecture),
+    status: parseUserStatus(body.status),
   };
 }
 
@@ -582,6 +626,144 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       });
 
       return response(200, { items });
+    }
+
+    const adminUsersMatch = path.match(/^\/v1\/admin\/users(?:\/([^/]+))?$/);
+    if (adminUsersMatch) {
+      const adminUserId = adminUsersMatch[1] ? decodeURIComponent(adminUsersMatch[1]) : null;
+      const baseSelect = `
+        SELECT
+          u.id,
+          u.email,
+          p.gender,
+          p.age,
+          p.prefecture,
+          EXISTS (
+            SELECT 1
+            FROM subscriptions s
+            WHERE s.user_id = u.id
+              AND s.status = 'active'
+          ) AS is_member,
+          CASE WHEN u.is_active THEN 'active' ELSE 'suspended' END AS status,
+          u.created_at AS registered_at,
+          GREATEST(u.updated_at, COALESCE(p.updated_at, u.updated_at)) AS updated_at
+        FROM users u
+        LEFT JOIN profiles p ON p.id = u.id
+      `;
+
+      if (method === 'GET') {
+        if (adminUserId) {
+          const { rows } = await getPool().query(`${baseSelect} WHERE u.id = $1`, [adminUserId]);
+          if (!rows.length) {
+            return response(404, { code: 'NOT_FOUND', message: 'User not found' });
+          }
+          return response(200, rows[0]);
+        }
+
+        const q = event.queryStringParameters?.q?.trim();
+        const status = event.queryStringParameters?.status?.trim();
+        const limit = parseLimit(event.queryStringParameters?.limit);
+        const offset = parseOffset(event.queryStringParameters?.offset);
+        const params: Array<string | number> = [];
+        const whereParts: string[] = [];
+
+        if (q) {
+          params.push(`%${q}%`);
+          whereParts.push(`(
+            COALESCE(u.email, '') ILIKE $${params.length}
+            OR COALESCE(p.prefecture, '') ILIKE $${params.length}
+            OR COALESCE(p.gender, '') ILIKE $${params.length}
+          )`);
+        }
+
+        if (status === 'active' || status === 'suspended') {
+          params.push(status === 'active');
+          whereParts.push(`u.is_active = $${params.length}`);
+        }
+
+        let sql = baseSelect;
+        if (whereParts.length) {
+          sql += ` WHERE ${whereParts.join(' AND ')}`;
+        }
+        sql += ' ORDER BY u.created_at DESC';
+
+        if (limit != null) {
+          params.push(limit);
+          sql += ` LIMIT $${params.length}`;
+        }
+        if (offset != null) {
+          params.push(offset);
+          sql += ` OFFSET $${params.length}`;
+        }
+
+        const { rows } = await getPool().query(sql, params);
+        return response(200, { items: rows });
+      }
+
+      if (adminUserId && method === 'PUT') {
+        try {
+          const input = buildAdminUserUpdateInput(parseJsonBody(event));
+          const client = await getPool().connect();
+          try {
+            await client.query('BEGIN');
+
+            const updatedUser = await client.query(
+              `UPDATE users
+               SET email = $2,
+                   is_active = $3,
+                   updated_at = now()
+               WHERE id = $1
+               RETURNING id`,
+              [adminUserId, input.email, input.status === 'active'],
+            );
+
+            if (!updatedUser.rowCount) {
+              await client.query('ROLLBACK');
+              return response(404, { code: 'NOT_FOUND', message: 'User not found' });
+            }
+
+            await client.query(
+              `INSERT INTO profiles (id, email, gender, age, prefecture, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, now(), now())
+               ON CONFLICT (id) DO UPDATE SET
+                 email = EXCLUDED.email,
+                 gender = EXCLUDED.gender,
+                 age = EXCLUDED.age,
+                 prefecture = EXCLUDED.prefecture,
+                 updated_at = now()`,
+              [adminUserId, input.email, input.gender, input.age, input.prefecture],
+            );
+
+            await client.query('COMMIT');
+          } catch (error: any) {
+            await client.query('ROLLBACK');
+            if (error?.code === '23505') {
+              return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
+            }
+            throw error;
+          } finally {
+            client.release();
+          }
+
+          const { rows } = await getPool().query(`${baseSelect} WHERE u.id = $1`, [adminUserId]);
+          return response(200, rows[0]);
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            return response(400, { code: error.code, message: error.message });
+          }
+          throw error;
+        }
+      }
+
+      if (adminUserId && method === 'DELETE') {
+        const deleted = await getPool().query('DELETE FROM users WHERE id = $1', [adminUserId]);
+        if (!deleted.rowCount) {
+          return response(404, { code: 'NOT_FOUND', message: 'User not found' });
+        }
+        return response(200, { ok: true, deleted: true });
+      }
+
+      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
     const isAdmin = path.startsWith('/v1/admin/movies');

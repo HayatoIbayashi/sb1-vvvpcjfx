@@ -103,6 +103,34 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds admin user requests', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      jsonResponse({ items: [], id: 'user-1', ok: true, deleted: true }),
+    ));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getAdminUsers({ q: 'sample', status: 'active', limit: 20 });
+    await client.updateAdminUser('user-1', { status: 'suspended', prefecture: 'Tokyo' });
+    await client.deleteAdminUser('user-1');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/admin/users?q=sample&status=active&limit=20',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/admin/users/user-1',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/admin/users/user-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('builds watchlist requests', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
       jsonResponse({ ok: true, added: true, deleted: true, items: [] }),

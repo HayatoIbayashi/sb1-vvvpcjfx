@@ -164,6 +164,24 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies/{id}
             Method: DELETE
+        AdminUsers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/users
+            Method: GET
+        AdminUserUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/users/{id}
+            Method: PUT
+        AdminUserDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/users/{id}
+            Method: DELETE
         WatchlistGet:
           Type: HttpApi
           Properties:
