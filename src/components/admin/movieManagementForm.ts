@@ -3,6 +3,12 @@ import type { Database } from '../../lib/types';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
+function normalizeNullableText(value: string | null | undefined) {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function createEmptyFormData(): Partial<Movie> {
   return {
     title: '',
@@ -29,12 +35,12 @@ export function splitCsv(value: string) {
 export function buildMoviePayload(formData: Partial<Movie>): AdminMovieWritePayload {
   return {
     title: formData.title || '',
-    description: formData.description ?? null,
-    thumbnail: formData.thumbnail ?? null,
-    thumbnail_top: formData.thumbnail_top ?? null,
-    thumbnail_detail: formData.thumbnail_detail ?? null,
-    release_date: formData.release_date ?? null,
-    duration: formData.duration ?? null,
+    description: normalizeNullableText(formData.description),
+    thumbnail: normalizeNullableText(formData.thumbnail),
+    thumbnail_top: normalizeNullableText(formData.thumbnail_top),
+    thumbnail_detail: normalizeNullableText(formData.thumbnail_detail),
+    release_date: normalizeNullableText(formData.release_date),
+    duration: normalizeNullableText(formData.duration),
     price: formData.price ?? 0,
     rental_price: formData.rental_price ?? 0,
     genre: formData.genre ?? [],

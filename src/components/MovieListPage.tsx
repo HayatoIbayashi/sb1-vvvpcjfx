@@ -6,6 +6,7 @@ import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
 import * as mockReviews from '../lib/mockReviews';
 import { useAuthStatus } from '../lib/authBridge';
+import { HOME_DISPLAY_SAMPLES } from './homeDisplaySamples';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -203,6 +204,42 @@ function MovieListPage() {
             </div>
           </section>
         )}
+
+        {/* 表示確認用の固定サンプル */}
+        <section className="mb-12">
+          <div className="flex items-end justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white">表示確認用サンプル</h2>
+              <p className="text-gray-400 mt-2">メイン画面でテキストと画像の見え方を確認するための固定表示です。</p>
+            </div>
+            <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
+              TEST DISPLAY
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_1fr] gap-6">
+            {HOME_DISPLAY_SAMPLES.map((sample, index) => (
+              <article
+                key={sample.id}
+                className={`overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg ${
+                  index === 0 ? 'lg:row-span-2' : ''
+                }`}
+              >
+                <img
+                  src={sample.image}
+                  alt={sample.title}
+                  className={`w-full object-cover ${index === 0 ? 'h-[320px] lg:h-full' : 'h-52'}`}
+                />
+                <div className="space-y-3 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+                    {sample.subtitle}
+                  </p>
+                  <h3 className="text-xl font-bold text-white">{sample.title}</h3>
+                  <p className="text-sm leading-6 text-gray-300">{sample.description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
         {/* New Releases */}
         <section className="mb-12">
