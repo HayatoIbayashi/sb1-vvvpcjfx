@@ -11,7 +11,7 @@ export const MOCK_MOVIES: Movie[] = [
                 'ある日、弟子のアキラと共に自らアクション映画を撮影すると決め、廃墟となった無人島を訪れるのだが、島にはある秘密が隠されていた...\n' +
                 '閉ざされた島の中で事件に巻き込まれていく敏朗は、ジークンドーを極めた最強の暗殺者・黄島に命を狙われる。\n' +
                 '最新の戦闘術を身につけた"殺せない"アクション俳優が、極限状態の中で自身の力に目覚めるとき。選ばれし男たち(1%er)の闘いが始まる。\n' +
-                '©WiiBER All Rights Reserved.',
+                'Copyright WiiBER All Rights Reserved.',
     thumbnail: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BC.jpg',
     thumbnail_top: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCtop.webp',
     thumbnail_detail: assets + '%E3%83%AF%E3%83%B3%E3%83%91%E3%83%BC%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BCdetail.jpg',

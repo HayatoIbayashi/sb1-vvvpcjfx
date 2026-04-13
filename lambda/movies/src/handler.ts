@@ -154,8 +154,8 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     duration: normalizeString(body.duration),
     genre: parseStringArray(body.genre),
     cast: parseStringArray(body.cast),
-    director: normalizeString(body.director),
-    release_year: parseInteger(body.release_year, 'release_year', null),
+    director: null,
+    release_year: null,
     price: parseNonNegativeInteger(body.price, 'price', 0),
     rental_price: parseNonNegativeInteger(body.rental_price, 'rental_price', 0),
     is_published: typeof body.is_published === 'boolean' ? body.is_published : false,
@@ -170,7 +170,6 @@ function buildSearchClause(isAdmin: boolean) {
     ? [
         "COALESCE(title, '')",
         "COALESCE(description, '')",
-        "COALESCE(director, '')",
         "COALESCE(array_to_string(genre, ' '), '')",
         "COALESCE(array_to_string(\"cast\", ' '), '')",
       ]

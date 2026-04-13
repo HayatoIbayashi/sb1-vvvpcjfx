@@ -40,8 +40,6 @@ export type AdminMovieWritePayload = {
   duration?: string | null;
   genre?: string[] | null;
   cast?: string[] | null;
-  director?: string | null;
-  release_year?: number | null;
   price?: number;
   rental_price?: number;
   is_published?: boolean;

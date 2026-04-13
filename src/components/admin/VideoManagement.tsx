@@ -231,16 +231,6 @@ export function VideoManagement() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    公開年
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 bg-dark rounded border border-dark-light text-white"
-                    placeholder="2023"
-                  />
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -253,16 +243,6 @@ export function VideoManagement() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    監督
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 bg-dark rounded border border-dark-light text-white"
-                    placeholder="監督名を入力"
-                  />
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -324,7 +304,6 @@ export function VideoManagement() {
                   const fields = [
                     v.title || '',
                     v.description || '',
-                    v.director || '',
                     (v.genre || []).join(' '),
                     (v.cast || []).join(' '),
                   ]
@@ -389,7 +368,6 @@ export function VideoManagement() {
                   const fields = [
                     v.title || '',
                     v.description || '',
-                    v.director || '',
                     (v.genre || []).join(' '),
                     (v.cast || []).join(' '),
                   ]

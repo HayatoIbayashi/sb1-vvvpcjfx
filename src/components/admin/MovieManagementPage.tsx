@@ -1,55 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit2, Plus, Trash2 } from 'lucide-react';
-import type { AdminMovieWritePayload } from '../../lib/apiClient';
 import useApiClient from '../../lib/useApiClient';
 import { MOCK_MOVIES } from '../../mockData';
 import type { Database } from '../../lib/types';
+import { buildMoviePayload, createEmptyFormData, splitCsv } from './movieManagementForm';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
-
-function createEmptyFormData(): Partial<Movie> {
-  return {
-    title: '',
-    description: '',
-    thumbnail: '',
-    thumbnail_top: '',
-    thumbnail_detail: '',
-    release_date: '',
-    duration: '',
-    director: '',
-    release_year: new Date().getFullYear(),
-    price: 0,
-    rental_price: 0,
-    genre: [],
-    cast: [],
-  };
-}
-
-function splitCsv(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function buildMoviePayload(formData: Partial<Movie>): AdminMovieWritePayload {
-  return {
-    title: formData.title || '',
-    description: formData.description ?? null,
-    thumbnail: formData.thumbnail ?? null,
-    thumbnail_top: formData.thumbnail_top ?? null,
-    thumbnail_detail: formData.thumbnail_detail ?? null,
-    release_date: formData.release_date ?? null,
-    duration: formData.duration ?? null,
-    director: formData.director ?? null,
-    release_year: formData.release_year ?? null,
-    price: formData.price ?? 0,
-    rental_price: formData.rental_price ?? 0,
-    genre: formData.genre ?? [],
-    cast: formData.cast ?? [],
-  };
-}
 
 export default function MovieManagementPage() {
   const navigate = useNavigate();
@@ -102,7 +59,6 @@ export default function MovieManagementPage() {
       const fields = [
         movie.title || '',
         movie.description || '',
-        movie.director || '',
         (movie.genre || []).join(' '),
         (movie.cast || []).join(' '),
       ]
@@ -136,8 +92,6 @@ export default function MovieManagementPage() {
       thumbnail_detail: movie.thumbnail_detail || '',
       release_date: movie.release_date || '',
       duration: movie.duration || '',
-      director: movie.director || '',
-      release_year: movie.release_year ?? new Date().getFullYear(),
       price: movie.price ?? 0,
       rental_price: movie.rental_price ?? 0,
       genre: movie.genre || [],
@@ -170,8 +124,8 @@ export default function MovieManagementPage() {
         thumbnail_detail: formData.thumbnail_detail || null,
         release_date: formData.release_date || null,
         duration: formData.duration || null,
-        director: formData.director || null,
-        release_year: formData.release_year ?? new Date().getFullYear(),
+        director: null,
+        release_year: null,
         price: formData.price ?? 0,
         rental_price: formData.rental_price ?? 0,
         genre: formData.genre || [],
@@ -293,12 +247,6 @@ export default function MovieManagementPage() {
                     <h2 className="text-xl font-bold text-white mb-2">{movie.title}</h2>
                     <p className="text-gray-400 mb-4 line-clamp-2">{movie.description || '説明なし'}</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
-                      <div>
-                        <span className="text-gray-500">監督:</span> {movie.director || '-'}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">公開年:</span> {movie.release_year || '-'}
-                      </div>
                       <div>
                         <span className="text-gray-500">本編価格:</span> ¥{movie.price.toLocaleString()}
                       </div>
@@ -426,27 +374,6 @@ export default function MovieManagementPage() {
                     type="text"
                     value={formData.duration || ''}
                     onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-2">監督</label>
-                  <input
-                    type="text"
-                    value={formData.director || ''}
-                    onChange={(e) => setFormData({ ...formData, director: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-2">公開年</label>
-                  <input
-                    type="number"
-                    value={formData.release_year ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      release_year: e.target.value === '' ? null : Number(e.target.value),
-                    })}
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
                 </div>

@@ -21,28 +21,26 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setEditedVideo(prev => {
+    setEditedVideo((prev) => {
       if (!prev) return prev;
-      
-      // 配列フィールドをカンマ区切り文字列として処理
+
       if (name === 'genre' || name === 'cast') {
         return {
           ...prev,
-          [name]: value ? value.split(',').map(item => item.trim()) : []
+          [name]: value ? value.split(',').map((item) => item.trim()) : [],
         };
       }
-      
-      // 数値フィールド
-      if (name === 'price' || name === 'rental_price' || name === 'release_year' || name === 'duration') {
+
+      if (name === 'price' || name === 'rental_price' || name === 'duration') {
         return {
           ...prev,
-          [name]: value ? Number(value) : 0
+          [name]: value ? Number(value) : 0,
         };
       }
-      
+
       return {
         ...prev,
-        [name]: value
+        [name]: value,
       };
     });
   };
@@ -144,19 +142,6 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">
-                公開年
-              </label>
-              <input
-                type="number"
-                name="release_year"
-                value={editedVideo.release_year ?? ''}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-dark rounded border border-dark-light text-white"
-                placeholder="2023"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -172,19 +157,6 @@ export function EditModal({ isOpen, video, onClose, onSave }: EditModalProps) {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">
-                監督
-              </label>
-              <input
-                type="text"
-                name="director"
-                value={editedVideo.director ?? ''}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-dark rounded border border-dark-light text-white"
-                placeholder="監督名を入力"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">
