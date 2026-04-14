@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { useAuthStatus } from '../lib/authBridge';
+import { getStoredTokens, useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
 
 type Profile = {
@@ -318,7 +318,8 @@ export default function AccountSettingsPage() {
 
   const handleChangePayment = () => {
     const openBillingPortal = async () => {
-      const idToken = oidcUser?.id_token ?? oidcUser?.idToken ?? null;
+      const storedTokens = getStoredTokens();
+      const idToken = oidcUser?.id_token ?? oidcUser?.idToken ?? storedTokens?.id_token ?? null;
       if (!idToken) {
         alert('お支払い方法の変更には再ログインが必要です。');
         return;

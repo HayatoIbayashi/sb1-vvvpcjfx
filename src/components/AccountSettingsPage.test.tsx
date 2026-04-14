@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import AccountSettingsPage from './AccountSettingsPage';
 
-const { mockApi, mockAuth } = vi.hoisted(() => ({
+const { mockApi, mockAuth, mockGetStoredTokens } = vi.hoisted(() => ({
   mockApi: {
     createBillingPortalSession: vi.fn(),
     getProfile: vi.fn(),
@@ -12,6 +12,7 @@ const { mockApi, mockAuth } = vi.hoisted(() => ({
     updateProfile: vi.fn(),
     cancelSubscriptionCurrent: vi.fn(),
   },
+  mockGetStoredTokens: vi.fn(),
   mockAuth: {
     user: {
       id_token: 'id-token-value',
@@ -31,6 +32,7 @@ vi.mock('../lib/authBridge', () => ({
   useAuthStatus: () => ({
     isAuthenticated: true,
   }),
+  getStoredTokens: mockGetStoredTokens,
 }));
 
 vi.mock('react-oidc-context', () => ({
@@ -52,6 +54,7 @@ describe('AccountSettingsPage', () => {
     mockApi.getWatchHistory.mockReset();
     mockApi.updateProfile.mockReset();
     mockApi.cancelSubscriptionCurrent.mockReset();
+    mockGetStoredTokens.mockReset();
 
     mockApi.getProfile.mockResolvedValue({
       id: 'user-1',
@@ -70,6 +73,14 @@ describe('AccountSettingsPage', () => {
     mockApi.createBillingPortalSession.mockResolvedValue({
       url: 'https://billing.stripe.com/session/test',
     });
+    mockGetStoredTokens.mockReturnValue(null);
+    mockAuth.user = {
+      id_token: 'id-token-value',
+      profile: {
+        email: 'oidc@example.com',
+        name: 'OIDC Name',
+      },
+    };
     mockApi.getWatchHistory.mockResolvedValue({
       items: [],
     });
@@ -227,6 +238,45 @@ describe('AccountSettingsPage', () => {
       expect(mockApi.createBillingPortalSession).toHaveBeenCalledWith(
         { returnUrl: 'https://example.com/account' },
         'id-token-value',
+      );
+    });
+    await waitFor(() => {
+      expect(assignMock).toHaveBeenCalledWith('https://billing.stripe.com/session/test');
+    });
+  });
+
+  it('opens billing portal with stored id token fallback', async () => {
+    const assignMock = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...window.location,
+        origin: 'https://example.com',
+        assign: assignMock,
+      },
+    });
+    mockAuth.user = {
+      profile: {
+        email: 'oidc@example.com',
+        name: 'OIDC Name',
+      },
+    };
+    mockGetStoredTokens.mockReturnValue({
+      id_token: 'stored-id-token',
+    });
+
+    render(
+      <MemoryRouter>
+        <AccountSettingsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'お支払い方法を変更' }));
+
+    await waitFor(() => {
+      expect(mockApi.createBillingPortalSession).toHaveBeenCalledWith(
+        { returnUrl: 'https://example.com/account' },
+        'stored-id-token',
       );
     });
     await waitFor(() => {
