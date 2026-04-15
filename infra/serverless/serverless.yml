@@ -32,6 +32,7 @@ provider:
     COGNITO_CLIENT_ID: !Ref UserPoolClient
     COGNITO_USER_POOL_ID: !Ref UserPool
     DATABASE_URL: ${env:DATABASE_URL}
+    STRIPE_WEBHOOK_SECRET: ${env:STRIPE_WEBHOOK_SECRET, ''}
   iam:
     role:
       statements:
@@ -112,29 +113,14 @@ functions:
           path: /v1/watch-history
           method: POST
       - httpApi:
-          path: /v1/purchases
-          method: GET
-      - httpApi:
-          path: /v1/purchases/{id}
-          method: GET
-      - httpApi:
           path: /v1/subscriptions/current
           method: GET
-      - httpApi:
-          path: /v1/subscriptions/current
-          method: POST
-      - httpApi:
-          path: /v1/subscriptions/current
-          method: DELETE
       - httpApi:
           path: /v1/subscription-plans
           method: GET
       - httpApi:
-          path: /v1/wallets/current
-          method: GET
-      - httpApi:
-          path: /v1/wallets/transactions
-          method: GET
+          path: /v1/stripe/webhook
+          method: POST
       - httpApi:
           path: /v1/profile
           method: GET
@@ -173,6 +159,12 @@ functions:
       - httpApi:
           path: /v1/billing-portal/session
           method: POST
+      - httpApi:
+          path: /v1/subscriptions/checkout-session
+          method: POST
+      - httpApi:
+          path: /v1/subscriptions/current
+          method: DELETE
 
 resources:
   Resources:

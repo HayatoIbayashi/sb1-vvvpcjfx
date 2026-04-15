@@ -29,7 +29,7 @@ describe('VideoManagement', () => {
     vi.unstubAllEnvs();
   });
 
-  it('creates a video via admin movie api', async () => {
+  it('creates a video via admin movie api without purchase pricing', async () => {
     mockApi.createAdminMovie.mockResolvedValue({
       id: 'video-1',
       title: 'テスト動画',
@@ -40,13 +40,13 @@ describe('VideoManagement', () => {
       release_date: '2026-04-13',
       duration: '15分',
       genre: ['テスト'],
-      cast: ['出演者A'],
+      cast: ['出演者'],
       director: null,
       release_year: null,
       created_at: '2026-04-13T00:00:00.000Z',
       updated_at: '2026-04-13T00:00:00.000Z',
-      price: 1200,
-      rental_price: 500,
+      price: 0,
+      rental_price: 0,
     });
 
     render(<VideoManagement />);
@@ -60,10 +60,8 @@ describe('VideoManagement', () => {
     fireEvent.change(screen.getByLabelText('説明'), { target: { value: '説明' } });
     fireEvent.change(screen.getByLabelText('公開日'), { target: { value: '2026-04-13' } });
     fireEvent.change(screen.getByLabelText('再生時間'), { target: { value: '15分' } });
-    fireEvent.change(screen.getByLabelText('本編価格'), { target: { value: '1200' } });
-    fireEvent.change(screen.getByLabelText('レンタル価格'), { target: { value: '500' } });
     fireEvent.change(screen.getByLabelText('ジャンル'), { target: { value: 'テスト' } });
-    fireEvent.change(screen.getByLabelText('出演者'), { target: { value: '出演者A' } });
+    fireEvent.change(screen.getByLabelText('出演者'), { target: { value: '出演者' } });
 
     fireEvent.click(screen.getByRole('button', { name: '登録する' }));
 
@@ -76,15 +74,13 @@ describe('VideoManagement', () => {
         thumbnail_detail: null,
         release_date: '2026-04-13',
         duration: '15分',
-        price: 1200,
-        rental_price: 500,
         genre: ['テスト'],
-        cast: ['出演者A'],
+        cast: ['出演者'],
       });
     });
 
-    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('director');
-    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('release_year');
+    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('price');
+    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('rental_price');
     expect(await screen.findByText('テスト動画')).toBeInTheDocument();
   });
 });

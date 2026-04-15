@@ -3,6 +3,7 @@ import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { MOCK_MOVIES } from '../../mockData';
 import useApiClient from '../../lib/useApiClient';
 import type { Database } from '../../lib/types';
+import { getTestMovieThumbnail } from '../../lib/testMovieThumbnails';
 import { buildMoviePayload, createEmptyFormData, splitCsv } from './movieManagementForm';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -99,8 +100,6 @@ export function VideoManagement() {
       thumbnail_detail: video.thumbnail_detail || '',
       release_date: video.release_date || '',
       duration: video.duration || '',
-      price: video.price ?? 0,
-      rental_price: video.rental_price ?? 0,
       genre: video.genre || [],
       cast: video.cast || [],
     });
@@ -150,8 +149,8 @@ export function VideoManagement() {
           duration: formData.duration || null,
           director: null,
           release_year: null,
-          price: formData.price ?? 0,
-          rental_price: formData.rental_price ?? 0,
+          price: 0,
+          rental_price: 0,
           genre: formData.genre || [],
           cast: formData.cast || [],
           created_at: new Date().toISOString(),
@@ -204,18 +203,18 @@ export function VideoManagement() {
         </div>
       )}
 
-      <div className="rounded-lg bg-dark-lighter p-6">
+      <div className="rounded-lg bg-gray-800 p-6">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="タイトル・説明・出演者・ジャンルで検索"
           aria-label="動画検索"
-          className="w-full rounded-lg border border-dark-light bg-dark px-4 py-2 text-white outline-none focus:border-gray-600"
+          className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-white outline-none focus:border-gray-500"
         />
       </div>
 
-      <div className="overflow-hidden rounded-lg bg-dark-lighter">
+      <div className="overflow-hidden rounded-lg bg-gray-800">
         {isLoading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-white"></div>
@@ -223,21 +222,21 @@ export function VideoManagement() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-dark">
+              <thead className="bg-gray-900">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">動画</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">公開日</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">価格</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">視聴形態</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-dark">
+              <tbody className="divide-y divide-gray-700">
                 {filteredVideos.map((video) => (
                   <tr key={video.id}>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <img
-                          src={video.thumbnail || 'https://placehold.co/160x240?text=No+Image'}
+                          src={getTestMovieThumbnail(video, 'card')}
                           alt={video.title}
                           className="h-12 w-20 rounded object-cover"
                         />
@@ -251,9 +250,7 @@ export function VideoManagement() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-300">{video.release_date || '-'}</td>
                     <td className="px-6 py-4 text-sm text-white">
-                      本編 ¥{video.price.toLocaleString()}
-                      <br />
-                      <span className="text-gray-400">レンタル ¥{video.rental_price.toLocaleString()}</span>
+                      メンバーシップ見放題
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -290,7 +287,7 @@ export function VideoManagement() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-dark-lighter p-8">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8">
             <h3 className="mb-6 text-2xl font-bold text-white">
               {selectedVideo ? '動画を編集' : '新規動画を登録'}
             </h3>
@@ -304,7 +301,7 @@ export function VideoManagement() {
                     value={formData.title || ''}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     aria-label="タイトル"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
                 <div>
@@ -313,7 +310,7 @@ export function VideoManagement() {
                     value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     aria-label="説明"
-                    className="h-32 w-full rounded bg-dark px-4 py-2 text-white"
+                    className="h-32 w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
                 <div>
@@ -323,7 +320,7 @@ export function VideoManagement() {
                     value={formData.thumbnail || ''}
                     onChange={(e) => setFormData({ ...formData, thumbnail: e.target.value })}
                     aria-label="サムネイル URL"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
                 <div>
@@ -333,7 +330,7 @@ export function VideoManagement() {
                     value={(formData.genre || []).join(', ')}
                     onChange={(e) => setFormData({ ...formData, genre: splitCsv(e.target.value) })}
                     aria-label="ジャンル"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
                 <div>
@@ -343,7 +340,7 @@ export function VideoManagement() {
                     value={(formData.cast || []).join(', ')}
                     onChange={(e) => setFormData({ ...formData, cast: splitCsv(e.target.value) })}
                     aria-label="出演者"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
               </div>
@@ -356,7 +353,7 @@ export function VideoManagement() {
                     value={formData.release_date || ''}
                     onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
                     aria-label="公開日"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
                 <div>
@@ -366,30 +363,11 @@ export function VideoManagement() {
                     value={formData.duration || ''}
                     onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                     aria-label="再生時間"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
-                <div>
-                  <label className="mb-2 block text-gray-300">本編価格（円）</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.price ?? 0}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value || 0) })}
-                    aria-label="本編価格"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-gray-300">レンタル価格（円）</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.rental_price ?? 0}
-                    onChange={(e) => setFormData({ ...formData, rental_price: Number(e.target.value || 0) })}
-                    aria-label="レンタル価格"
-                    className="w-full rounded bg-dark px-4 py-2 text-white"
-                  />
+                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  作品はメンバーシップ見放題として公開されます。
                 </div>
               </div>
             </div>
@@ -397,7 +375,7 @@ export function VideoManagement() {
             <div className="mt-8 flex justify-end gap-4">
               <button
                 onClick={closeModal}
-                className="rounded-lg bg-dark px-6 py-2 text-gray-300 transition hover:bg-gray-800"
+                className="rounded-lg bg-gray-900 px-6 py-2 text-gray-300 transition hover:bg-gray-700"
               >
                 キャンセル
               </button>

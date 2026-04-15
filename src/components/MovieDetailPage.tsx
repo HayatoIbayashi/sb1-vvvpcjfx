@@ -1,198 +1,266 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Header } from './common/Header';
-import { loadStripe } from '@stripe/stripe-js';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Crown, Heart, Play } from 'lucide-react';
 import type { Database } from '../lib/types';
+import { Header } from './common/Header';
 import { MOCK_MOVIES } from '../mockData';
 import { useAuthStatus } from '../lib/authBridge';
-import ReviewSection from './ReviewSection';
-import { Crown } from 'lucide-react';
+import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
+import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import useApiClient from '../lib/useApiClient';
+import ReviewSection from './ReviewSection';
+import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 function MovieDetailPage() {
-    const navigate = useNavigate();
-    const [movie, setMovie] = useState<Movie | null>(null);
-    const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const { isAuthenticated, loginHosted, logoutAll } = useAuthStatus();
-    const api = useApiClient();
-    const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { id: movieId } = useParams<{ id: string }>();
+  const api = useApiClient();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
+  const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
+  const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
+  const subscriptionPath = useMemo(
+    () => buildSubscriptionPath(getReturnToFromLocation(location)),
+    [location],
+  );
 
-    useEffect(() => {
-        // 初期ロード時にlocalStorageから認証状態をチェック
-        // Hosted UI 統一のため localStorage でのトークン判定は不要
-    }, []);
-    const movieId = window.location.pathname.split('/').pop();
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
 
-    useEffect(() => {
-        // Check URL for payment success
-        const queryParams = new URLSearchParams(window.location.search);
-        if (queryParams.get('payment_success') === 'true') {
-            setPaymentSuccess(true);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMovie = async () => {
+      if (!movieId) return;
+
+      if (useMockMovies) {
+        const foundMovie = MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
+        if (!cancelled) {
+          setMovie(foundMovie);
         }
-    }, []);
+        return;
+      }
 
-    useEffect(() => {
-        let cancelled = false;
-        const loadMovie = async () => {
-            if (!movieId) return;
-            if (useMockMovies) {
-                const foundMovie = MOCK_MOVIES.find(m => m.id === movieId);
-                if (!cancelled && foundMovie) setMovie(foundMovie);
-                return;
-            }
-            try {
-                const item = await api.getMovie(movieId);
-                if (!cancelled) setMovie(item);
-            } catch (error) {
-                console.error('Error fetching movie:', error);
-                const fallback = MOCK_MOVIES.find(m => m.id === movieId);
-                if (!cancelled && fallback) setMovie(fallback);
-            }
-        };
-        loadMovie();
-        return () => {
-            cancelled = true;
-        };
-    }, [api, movieId, useMockMovies]);
-
-    // Stripe Checkout にリダイレクトして購入フローを開始
-    const handlePurchase = async (event: React.MouseEvent, isRental = false) => {
-        if (!isAuthenticated) {
-            loginHosted();
-            return;
+      try {
+        const item = await api.getMovie(movieId);
+        if (!cancelled) {
+          setMovie(item);
         }
-
-        if (!movie || !movieId) return;
-
-        try {
-            const res = await fetch('https://nsrcamrusc.execute-api.ap-northeast-1.amazonaws.com/dev/CreateCheckout', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    priceId: isRental ? 'price_1RQjIPKxyMynMg1MBNl3glQp' : 'price_1RCA0wKxyMynMg1Mo5jsYBMJ',
-                    contentsId: movieId,
-                    productId: isRental ? 'prod_S6MkShXbOAI54P' : 'prod_SLQ8ucdYOansfn'
-                })
-            });
-
-            const { sessionId } = await res.json();
-            const stripe = await loadStripe("pk_test_51QsGlSKxyMynMg1MBIwFvSLHkeiaN0hwuTdPD98lUzeNKeYIyTLuXmIBuMCYiinUS8QQ0gX4dwNOPmZnphGLZUmx00FeCfTtLb");
-            if (!stripe) {
-                throw new Error('Stripe failed to load');
-            }
-
-            const error = await stripe.redirectToCheckout({ sessionId });
-            if (error) {
-                throw error;
-            }
-        } catch (error) {
-            console.error('Payment error:', error);
-            alert('決済処理中にエラーが発生しました');
+      } catch (error) {
+        console.error('Error fetching movie:', error);
+        const fallback = MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
+        if (!cancelled) {
+          setMovie(fallback);
         }
+      }
     };
 
-    const handleRental = (event: React.MouseEvent) => handlePurchase(event, true);
+    void loadMovie();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, movieId, useMockMovies]);
 
-    const handleBack = () => {
-        navigate(`/movies/${movie?.id}`);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWatchlist = async () => {
+      if (!isAuthenticated || !movieId) {
+        if (!cancelled) {
+          setIsInWatchlist(false);
+        }
+        return;
+      }
+
+      try {
+        const res = await api.getWatchlist();
+        if (!cancelled) {
+          setIsInWatchlist(res.items.some((item) => item.id === movieId));
+        }
+      } catch (error) {
+        console.error('Error fetching watchlist:', error);
+      }
     };
 
-    const handleLogin = () => navigate('/login');
-    const handleLogout = () => logoutAll();
+    void loadWatchlist();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movieId]);
+
+  const handleToggleWatchlist = async () => {
+    if (!movieId) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsWatchlistBusy(true);
+      if (isInWatchlist) {
+        await api.removeFromWatchlist(movieId);
+        setIsInWatchlist(false);
+      } else {
+        await api.addToWatchlist(movieId);
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Watchlist update error:', error);
+      alert('マイリストの更新に失敗しました');
+    } finally {
+      setIsWatchlistBusy(false);
+    }
+  };
+
+  const renderPrimaryActions = () => {
+    if (isMembershipLoading && isAuthenticated) {
+      return (
+        <div className="rounded-xl border border-gray-700 bg-gray-800/80 px-5 py-4 text-sm text-gray-300">
+          メンバーシップ状態を確認しています...
+        </div>
+      );
+    }
+
+    if (accessState === 'member') {
+      return (
+        <button
+          onClick={() => navigate(`/watch/${movieId}`)}
+          className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
+        >
+          <Play className="h-5 w-5" />
+          今すぐ視聴する
+        </button>
+      );
+    }
+
+    if (accessState === 'registered') {
+      return (
+        <Link
+          to={subscriptionPath}
+          className="flex min-w-[240px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg transition hover:opacity-95"
+        >
+          <Crown className="h-5 w-5" />
+          月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録
+        </Link>
+      );
+    }
 
     return (
-        <div className="min-h-screen bg-gray-900">
-            <Header
-                isAuthenticated={isAuthenticated}
-                onLogin={handleLogin}
-                onLogout={handleLogout}
-                searchQuery=""
-                onSearchChange={() => {}}
-            />
-            {movie && (
-                <div className="container mx-auto px-4 pt-24 pb-8">
-                    <div className="flex flex-col md:flex-row gap-8">
-                        <div className="md:w-1/3">
-                            <img
-                                src={movie.thumbnail_detail || ''}
-                                alt={movie.title}
-                                className="w-full rounded-lg shadow-lg"
-                            />
-                        </div>
-                        <div className="md:w-2/3">
-                            <h1 className="text-3xl font-bold text-white mb-4">{movie.title}</h1>
-                            <p className="text-gray-300 mb-6">{movie.description}</p>
-                            <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div>
-                                    <h3 className="text-gray-400 font-semibold">公開日</h3>
-                                    <p className="text-white">{movie.release_date}</p>
-                                </div>
-                                <div>
-                                    <h3 className="text-gray-400 font-semibold">時間</h3>
-                                    <p className="text-white">{movie.duration}</p>
-                                </div>
-                                <div>
-                                    <h3 className="text-gray-400 font-semibold">監督</h3>
-                                    <p className="text-white">{movie.director}</p>
-                                </div>
-                            </div>
-                            {paymentSuccess ? (
-                                <div className="space-y-4">
-                                    <div className="mt-4 p-4 bg-green-100 text-green-800 rounded">
-                                        決済が完了しました！
-                                    </div>
-                                    <button
-                                        onClick={handleBack}
-                                        className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                                    >
-                                        作品詳細ページに戻る
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-wrap gap-4">
-                                    <Link
-                                        to="/subscription"
-                                        className="relative flex items-center justify-center gap-2 text-white px-6 py-4 rounded-xl font-bold transition flex-[2] min-w-[220px] text-center shadow-lg bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 hover:opacity-95 ring-2 ring-amber-300/60"
-                                    >
-                                        <span className="absolute -top-3 right-3 text-xs bg-white/90 text-amber-600 px-2 py-0.5 rounded-full shadow">おすすめ</span>
-                                        <Crown className="w-5 h-5" />
-                                        メンバーシップ登録（見放題）
-                                    </Link>
-                                    <button
-                                        onClick={(e) => handlePurchase(e, false)}
-                                        className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
-                                    >
-                                        <div>{isAuthenticated ? '単品購入' : 'ログインして購入'}</div>
-                                        <div className="text-sm font-normal">
-                                            {movie?.price ? `¥${movie.price.toLocaleString()}` : '価格未設定'}
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={handleRental}
-                                        className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition flex-1 min-w-[200px]"
-                                    >
-                                        <div>{isAuthenticated ? 'レンタル' : 'ログインしてレンタル'}</div>
-                                        <div className="text-sm font-normal">
-                                            {movie?.rental_price ? `¥${movie.rental_price.toLocaleString()}` : '価格未設定'}
-                                        </div>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                </div>
-                </div>
-            )}
-            {movieId && (
-              <div className="container mx-auto px-4 pb-10">
-                <ReviewSection movieId={movieId} />
-              </div>
-            )}
-        </div>
+      <>
+        <button
+          onClick={() => navigate('/signup')}
+          className="min-w-[220px] rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
+        >
+          会員登録する
+        </button>
+        <button
+          onClick={() => navigate('/login')}
+          className="min-w-[220px] rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800"
+        >
+          ログイン
+        </button>
+      </>
     );
+  };
+
+  const accessStatusText = isMembershipLoading && isAuthenticated
+    ? '確認中'
+    : ({
+        guest: '未ログイン',
+        registered: '会員登録済み',
+        member: 'メンバーシップ登録済み',
+      }[accessState]);
+
+  const accessDescription = isMembershipLoading && isAuthenticated
+    ? 'メンバーシップ状態を確認しています。'
+    : ({
+        guest: '作品の視聴には会員登録が必要です。ログイン後にメンバーシップへ登録できます。',
+        registered: `現在は無料会員です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で全作品を視聴できます。`,
+        member: 'メンバーシップ登録済みです。この作品をすぐに視聴できます。',
+      }[accessState]);
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <Header
+        isAuthenticated={isAuthenticated}
+        onLogin={() => navigate('/login')}
+        onLogout={logoutAll}
+        searchQuery=""
+        onSearchChange={() => {}}
+      />
+      {movie && (
+        <div className="container mx-auto px-4 pb-8 pt-24">
+          <div className="flex flex-col gap-8 md:flex-row">
+            <div className="md:w-1/3">
+              <img
+                src={getTestMovieThumbnail(movie, 'detail')}
+                alt={movie.title}
+                className="w-full rounded-lg shadow-lg"
+              />
+            </div>
+            <div className="md:w-2/3">
+              <h1 className="mb-4 text-3xl font-bold text-white">{movie.title}</h1>
+              <p className="mb-6 text-gray-300">{movie.description}</p>
+
+              <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div>
+                  <h3 className="font-semibold text-gray-400">公開日</h3>
+                  <p className="text-white">{movie.release_date || '-'}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">時間</h3>
+                  <p className="text-white">{movie.duration || '-'}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">視聴方法</h3>
+                  <p className="text-white">メンバーシップ見放題</p>
+                </div>
+              </div>
+
+              <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200">
+                      Access
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-white">{accessStatusText}</p>
+                    <p className="mt-2 text-sm leading-6 text-amber-50/90">{accessDescription}</p>
+                  </div>
+                  <div className="rounded-full border border-amber-300/30 bg-black/20 px-4 py-2 text-sm text-amber-100">
+                    月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                {renderPrimaryActions()}
+                <button
+                  onClick={() => void handleToggleWatchlist()}
+                  disabled={isWatchlistBusy}
+                  className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Heart className={`h-5 w-5 ${isInWatchlist ? 'fill-current text-pink-400' : ''}`} />
+                  {isWatchlistBusy
+                    ? '更新中...'
+                    : isInWatchlist
+                      ? 'マイリストから外す'
+                      : 'マイリストに追加'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {movieId && (
+        <div className="container mx-auto px-4 pb-10">
+          <ReviewSection movieId={movieId} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default MovieDetailPage;

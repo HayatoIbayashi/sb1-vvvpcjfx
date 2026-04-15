@@ -1,87 +1,68 @@
-// 動画再生ページコンポーネント (ReactPlayerを使用)
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
-import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Maximize, Pause, Play, RefreshCcw, Volume2, VolumeX } from 'lucide-react';
 import type { Database } from '../lib/types';
 import { linkToStorageFile } from '../lib/storageUtils';
 import useApiClient from '../lib/useApiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { MOCK_MOVIES } from '../mockData';
+import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
+import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 export default function MoviePlayerPage() {
-  // 動画URL取得関数 (storageUtils.ts の linkToStorageFile を使用可能)
-  // ルーティング関連
-  const { id } = useParams(); // URLパラメータから動画ID取得
+  const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const { isAuthenticated } = useAuthStatus();
+  const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
+  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
-  // 動画データ状態
   const [movie, setMovie] = useState<Movie | null>(null);
-  const [storageUrl, setStorageUrl] = useState<string>('');
+  const [storageUrl, setStorageUrl] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [played, setPlayed] = useState(0);
+  const [seeking, setSeeking] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p');
+  const [showControls, setShowControls] = useState(true);
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [duration, setDuration] = useState(0);
 
-  // プレーヤー制御状態
-  const [isPlaying, setIsPlaying] = useState(false); // 再生/一時停止状態
-  const [volume, setVolume] = useState(1); // 音量 (0-1)
-  const [played, setPlayed] = useState(0); // 再生位置 (0-1)
-  const [seeking, setSeeking] = useState(false); // シーク中かどうか
-  const [isMuted, setIsMuted] = useState(false); // ミュート状態
-
-  // UI状態
-  const [loading, setLoading] = useState(true); // ローディング状態
-  const [error, setError] = useState<string | null>(null); // エラーメッセージ
-  const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p'); // 画質設定
-  const [showControls, setShowControls] = useState(true); // コントロール表示状態
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null); // コントロール非表示タイマー
-  const [duration, setDuration] = useState(0); // 動画の総時間(秒)
-
-  // 動画URL (すべての解像度で同じURLを使用)
   const videoUrls = {
     '1080p': storageUrl,
-    '720p': storageUrl, 
+    '720p': storageUrl,
     '360p': storageUrl,
   };
 
-  // 画質変更ハンドラ
-  const handleQualityChange = (newQuality: '1080p' | '720p' | '360p') => {
-    setQuality(newQuality); // 画質設定更新
-    setIsPlaying(true); // 自動再生
-    resetControlsTimer(); // コントロール表示リセット
-  };
-
-  // コントロール非表示タイマーリセット
   const resetControlsTimer = () => {
-    setShowControls(true); // コントロール表示
+    setShowControls(true);
     if (controlsTimeout) {
-      clearTimeout(controlsTimeout); // 既存タイマー解除
+      clearTimeout(controlsTimeout);
     }
-    // 3秒後にコントロール非表示
     setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
   };
 
-  // 時間をHH:MM:SS形式にフォーマット
   const formatTime = (seconds: number) => {
     const date = new Date(0);
     date.setSeconds(seconds);
     return date.toISOString().substring(11, 19);
   };
 
-  // マウス移動検知 (コントロール表示維持)
-  const handleMouseMove = () => {
+  const handleQualityChange = (newQuality: '1080p' | '720p' | '360p') => {
+    setQuality(newQuality);
+    setIsPlaying(true);
     resetControlsTimer();
   };
 
-  // 動画の長さを取得
-  const handleDuration = (duration: number) => {
-    setDuration(duration);
-  };
-
-  // 動画データ取得
   const fetchMovie = useCallback(async () => {
     try {
       setLoading(true);
@@ -92,7 +73,7 @@ export default function MoviePlayerPage() {
       }
 
       if (useMockMovies) {
-        const found = MOCK_MOVIES.find((m) => m.id === id);
+        const found = MOCK_MOVIES.find((item) => item.id === id);
         if (!found) throw new Error('movie not found');
         setMovie(found);
         return;
@@ -100,15 +81,15 @@ export default function MoviePlayerPage() {
 
       const item = await api.getMovie(id);
       setMovie(item);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          setError('サーバーに接続できません。インターネット接続を確認してください。');
+    } catch (fetchError) {
+      if (fetchError instanceof Error) {
+        if (fetchError.message.includes('Failed to fetch')) {
+          setError('サーバーに接続できません。ネットワーク設定を確認してください。');
         } else {
-          setError(error.message);
+          setError(fetchError.message);
         }
       } else {
-        setError('予期せぬエラーが発生しました');
+        setError('予期しないエラーが発生しました。');
       }
     } finally {
       setLoading(false);
@@ -116,32 +97,31 @@ export default function MoviePlayerPage() {
   }, [api, id, useMockMovies]);
 
   useEffect(() => {
-    // 作品情報と再生URLを初期ロード
     void fetchMovie();
 
-    // Amplify StorageからURLを取得
     const fetchStorageUrl = async () => {
       try {
-        const url = await linkToStorageFile('public/1h無題の動画sample_output1.mp4');
+        const url = await linkToStorageFile('public/1h辟｡鬘後・蜍慕判sample_output1.mp4');
         setStorageUrl(url);
-        console.log('Storage URL:', url);
-      } catch (error) {
-        console.error('Error fetching storage URL:', error);
+      } catch (storageError) {
+        console.error('Error fetching storage URL:', storageError);
       }
     };
 
-    fetchStorageUrl();
+    void fetchStorageUrl();
   }, [fetchMovie]);
 
   useEffect(() => {
     const recordWatchHistory = async () => {
-      if (!movie?.id || !isAuthenticated) return;
+      if (!movie?.id || accessState !== 'member') return;
 
       if (useMockWatchHistory) {
         try {
           const key = 'mock_watch_history_v1';
           const raw = localStorage.getItem(key);
-          const current = raw ? JSON.parse(raw) as Array<{ id: string; title: string; watchedAt: string }> : [];
+          const current = raw
+            ? (JSON.parse(raw) as Array<{ id: string; title: string; watchedAt: string }>)
+            : [];
           const next = [
             {
               id: movie.id,
@@ -151,108 +131,98 @@ export default function MoviePlayerPage() {
             ...current.filter((item) => item.id !== movie.id),
           ];
           localStorage.setItem(key, JSON.stringify(next));
-        } catch (error) {
-          console.error('Error saving mock watch history:', error);
+        } catch (historyError) {
+          console.error('Error saving mock watch history:', historyError);
         }
         return;
       }
 
       try {
         await api.addWatchHistory(movie.id);
-      } catch (error) {
-        console.error('Error recording watch history:', error);
+      } catch (historyError) {
+        console.error('Error recording watch history:', historyError);
       }
     };
 
     void recordWatchHistory();
-  }, [api, isAuthenticated, movie, useMockWatchHistory]);
+  }, [api, accessState, movie, useMockWatchHistory]);
 
-  // リトライ処理
   const handleRetry = () => {
-    void fetchMovie(); // データ再取得
+    void fetchMovie();
   };
 
-  // 再生/一時停止トグル
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+    setIsPlaying((current) => !current);
   };
 
-  // 音量変更
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    setVolume(value); // 音量設定
-    setIsMuted(value === 0); // 音量0ならミュート状態に
+  const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(event.target.value);
+    setVolume(value);
+    setIsMuted(value === 0);
   };
 
-  // シークバー値変更
-  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    setPlayed(value); // 再生位置更新
+  const handleSeekChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setPlayed(parseFloat(event.target.value));
   };
 
-  // シーク開始
   const handleSeekMouseDown = () => {
-    setSeeking(true); // シーク中フラグON
+    setSeeking(true);
   };
 
-  // シーク終了
   const handleSeekMouseUp = () => {
-    setSeeking(false); // シーク中フラグOFF
+    setSeeking(false);
     const player = document.querySelector('video');
     if (player) {
-      player.currentTime = played * player.duration; // 実際の再生位置更新
+      player.currentTime = played * player.duration;
     }
   };
 
-  // 再生進捗更新
   const handleProgress = (state: { played: number }) => {
-    if (!seeking) { // シーク中は更新しない
+    if (!seeking) {
       setPlayed(state.played);
     }
   };
 
-  // ミュートトグル
   const handleMute = () => {
-    setIsMuted(!isMuted);
-    setVolume(isMuted ? 1 : 0); // ミュート解除時は音量1に
+    setIsMuted((current) => !current);
+    setVolume((current) => (current === 0 ? 1 : 0));
   };
 
-  // フルスクリーントグル
   const handleFullscreen = () => {
     const player = document.querySelector('.player-wrapper');
     if (!player) return;
 
     if (!document.fullscreenElement) {
-      player.requestFullscreen();
+      void player.requestFullscreen();
     } else {
-      document.exitFullscreen();
+      void document.exitFullscreen();
     }
   };
 
-  if (loading) {
+  if (loading || (isAuthenticated && isMembershipLoading)) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-900">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <div className="text-white text-center max-w-md px-4">
-          <p className="text-xl mb-4">{error}</p>
-          <div className="flex gap-4 justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-900">
+        <div className="max-w-md px-4 text-center text-white">
+          <p className="mb-4 text-xl">{error}</p>
+          <div className="flex justify-center gap-4">
             <button
               onClick={handleRetry}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition flex items-center gap-2"
+              className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2 text-white transition hover:bg-primary/90"
             >
               <RefreshCcw className="h-5 w-5" />
               再試行
             </button>
             <button
               onClick={() => navigate('/')}
-              className="bg-gray-700 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition"
+              className="rounded-lg bg-gray-700 px-6 py-2 text-white transition hover:bg-gray-600"
             >
               ホームに戻る
             </button>
@@ -262,80 +232,105 @@ export default function MoviePlayerPage() {
     );
   }
 
-  // if (!movie) {
-  //   return (
-  //     <div className="min-h-screen bg-dark flex items-center justify-center">
-  //       <div className="text-white text-center">
-  //         <p className="text-xl mb-4">作品が見つかりませんでした</p>
-  //         <button
-  //           onClick={() => navigate('/')}
-  //           className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition"
-  //         >
-  //           ホームに戻る
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  if (accessState !== 'member') {
+    const title = movie?.title ? `「${movie.title}」の視聴には` : '視聴には';
 
-  return (
-      <div 
-        className="min-h-screen bg-gray-900"
-        onMouseMove={handleMouseMove}
-      >
-      {/* Header */}
-      <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
-            <button
-              onClick={() => navigate(-1)}
-              className="text-gray-400 hover:text-white transition mr-4"
-            >
+    return (
+      <div className="min-h-screen bg-gray-900 text-white">
+        <header className="border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+          <div className="container mx-auto flex items-center gap-4 px-4 py-4">
+            <button onClick={() => navigate(-1)} className="text-gray-400 transition hover:text-white">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-xl font-bold text-white">{movie?.title || 'デモ版（作品名）'}</h1>
+            <h1 className="text-xl font-bold">{movie?.title || '視聴制限'}</h1>
+          </div>
+        </header>
+
+        <main className="container mx-auto px-4 py-16">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-amber-400/30 bg-amber-500/10 p-8 text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-amber-200">Access Required</p>
+            <h2 className="mt-4 text-3xl font-bold text-white">{title}メンバーシップ登録が必要です</h2>
+            <p className="mt-4 text-base leading-7 text-amber-50/90">
+              {accessState === 'guest'
+                ? 'まずは会員登録またはログインを行い、その後メンバーシップへ登録してください。'
+                : `無料会員のままでは再生できません。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で視聴できます。`}
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+              {accessState === 'guest' ? (
+                <>
+                  <button
+                    onClick={() => navigate('/signup')}
+                    className="rounded-xl bg-white px-6 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
+                  >
+                    会員登録する
+                  </button>
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="rounded-xl border border-gray-600 px-6 py-3 font-semibold text-white transition hover:bg-gray-800"
+                  >
+                    ログイン
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => navigate(subscriptionPath)}
+                  className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-3 font-semibold text-white transition hover:opacity-95"
+                >
+                  月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録
+                </button>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900" onMouseMove={resetControlsTimer}>
+      <header className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center">
+            <button onClick={() => navigate(-1)} className="mr-4 text-gray-400 transition hover:text-white">
+              <ArrowLeft className="h-6 w-6" />
+            </button>
+            <h1 className="text-xl font-bold text-white">{movie?.title || '動画プレイヤー'}</h1>
           </div>
         </div>
       </header>
 
-      {/* Player */}
-      <div className="pt-16 pb-8">
+      <div className="pb-8 pt-16">
         <div className="container mx-auto px-4">
-          <div className="player-wrapper relative pt-[56.25%] bg-gray-800 rounded-lg overflow-hidden">
+          <div className="player-wrapper relative overflow-hidden rounded-lg bg-gray-800 pt-[56.25%]">
             <ReactPlayer
               url={videoUrls[quality]}
-              className="absolute top-0 left-0"
+              className="absolute left-0 top-0"
               width="100%"
               height="100%"
               playing={isPlaying}
               volume={volume}
               muted={isMuted}
               onProgress={handleProgress}
-              onDuration={handleDuration}
+              onDuration={setDuration}
             />
 
-            {/* Custom Controls */}
-            <div 
-              className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-900/90 to-transparent transition-opacity duration-300 ${
+            <div
+              className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900/90 to-transparent p-4 transition-opacity duration-300 ${
                 showControls ? 'opacity-100' : 'opacity-0'
               }`}
             >
-              {/* Progress Bar with Time Display */}
-              <div className="relative w-full mb-4">
-                {/* Current Time Tooltip */}
+              <div className="relative mb-4 w-full">
                 <div
-                  className="absolute -top-6 bg-gray-800 px-2 py-1 rounded text-white text-xs whitespace-nowrap"
+                  className="absolute -top-6 rounded bg-gray-800 px-2 py-1 text-xs text-white"
                   style={{
                     left: `${played * 100}%`,
-                    transform: 'translateX(-50%)'
+                    transform: 'translateX(-50%)',
                   }}
                 >
                   {formatTime(played * duration)}
                 </div>
-                {/* Total Time (fixed right) */}
-                <div className="absolute -top-6 right-0 text-xs text-gray-400">
-                  {formatTime(duration)}
-                </div>
+                <div className="absolute -top-6 right-0 text-xs text-gray-400">{formatTime(duration)}</div>
                 <input
                   type="range"
                   min={0}
@@ -351,30 +346,14 @@ export default function MoviePlayerPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  {/* Play/Pause */}
-                  <button
-                    onClick={handlePlayPause}
-                    className="text-white hover:text-blue-500 transition"
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-6 w-6" />
-                    ) : (
-                      <Play className="h-6 w-6" />
-                    )}
+                  <button onClick={handlePlayPause} className="text-white transition hover:text-blue-500">
+                    {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
                   </button>
 
-                  {/* Volume & Quality */}
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleMute}
-                        className="text-white hover:text-blue-500 transition"
-                      >
-                        {isMuted ? (
-                          <VolumeX className="h-6 w-6" />
-                        ) : (
-                          <Volume2 className="h-6 w-6" />
-                        )}
+                      <button onClick={handleMute} className="text-white transition hover:text-blue-500">
+                        {isMuted ? <VolumeX className="h-6 w-6" /> : <Volume2 className="h-6 w-6" />}
                       </button>
                       <input
                         type="range"
@@ -388,8 +367,8 @@ export default function MoviePlayerPage() {
                     </div>
                     <select
                       value={quality}
-                      onChange={(e) => handleQualityChange(e.target.value as '1080p' | '720p' | '360p')}
-                      className="bg-gray-800 text-white text-sm rounded px-2 py-1"
+                      onChange={(event) => handleQualityChange(event.target.value as '1080p' | '720p' | '360p')}
+                      className="rounded bg-gray-800 px-2 py-1 text-sm text-white"
                     >
                       <option value="1080p">1080p</option>
                       <option value="720p">720p</option>
@@ -398,21 +377,16 @@ export default function MoviePlayerPage() {
                   </div>
                 </div>
 
-                {/* Fullscreen */}
-                <button
-                  onClick={handleFullscreen}
-                  className="text-white hover:text-blue-500 transition"
-                >
+                <button onClick={handleFullscreen} className="text-white transition hover:text-blue-500">
                   <Maximize className="h-6 w-6" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Movie Info */}
           <div className="mt-8">
-            <h2 className="text-2xl font-bold text-white mb-4">{movie?.title || ''}</h2>
-            <p className="text-gray-400 mb-4">{movie?.description || ''}</p>
+            <h2 className="mb-4 text-2xl font-bold text-white">{movie?.title || ''}</h2>
+            <p className="mb-4 text-gray-400">{movie?.description || ''}</p>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-400">監督:</span>{' '}
@@ -425,10 +399,14 @@ export default function MoviePlayerPage() {
               <div>
                 <span className="text-gray-400">公開年:</span>{' '}
                 <span className="text-white">{movie?.release_year || '-'}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">視聴形態:</span>{' '}
+                <span className="text-white">メンバーシップ見放題</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );

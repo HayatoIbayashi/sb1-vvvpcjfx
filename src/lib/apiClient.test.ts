@@ -246,28 +246,6 @@ describe('apiClient movies', () => {
     );
   });
 
-  it('builds purchases requests', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      jsonResponse({ items: [] }),
-    ));
-    globalThis.fetch = fetchMock as typeof globalThis.fetch;
-
-    const client = createApiClient({ baseUrl: '/api' });
-    await client.getPurchases({ status: 'completed', limit: 5 });
-    await client.getPurchase('purchase-1');
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/purchases?status=completed&limit=5',
-      expect.objectContaining({ method: 'GET' }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/purchases/purchase-1',
-      expect.objectContaining({ method: 'GET' }),
-    );
-  });
-
   it('builds subscription current request', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
       jsonResponse({ active: false, subscription: null }),
@@ -283,15 +261,15 @@ describe('apiClient movies', () => {
     );
   });
 
-  it('builds subscription plan and subscribe requests', async () => {
+  it('builds subscription plan and checkout session requests', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      jsonResponse({ items: [], active: true, subscription: null }),
+      jsonResponse({ items: [], url: 'https://checkout.stripe.com/pay/cs_test_123', sessionId: 'cs_test_123' }),
     ));
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
     const client = createApiClient({ baseUrl: '/api' });
     await client.getSubscriptionPlans();
-    await client.subscribeCurrent({ plan_id: 'plan-1' });
+    await client.createSubscriptionCheckoutSession({ plan_id: 'plan-1' }, 'id-token-value');
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -300,9 +278,12 @@ describe('apiClient movies', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      '/api/subscriptions/current',
+      '/api/subscriptions/checkout-session',
       expect.objectContaining({
         method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer id-token-value',
+        }),
         body: JSON.stringify({ plan_id: 'plan-1' }),
       }),
     );
@@ -313,33 +294,16 @@ describe('apiClient movies', () => {
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
     const client = createApiClient({ baseUrl: '/api' });
-    await client.cancelSubscriptionCurrent();
+    await client.cancelSubscriptionCurrent('id-token-value');
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/subscriptions/current',
-      expect.objectContaining({ method: 'DELETE' }),
-    );
-  });
-
-  it('builds wallet requests', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      jsonResponse({ items: [], total_points: 0 }),
-    ));
-    globalThis.fetch = fetchMock as typeof globalThis.fetch;
-
-    const client = createApiClient({ baseUrl: '/api' });
-    await client.getWalletSummary();
-    await client.getWalletTransactions({ limit: 10, offset: 5 });
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/wallets/current',
-      expect.objectContaining({ method: 'GET' }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/wallets/transactions?limit=10&offset=5',
-      expect.objectContaining({ method: 'GET' }),
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer id-token-value',
+        }),
+      }),
     );
   });
 

@@ -18,8 +18,6 @@ export function createEmptyFormData(): Partial<Movie> {
     thumbnail_detail: '',
     release_date: '',
     duration: '',
-    price: 0,
-    rental_price: 0,
     genre: [],
     cast: [],
   };
@@ -41,8 +39,6 @@ export function buildMoviePayload(formData: Partial<Movie>): AdminMovieWritePayl
     thumbnail_detail: normalizeNullableText(formData.thumbnail_detail),
     release_date: normalizeNullableText(formData.release_date),
     duration: normalizeNullableText(formData.duration),
-    price: formData.price ?? 0,
-    rental_price: formData.rental_price ?? 0,
     genre: formData.genre ?? [],
     cast: formData.cast ?? [],
   };

@@ -3,12 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import SubscriptionPage from './SubscriptionPage';
 
-const { mockNavigate, mockApi, mockLogoutAll } = vi.hoisted(() => ({
+const {
+  mockNavigate,
+  mockApi,
+  mockLogoutAll,
+  mockGetBillingToken,
+  mockAuth,
+  mockUseMembershipStatus,
+} = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockLogoutAll: vi.fn(),
+  mockGetBillingToken: vi.fn(),
+  mockAuth: {},
+  mockUseMembershipStatus: vi.fn(),
   mockApi: {
     getSubscriptionPlans: vi.fn(),
-    subscribeCurrent: vi.fn(),
+    createSubscriptionCheckoutSession: vi.fn(),
   },
 }));
 
@@ -20,15 +30,25 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+vi.mock('react-oidc-context', () => ({
+  useAuth: () => mockAuth,
+}));
+
 vi.mock('../lib/useApiClient', () => ({
   default: () => mockApi,
 }));
 
 vi.mock('../lib/authBridge', () => ({
+  getBillingToken: mockGetBillingToken,
   useAuthStatus: () => ({
     isAuthenticated: true,
     logoutAll: mockLogoutAll,
   }),
+}));
+
+vi.mock('../lib/useMembershipStatus', () => ({
+  MEMBERSHIP_MONTHLY_PRICE: 1000,
+  useMembershipStatus: () => mockUseMembershipStatus(),
 }));
 
 vi.mock('./common/Header', () => ({
@@ -39,40 +59,34 @@ describe('SubscriptionPage', () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockLogoutAll.mockReset();
+    mockGetBillingToken.mockReset();
+    mockUseMembershipStatus.mockReset();
     mockApi.getSubscriptionPlans.mockReset();
-    mockApi.subscribeCurrent.mockReset();
+    mockApi.createSubscriptionCheckoutSession.mockReset();
     vi.stubEnv('VITE_USE_MOCK_SUBSCRIPTIONS', 'false');
 
+    mockGetBillingToken.mockReturnValue('id-token-value');
+    mockUseMembershipStatus.mockReturnValue({
+      accessState: 'registered',
+      isLoading: false,
+    });
     mockApi.getSubscriptionPlans.mockResolvedValue({
       items: [
         {
-          id: 'plan-basic',
-          name: 'ベーシックプラン',
-          description: '全作品見放題',
-          price_monthly: 500,
+          id: 'plan-membership',
+          name: 'メンバーシップ',
+          description: '全作品が見放題',
+          price_monthly: 1000,
+          stripe_price_id: 'price_membership',
           is_active: true,
           created_at: '2026-01-01T00:00:00.000Z',
           updated_at: '2026-01-01T00:00:00.000Z',
         },
       ],
     });
-    mockApi.subscribeCurrent.mockResolvedValue({
-      active: true,
-      subscription: {
-        id: 'subscription-1',
-        user_id: 'user-1',
-        plan_id: 'plan-basic',
-        status: 'active',
-        started_at: '2026-01-01T00:00:00.000Z',
-        renews_at: '2026-02-01T00:00:00.000Z',
-        canceled_at: null,
-        ended_at: null,
-        created_at: '2026-01-01T00:00:00.000Z',
-        updated_at: '2026-01-01T00:00:00.000Z',
-        plan_name: 'ベーシックプラン',
-        price_monthly: 500,
-        plan_is_active: true,
-      },
+    mockApi.createSubscriptionCheckoutSession.mockResolvedValue({
+      url: 'https://checkout.stripe.com/pay/cs_test_123',
+      sessionId: 'cs_test_123',
     });
   });
 
@@ -81,9 +95,19 @@ describe('SubscriptionPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads plans and subscribes the selected plan', async () => {
+  it('loads the membership plan and redirects to Stripe checkout with billing token', async () => {
+    const assignMock = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...window.location,
+        origin: 'https://example.com',
+        assign: assignMock,
+      },
+    });
+
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/subscription?returnTo=%2Fmovies%2Fmovie-1']}>
         <SubscriptionPage />
       </MemoryRouter>,
     );
@@ -92,17 +116,18 @@ describe('SubscriptionPage', () => {
       expect(mockApi.getSubscriptionPlans).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByText('ベーシックプラン')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'メンバーシップ', level: 3 })).toBeInTheDocument();
+    expect((await screen.findAllByText(/1,000/)).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'このプランを選択' }));
-    fireEvent.click(screen.getByRole('button', { name: '次へ進む' }));
-
-    await screen.findByText('支払い情報の入力');
-    fireEvent.click(screen.getByRole('button', { name: '登録する' }));
+    fireEvent.click(screen.getByRole('button', { name: 'メンバーシップに登録' }));
 
     await waitFor(() => {
-      expect(mockApi.subscribeCurrent).toHaveBeenCalledWith({ plan_id: 'plan-basic' });
+      expect(mockApi.createSubscriptionCheckoutSession).toHaveBeenCalledWith({
+        plan_id: 'plan-membership',
+        successUrl: 'https://example.com/subscription/complete?returnTo=%2Fmovies%2Fmovie-1',
+        cancelUrl: 'https://example.com/subscription?returnTo=%2Fmovies%2Fmovie-1',
+      }, 'id-token-value');
     });
-    expect(mockNavigate).toHaveBeenCalledWith('/account');
+    expect(assignMock).toHaveBeenCalledWith('https://checkout.stripe.com/pay/cs_test_123');
   });
 });

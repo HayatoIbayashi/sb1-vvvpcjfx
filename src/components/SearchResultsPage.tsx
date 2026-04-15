@@ -5,6 +5,7 @@ import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
+import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -123,7 +124,7 @@ export default function SearchResultsPage() {
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                 onClick={() => handleMovieClick(movie.id)}
               >
-                <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-0 left-0 p-4">
                     <h3 className="text-white font-semibold mb-1">{movie.title}</h3>

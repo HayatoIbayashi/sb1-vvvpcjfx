@@ -43,6 +43,11 @@ Parameters:
     Type: String
     Default: ""
     Description: (Optional) Existing Stripe billing portal configuration id
+  StripeWebhookSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: (Optional) Stripe webhook signing secret
 
 Conditions:
   HasRdsSg: !Not [!Equals [!Ref RdsSecurityGroupId, ""]]
@@ -138,6 +143,7 @@ Resources:
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
       Events:
         PublicMovies:
           Type: HttpApi
@@ -229,54 +235,24 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/watch-history
             Method: POST
-        PurchasesGet:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/purchases
-            Method: GET
-        PurchaseDetailGet:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/purchases/{id}
-            Method: GET
         SubscriptionCurrentGet:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /v1/subscriptions/current
             Method: GET
-        SubscriptionCurrentPost:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/subscriptions/current
-            Method: POST
-        SubscriptionCurrentDelete:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/subscriptions/current
-            Method: DELETE
         SubscriptionPlansGet:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /v1/subscription-plans
             Method: GET
-        WalletCurrentGet:
+        StripeWebhookPost:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /v1/wallets/current
-            Method: GET
-        WalletTransactionsGet:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/wallets/transactions
-            Method: GET
+            Path: /v1/stripe/webhook
+            Method: POST
         ProfileGet:
           Type: HttpApi
           Properties:
@@ -364,6 +340,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/billing-portal/session
             Method: POST
+        SubscriptionCheckoutSessionCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/subscriptions/checkout-session
+            Method: POST
+        SubscriptionCurrentDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/subscriptions/current
+            Method: DELETE
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup

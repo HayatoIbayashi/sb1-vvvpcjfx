@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { getPool } from './db.js';
+import { handleStripeWebhook } from './stripeWebhook.js';
 import {
   createAdminAccount,
   deleteAdminAccount,
@@ -27,6 +28,27 @@ const MOVIE_COLUMNS = [
   'created_at',
   'updated_at',
 ];
+
+const MEMBERSHIP_PLAN_NAME = 'メンバーシップ';
+const MEMBERSHIP_MONTHLY_PRICE = 1000;
+const MEMBERSHIP_DESCRIPTION = '全作品が見放題\n視聴はメンバーシップ登録済みアカウントのみ\n請求情報は Stripe のカスタマーポータルで管理';
+
+function normalizeSubscriptionPlanRow<T extends Record<string, unknown>>(row: T) {
+  return {
+    ...row,
+    name: MEMBERSHIP_PLAN_NAME,
+    description: MEMBERSHIP_DESCRIPTION,
+    price_monthly: MEMBERSHIP_MONTHLY_PRICE,
+  };
+}
+
+function normalizeSubscriptionRow<T extends Record<string, unknown>>(row: T) {
+  return {
+    ...row,
+    plan_name: MEMBERSHIP_PLAN_NAME,
+    price_monthly: MEMBERSHIP_MONTHLY_PRICE,
+  };
+}
 
 function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
@@ -356,6 +378,14 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   try {
     const method = event.requestContext.http.method;
     const path = event.rawPath || '';
+    const stripeWebhookMatch = path.match(/^\/v1\/stripe\/webhook$/);
+    if (stripeWebhookMatch) {
+      if (method !== 'POST') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+      return await handleStripeWebhook(event);
+    }
+
     const watchlistMatch = path.match(/^\/v1\/watchlist(?:\/([^/]+))?$/);
     if (watchlistMatch) {
       const userId = getUserIdFromAuth(event.headers);
@@ -675,12 +705,16 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       const { rows } = await getPool().query(
-        `SELECT id, name, description, price_monthly, is_active, created_at, updated_at
+        `SELECT id, name, description, price_monthly, stripe_price_id, is_active, created_at, updated_at
          FROM subscription_plans
          WHERE is_active = TRUE
-         ORDER BY price_monthly ASC, created_at ASC`,
+         ORDER BY
+           CASE WHEN price_monthly = 1000 THEN 0 ELSE 1 END,
+           ABS(price_monthly - 1000),
+           created_at ASC
+         LIMIT 1`,
       );
-      return response(200, { items: rows });
+      return response(200, { items: rows.map((row) => normalizeSubscriptionPlanRow(row)) });
     }
 
     const subscriptionsMatch = path.match(/^\/v1\/subscriptions\/current$/);
@@ -747,7 +781,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
             if (current && current.plan_id === input.plan_id) {
               await client.query('COMMIT');
-              return response(200, { active: true, subscription: current });
+              return response(200, { active: true, subscription: normalizeSubscriptionRow(current) });
             }
 
             await client.query(
@@ -778,12 +812,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             await client.query('COMMIT');
             return response(201, {
               active: true,
-              subscription: {
+              subscription: normalizeSubscriptionRow({
                 ...created,
                 plan_name: plan.name,
                 price_monthly: Number(plan.price_monthly || 0),
                 plan_is_active: Boolean(plan.is_active),
-              },
+              }),
             });
           } catch (error) {
             await client.query('ROLLBACK');
@@ -850,12 +884,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           const updated = updatedRes.rows[0];
           return response(200, {
             active: false,
-            subscription: {
+            subscription: normalizeSubscriptionRow({
               ...updated,
               plan_name: current.plan_name,
               price_monthly: Number(current.price_monthly || 0),
               plan_is_active: Boolean(current.plan_is_active),
-            },
+            }),
           });
         } catch (error) {
           await client.query('ROLLBACK');
@@ -890,7 +924,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       if (!rows.length) {
         return response(200, { active: false, subscription: null });
       }
-      const subscription = rows[0];
+      const subscription = normalizeSubscriptionRow(rows[0]);
       const active = subscription.status === 'active';
       return response(200, { active, subscription });
     }

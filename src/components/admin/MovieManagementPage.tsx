@@ -4,6 +4,7 @@ import { ArrowLeft, Edit2, Plus, Trash2 } from 'lucide-react';
 import useApiClient from '../../lib/useApiClient';
 import { MOCK_MOVIES } from '../../mockData';
 import type { Database } from '../../lib/types';
+import { getTestMovieThumbnail } from '../../lib/testMovieThumbnails';
 import { buildMoviePayload, createEmptyFormData, splitCsv } from './movieManagementForm';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -92,8 +93,6 @@ export default function MovieManagementPage() {
       thumbnail_detail: movie.thumbnail_detail || '',
       release_date: movie.release_date || '',
       duration: movie.duration || '',
-      price: movie.price ?? 0,
-      rental_price: movie.rental_price ?? 0,
       genre: movie.genre || [],
       cast: movie.cast || [],
     });
@@ -126,8 +125,8 @@ export default function MovieManagementPage() {
         duration: formData.duration || null,
         director: null,
         release_year: null,
-        price: formData.price ?? 0,
-        rental_price: formData.rental_price ?? 0,
+        price: 0,
+        rental_price: 0,
         genre: formData.genre || [],
         cast: formData.cast || [],
         created_at: new Date().toISOString(),
@@ -239,7 +238,7 @@ export default function MovieManagementPage() {
               >
                 <div className="flex items-start p-6 gap-6">
                   <img
-                    src={movie.thumbnail || 'https://via.placeholder.com/150'}
+                    src={getTestMovieThumbnail(movie, 'card')}
                     alt={movie.title}
                     className="w-32 h-48 object-cover rounded-lg"
                   />
@@ -248,10 +247,7 @@ export default function MovieManagementPage() {
                     <p className="text-gray-400 mb-4 line-clamp-2">{movie.description || '説明なし'}</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
                       <div>
-                        <span className="text-gray-500">本編価格:</span> ¥{movie.price.toLocaleString()}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">レンタル価格:</span> ¥{movie.rental_price.toLocaleString()}
+                        <span className="text-gray-500">視聴形態:</span> メンバーシップ見放題
                       </div>
                       <div className="md:col-span-2">
                         <span className="text-gray-500">ジャンル:</span> {(movie.genre || []).join(', ') || '-'}
@@ -377,25 +373,8 @@ export default function MovieManagementPage() {
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
                 </div>
-                <div>
-                  <label className="block text-gray-300 mb-2">本編価格（円）</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.price ?? 0}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value || 0) })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-2">レンタル価格（円）</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.rental_price ?? 0}
-                    onChange={(e) => setFormData({ ...formData, rental_price: Number(e.target.value || 0) })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
-                  />
+                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  単品購入とレンタルは廃止しました。作品はメンバーシップ見放題として公開されます。
                 </div>
               </div>
             </div>

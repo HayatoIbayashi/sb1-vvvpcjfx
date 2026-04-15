@@ -37,13 +37,21 @@ export type SubscriptionPlan = {
   name: string;
   description: string | null;
   price_monthly: number;
+  stripe_price_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
 
-export type SubscriptionCreatePayload = {
+export type SubscriptionCheckoutSessionPayload = {
   plan_id: string;
+  successUrl?: string | null;
+  cancelUrl?: string | null;
+};
+
+export type SubscriptionCheckoutSessionResponse = {
+  url: string;
+  sessionId: string;
 };
 
 export type WatchHistoryItem = {
@@ -138,18 +146,22 @@ function buildHeaders(base: HeadersInit = {}, authToken?: string | null): Header
   return { ...(base as Record<string, string>), Authorization: `Bearer ${authToken}` };
 }
 
+async function resolveJsonResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || `Request failed: ${res.status}`);
+  }
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) return undefined as T;
+  return (await res.json()) as T;
+}
+
 function createRequester(baseUrl: string, getToken?: GetTokenFn) {
   return async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = getToken ? await getToken() : null;
     const headers = buildHeaders({ 'Content-Type': 'application/json', ...(options.headers || {}) }, token);
     const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => '');
-      throw new Error(msg || `Request failed: ${res.status}`);
-    }
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) return undefined as T;
-    return (await res.json()) as T;
+    return resolveJsonResponse<T>(res);
   };
 }
 
@@ -157,6 +169,31 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
   const baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
   const request = createRequester(baseUrl, opts.getToken);
   const resolveToken = async () => (opts.getToken ? await opts.getToken() : null);
+  const requestWithOptionalAuth = async <T>(
+    path: string,
+    options: RequestInit = {},
+    authTokenOverride?: string | null,
+  ): Promise<T> => {
+    const token = authTokenOverride ?? await resolveToken();
+    const headers = buildHeaders(options.headers || {}, token);
+    const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+    return resolveJsonResponse<T>(res);
+  };
+  const postWithOptionalAuth = async <T>(
+    path: string,
+    payload: unknown,
+    authTokenOverride?: string | null,
+  ): Promise<T> => {
+    return requestWithOptionalAuth<T>(
+      path,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      authTokenOverride,
+    );
+  };
 
   return {
     signUp(payload: SignUpPayload) {
@@ -279,29 +316,11 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
       payload: BillingPortalSessionPayload,
       authTokenOverride?: string | null,
     ) {
-      const token = authTokenOverride ?? await resolveToken();
-      const headers = buildHeaders({ 'Content-Type': 'application/json' }, token);
-      const res = await fetch(`${baseUrl}/billing-portal/session`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const msg = await res.text().catch(() => '');
-        throw new Error(msg || `Request failed: ${res.status}`);
-      }
-      return (await res.json()) as BillingPortalSessionResponse;
-    },
-    getPurchases(query?: { status?: string; limit?: number; offset?: number }) {
-      const qs = new URLSearchParams();
-      if (query?.status) qs.set('status', query.status);
-      if (query?.limit != null) qs.set('limit', String(query.limit));
-      if (query?.offset != null) qs.set('offset', String(query.offset));
-      const suffix = qs.toString();
-      return request<{ items: PurchaseItem[] }>(`/purchases${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
-    },
-    getPurchase(id: string) {
-      return request<PurchaseItem>(`/purchases/${encodeURIComponent(id)}`, { method: 'GET' });
+      return postWithOptionalAuth<BillingPortalSessionResponse>(
+        '/billing-portal/session',
+        payload,
+        authTokenOverride,
+      );
     },
     getSubscriptionCurrent() {
       return request<SubscriptionCurrent>('/subscriptions/current', { method: 'GET' });
@@ -309,26 +328,21 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     getSubscriptionPlans() {
       return request<{ items: SubscriptionPlan[] }>('/subscription-plans', { method: 'GET' });
     },
-    subscribeCurrent(payload: SubscriptionCreatePayload) {
-      return request<SubscriptionCurrent>('/subscriptions/current', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+    async createSubscriptionCheckoutSession(
+      payload: SubscriptionCheckoutSessionPayload,
+      authTokenOverride?: string | null,
+    ) {
+      return postWithOptionalAuth<SubscriptionCheckoutSessionResponse>(
+        '/subscriptions/checkout-session',
+        payload,
+        authTokenOverride,
+      );
     },
-    cancelSubscriptionCurrent() {
-      return request<SubscriptionCurrent>('/subscriptions/current', { method: 'DELETE' });
-    },
-    getWalletSummary() {
-      return request<WalletSummary>('/wallets/current', { method: 'GET' });
-    },
-    getWalletTransactions(query?: { limit?: number; offset?: number }) {
-      const qs = new URLSearchParams();
-      if (query?.limit != null) qs.set('limit', String(query.limit));
-      if (query?.offset != null) qs.set('offset', String(query.offset));
-      const suffix = qs.toString();
-      return request<{ items: WalletTransactionItem[] }>(
-        `/wallets/transactions${suffix ? `?${suffix}` : ''}`,
-        { method: 'GET' },
+    cancelSubscriptionCurrent(authTokenOverride?: string | null) {
+      return requestWithOptionalAuth<SubscriptionCurrent>(
+        '/subscriptions/current',
+        { method: 'DELETE' },
+        authTokenOverride,
       );
     },
     getProfile() {
@@ -339,12 +353,6 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     resetPassword(email: string) {
       return request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email }) });
-    },
-    createPaymentIntent(movieId: string, amount: number) {
-      return request<{ clientSecret: string }>(
-        '/payments/create-intent',
-        { method: 'POST', body: JSON.stringify({ movieId, amount }) },
-      );
     },
     // Reviews
     getReviews(movieId: string) {
@@ -374,19 +382,6 @@ export type Review = {
   createdAt: string; // ISO timestamp
 };
 
-export type PurchaseItem = {
-  id: string;
-  movie_id: string;
-  payment_method: string;
-  amount_total: number;
-  amount_cash: number;
-  amount_points: number;
-  status: string;
-  expires_at: string | null;
-  created_at: string;
-  title: string;
-};
-
 export type SubscriptionCurrent = {
   active: boolean;
   subscription: {
@@ -404,27 +399,4 @@ export type SubscriptionCurrent = {
     price_monthly: number;
     plan_is_active: boolean;
   } | null;
-};
-
-export type WalletSummary = {
-  total_points: number;
-  paid_points: number;
-  bonus_points: number;
-  expiring_soon_amount: number;
-  expiring_soon_date: string | null;
-  expirations: {
-    date: string;
-    amount: number;
-    type: 'paid' | 'bonus';
-    note: string | null;
-  }[];
-};
-
-export type WalletTransactionItem = {
-  id: string;
-  date: string;
-  title: string;
-  diff: number;
-  type: 'credit' | 'debit';
-  balance_after: number;
 };

@@ -14,6 +14,14 @@ type AuthUserWithTokens = {
   idToken?: string;
 };
 
+function getUserTokens(auth: ReturnType<typeof useAuth>) {
+  const user = auth.user as (typeof auth.user & AuthUserWithTokens) | null;
+  return {
+    accessToken: user?.access_token ?? user?.accessToken ?? null,
+    idToken: user?.id_token ?? user?.idToken ?? null,
+  };
+}
+
 export function getStoredTokens(): StoredTokens | null {
   try {
     const raw = localStorage.getItem('cognito_tokens');
@@ -32,13 +40,19 @@ export function clearStoredTokens() {
   }
 }
 
+export function getBillingToken(auth: ReturnType<typeof useAuth>): string | null {
+  const { idToken } = getUserTokens(auth);
+  if (idToken) return idToken;
+  const stored = getStoredTokens();
+  if (stored?.id_token) return stored.id_token;
+  return null;
+}
+
 export function getBestToken(auth: ReturnType<typeof useAuth>): string | null {
-  // 優先順位: OIDC access_token -> OIDC id_token -> localStorage access_token -> localStorage id_token
-  const user = auth.user as (typeof auth.user & AuthUserWithTokens) | null;
-  const access = user?.access_token ?? user?.accessToken;
-  const idt = user?.id_token ?? user?.idToken;
-  if (access) return access;
-  if (idt) return idt;
+  const { accessToken, idToken } = getUserTokens(auth);
+  // Prefer API-oriented access_token first, but keep id_token available for endpoints that need profile claims.
+  if (accessToken) return accessToken;
+  if (idToken) return idToken;
   const stored = getStoredTokens();
   if (stored?.access_token) return stored.access_token;
   if (stored?.id_token) return stored.id_token;

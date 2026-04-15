@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import AccountSettingsPage from './AccountSettingsPage';
 
-const { mockApi, mockAuth, mockGetStoredTokens } = vi.hoisted(() => ({
+const { mockApi, mockAuth, mockGetBillingToken } = vi.hoisted(() => ({
   mockApi: {
     createBillingPortalSession: vi.fn(),
     getProfile: vi.fn(),
@@ -12,10 +12,9 @@ const { mockApi, mockAuth, mockGetStoredTokens } = vi.hoisted(() => ({
     updateProfile: vi.fn(),
     cancelSubscriptionCurrent: vi.fn(),
   },
-  mockGetStoredTokens: vi.fn(),
+  mockGetBillingToken: vi.fn(),
   mockAuth: {
     user: {
-      id_token: 'id-token-value',
       profile: {
         email: 'oidc@example.com',
         name: 'OIDC Name',
@@ -29,10 +28,10 @@ vi.mock('../lib/useApiClient', () => ({
 }));
 
 vi.mock('../lib/authBridge', () => ({
+  getBillingToken: mockGetBillingToken,
   useAuthStatus: () => ({
     isAuthenticated: true,
   }),
-  getStoredTokens: mockGetStoredTokens,
 }));
 
 vi.mock('react-oidc-context', () => ({
@@ -43,10 +42,8 @@ describe('AccountSettingsPage', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.stubEnv('VITE_USE_MOCK_PROFILE', 'false');
-    vi.stubEnv('VITE_USE_MOCK_PURCHASES', 'true');
     vi.stubEnv('VITE_USE_MOCK_SUBSCRIPTIONS', 'true');
     vi.stubEnv('VITE_USE_MOCK_WATCH_HISTORY', 'true');
-    vi.stubEnv('VITE_USE_MOCK_WALLET', 'true');
 
     mockApi.getProfile.mockReset();
     mockApi.createBillingPortalSession.mockReset();
@@ -54,8 +51,9 @@ describe('AccountSettingsPage', () => {
     mockApi.getWatchHistory.mockReset();
     mockApi.updateProfile.mockReset();
     mockApi.cancelSubscriptionCurrent.mockReset();
-    mockGetStoredTokens.mockReset();
+    mockGetBillingToken.mockReset();
 
+    mockGetBillingToken.mockReturnValue('id-token-value');
     mockApi.getProfile.mockResolvedValue({
       id: 'user-1',
       email: 'user@example.com',
@@ -73,18 +71,9 @@ describe('AccountSettingsPage', () => {
     mockApi.createBillingPortalSession.mockResolvedValue({
       url: 'https://billing.stripe.com/session/test',
     });
-    mockGetStoredTokens.mockReturnValue(null);
-    mockAuth.user = {
-      id_token: 'id-token-value',
-      profile: {
-        email: 'oidc@example.com',
-        name: 'OIDC Name',
-      },
-    };
     mockApi.getWatchHistory.mockResolvedValue({
       items: [],
     });
-
     mockApi.updateProfile.mockResolvedValue({
       id: 'user-1',
       email: 'user@example.com',
@@ -140,25 +129,15 @@ describe('AccountSettingsPage', () => {
     });
   });
 
-  it('cancels membership via subscription api', async () => {
+  it('cancels membership via subscription api with billing token', async () => {
     vi.stubEnv('VITE_USE_MOCK_SUBSCRIPTIONS', 'false');
 
-    mockApi.getProfile.mockResolvedValue({
-      id: 'user-1',
-      email: 'user@example.com',
-      display_name: 'DB Name',
-      gender: 'male',
-      age: 30,
-      prefecture: '東京都',
-      created_at: '2026-01-01T00:00:00.000Z',
-      updated_at: '2026-01-01T00:00:00.000Z',
-    });
     mockApi.getSubscriptionCurrent.mockResolvedValue({
       active: true,
       subscription: {
         id: 'subscription-1',
         user_id: 'user-1',
-        plan_id: 'plan-basic',
+        plan_id: 'plan-membership',
         status: 'active',
         started_at: '2026-01-01T00:00:00.000Z',
         renews_at: '2026-02-01T00:00:00.000Z',
@@ -166,13 +145,12 @@ describe('AccountSettingsPage', () => {
         ended_at: null,
         created_at: '2026-01-01T00:00:00.000Z',
         updated_at: '2026-01-01T00:00:00.000Z',
-        plan_name: 'ベーシックプラン',
-        price_monthly: 500,
+        plan_name: 'メンバーシップ',
+        price_monthly: 1000,
         plan_is_active: true,
       },
     });
 
-    localStorage.setItem('mock_is_member_v1', JSON.stringify(true));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(window, 'alert').mockImplementation(() => {});
 
@@ -182,10 +160,10 @@ describe('AccountSettingsPage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '退会する' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'メンバーシップを解約する' }));
 
     await waitFor(() => {
-      expect(mockApi.cancelSubscriptionCurrent).toHaveBeenCalledTimes(1);
+      expect(mockApi.cancelSubscriptionCurrent).toHaveBeenCalledWith('id-token-value');
     });
   });
 
@@ -215,7 +193,27 @@ describe('AccountSettingsPage', () => {
     });
   });
 
-  it('opens billing portal with id token', async () => {
+  it('opens billing portal with billing token', async () => {
+    vi.stubEnv('VITE_USE_MOCK_SUBSCRIPTIONS', 'false');
+    mockApi.getSubscriptionCurrent.mockResolvedValue({
+      active: true,
+      subscription: {
+        id: 'subscription-1',
+        user_id: 'user-1',
+        plan_id: 'plan-membership',
+        status: 'active',
+        started_at: '2026-01-01T00:00:00.000Z',
+        renews_at: '2026-02-01T00:00:00.000Z',
+        canceled_at: null,
+        ended_at: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        plan_name: 'メンバーシップ',
+        price_monthly: 1000,
+        plan_is_active: true,
+      },
+    });
+
     const assignMock = vi.fn();
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -232,51 +230,12 @@ describe('AccountSettingsPage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'お支払い方法を変更' }));
+    fireEvent.click(await screen.findByRole('button', { name: '請求情報を管理' }));
 
     await waitFor(() => {
       expect(mockApi.createBillingPortalSession).toHaveBeenCalledWith(
         { returnUrl: 'https://example.com/account' },
         'id-token-value',
-      );
-    });
-    await waitFor(() => {
-      expect(assignMock).toHaveBeenCalledWith('https://billing.stripe.com/session/test');
-    });
-  });
-
-  it('opens billing portal with stored id token fallback', async () => {
-    const assignMock = vi.fn();
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: {
-        ...window.location,
-        origin: 'https://example.com',
-        assign: assignMock,
-      },
-    });
-    mockAuth.user = {
-      profile: {
-        email: 'oidc@example.com',
-        name: 'OIDC Name',
-      },
-    };
-    mockGetStoredTokens.mockReturnValue({
-      id_token: 'stored-id-token',
-    });
-
-    render(
-      <MemoryRouter>
-        <AccountSettingsPage />
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'お支払い方法を変更' }));
-
-    await waitFor(() => {
-      expect(mockApi.createBillingPortalSession).toHaveBeenCalledWith(
-        { returnUrl: 'https://example.com/account' },
-        'stored-id-token',
       );
     });
     await waitFor(() => {

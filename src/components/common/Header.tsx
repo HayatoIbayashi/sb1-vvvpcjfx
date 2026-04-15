@@ -1,5 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
+import { buildSubscriptionPath, getReturnToFromLocation } from '../../lib/subscriptionNavigation';
 
 /**
  * アプリケーションのヘッダーコンポーネント
@@ -29,7 +30,9 @@ export function Header({
   hideMembershipLink = false
 }: HeaderProps) {
   // ナビゲーション用フック
+  const location = useLocation();
   const navigate = useNavigate();
+  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
   return (
     <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
@@ -53,7 +56,7 @@ export function Header({
             </nav>
             {!hideMembershipLink && (
               <Link
-                to="/subscription"
+                to={subscriptionPath}
                 className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition hidden md:block"
               >
                 メンバーシップ

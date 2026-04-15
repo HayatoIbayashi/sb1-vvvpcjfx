@@ -1,16 +1,19 @@
 ﻿import { useState, useEffect, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
 import * as mockReviews from '../lib/mockReviews';
 import { useAuthStatus } from '../lib/authBridge';
+import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
+import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import { HOME_DISPLAY_SAMPLES } from './homeDisplaySamples';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 function MovieListPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,6 +22,7 @@ function MovieListPage() {
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const [ratingMap, setRatingMap] = useState<Record<string, number>>({});
   const [topRated, setTopRated] = useState<Movie[]>([]);
+  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
   const handleLogout = async () => {
     logoutAll();
@@ -135,7 +139,7 @@ function MovieListPage() {
               </nav>
               {/* Subscription Button */}
               <Link
-                to="/subscription"
+                to={subscriptionPath}
                 className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition hidden md:block"
               >
                 メンバーシップ
@@ -188,7 +192,11 @@ function MovieListPage() {
         {movies.length > 0 && (
           <section className="mb-12">
             <div className="relative h-[60vh] rounded-xl overflow-hidden">
-              <img src={movies[0].thumbnail_top || ''} alt={movies[0].title} className="w-full h-full object-cover" />
+              <img
+                src={getTestMovieThumbnail(movies[0], 'hero')}
+                alt={movies[0].title}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
                 <div className="absolute bottom-0 left-0 p-8">
                   <h2 className="text-4xl font-bold text-white mb-4">{movies[0].title}</h2>
@@ -251,7 +259,7 @@ function MovieListPage() {
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                 onClick={() => handleMovieClick(movie.id)}
               >
-                <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-0 left-0 p-4">
                     <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
@@ -275,7 +283,7 @@ function MovieListPage() {
                 className="group relative rounded-lg overflow-hidden ring-2 ring-yellow-500/60 hover:ring-yellow-400 transition cursor-pointer"
                 onClick={() => handleMovieClick(movie.id)}
               >
-                <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                 <span className="absolute top-2 left-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded">メンバー限定</span>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-0 left-0 p-4">
@@ -298,7 +306,7 @@ function MovieListPage() {
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                 onClick={() => handleMovieClick(movie.id)}
               >
-                <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-0 left-0 p-4">
                     <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
@@ -321,7 +329,7 @@ function MovieListPage() {
                 className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                 onClick={() => handleMovieClick(movie.id)}
               >
-                <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-0 left-0 p-4">
                     <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
@@ -345,7 +353,7 @@ function MovieListPage() {
                   className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                   onClick={() => handleMovieClick(movie.id)}
                 >
-                  <img src={movie.thumbnail || ''} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+                  <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
                   <span className="absolute top-2 right-2 bg-black/70 text-yellow-400 text-xs font-bold px-2 py-1 rounded">
                     ★ {(ratingMap[movie.id] ?? 0).toFixed(1)}
                   </span>

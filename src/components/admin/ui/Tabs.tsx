@@ -90,7 +90,7 @@ export function TabsTrigger({
       className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${className} ${
         isActive 
           ? 'text-white bg-gray-800 border-b-2 border-blue-500' 
-          : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
+          : 'text-gray-500 hover:text-white hover:bg-gray-800'
       }`}
       onClick={() => setActiveTab?.(value)}
     >

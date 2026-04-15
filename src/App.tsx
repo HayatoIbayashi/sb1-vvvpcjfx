@@ -8,9 +8,10 @@ import MoviePlayerPage from './components/MoviePlayerPage';
 import MovieManagementPage from './components/admin/MovieManagementPage';
 import AdminDashboard from './components/AdminDashboard';
 import SubscriptionPage from './components/SubscriptionPage';
+import SubscriptionCompletionPage from './components/SubscriptionCompletionPage';
 import AccountSettingsPage from './components/AccountSettingsPage';
-import PointsPage from './components/PointsPage';
 import SearchResultsPage from './components/SearchResultsPage';
+import WatchlistPage from './components/WatchlistPage';
 
 function App() {
   return (
@@ -25,9 +26,10 @@ function App() {
         <Route path="/search" element={<SearchResultsPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
+        <Route path="/subscription/complete" element={<SubscriptionCompletionPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
         <Route path="/account" element={<AccountSettingsPage />} />
-        <Route path="/account/points" element={<PointsPage />} />
+        <Route path="/watchlist" element={<WatchlistPage />} />
       </Routes>
     </Router>
   );

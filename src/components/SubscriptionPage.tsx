@@ -1,121 +1,126 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Shield, CreditCard, Calendar } from 'lucide-react';
-import { SubscriptionPlans, type SubscriptionPlanOption } from '../SubscriptionPlans';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Calendar, CreditCard, Shield } from 'lucide-react';
+import { useAuth } from 'react-oidc-context';
 import { Header } from './common/Header';
-import { useAuthStatus } from '../lib/authBridge';
+import { getBillingToken, useAuthStatus } from '../lib/authBridge';
+import {
+  buildAbsoluteAppUrl,
+  buildSubscriptionCompletionPath,
+  buildSubscriptionPath,
+  normalizeReturnTo,
+} from '../lib/subscriptionNavigation';
 import useApiClient from '../lib/useApiClient';
 import type { SubscriptionPlan } from '../lib/apiClient';
+import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 
-const MOCK_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    id: 'mock-monthly',
-    name: '月額プラン',
-    description: '全ての動画が見放題\nいつでも解約できます',
-    price_monthly: 500,
-    is_active: true,
-    created_at: '2026-01-01T00:00:00.000Z',
-    updated_at: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'mock-premium',
-    name: 'プレミアムプラン',
-    description: '全ての動画が見放題\n先行公開作品も視聴できます',
-    price_monthly: 980,
-    is_active: true,
-    created_at: '2026-01-01T00:00:00.000Z',
-    updated_at: '2026-01-01T00:00:00.000Z',
-  },
-];
+const MOCK_MEMBERSHIP_PLAN: SubscriptionPlan = {
+  id: 'mock-membership',
+  name: 'メンバーシップ',
+  description: '全作品が見放題\n視聴はメンバーシップ登録済みアカウントのみ\n請求情報は Stripe のカスタマーポータルで管理',
+  price_monthly: MEMBERSHIP_MONTHLY_PRICE,
+  stripe_price_id: null,
+  is_active: true,
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+};
 
-function toPlanOptions(plans: SubscriptionPlan[]): SubscriptionPlanOption[] {
-  return plans.map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    description: plan.description,
-    price_monthly: plan.price_monthly,
-  }));
+function resolveMembershipPlan(plans: SubscriptionPlan[]) {
+  const activePlans = plans.filter((plan) => plan.is_active);
+  return activePlans.find((plan) => plan.price_monthly === MEMBERSHIP_MONTHLY_PRICE) ?? activePlans[0] ?? null;
+}
+
+function toFeatureList(plan: SubscriptionPlan | null) {
+  if (!plan) return [];
+
+  const features = (plan.description || '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (features.length > 0) {
+    return features;
+  }
+
+  return [
+    '全作品をメンバーシップで視聴可能',
+    '無料会員登録後に有料登録へ進行',
+    '請求情報の変更や解約は Stripe で管理',
+  ];
 }
 
 export default function SubscriptionPage() {
+  const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [step, setStep] = useState<'plans' | 'payment'>('plans');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, logoutAll } = useAuthStatus();
+  const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
+
+  const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
+  const [isLoadingPlan, setIsLoadingPlan] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const returnTo = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return normalizeReturnTo(searchParams.get('returnTo'));
+  }, [location.search]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadPlans = async () => {
-      setIsLoadingPlans(true);
+    const loadPlan = async () => {
+      setIsLoadingPlan(true);
       setError(null);
 
       if (useMockSubscriptions) {
         if (!cancelled) {
-          setPlans(MOCK_SUBSCRIPTION_PLANS);
-          setIsLoadingPlans(false);
+          setPlan(MOCK_MEMBERSHIP_PLAN);
+          setIsLoadingPlan(false);
         }
         return;
       }
 
       try {
-        const res = await api.getSubscriptionPlans();
+        const result = await api.getSubscriptionPlans();
         if (cancelled) return;
 
-        setPlans(res.items);
-        if (res.items.length === 0) {
-          setError('利用可能なプランが登録されていません。');
+        const nextPlan = resolveMembershipPlan(result.items);
+        setPlan(nextPlan);
+
+        if (!nextPlan) {
+          setError('利用可能なメンバーシップが見つかりませんでした。');
         }
       } catch (loadError) {
         console.error('Error fetching subscription plans:', loadError);
         if (!cancelled) {
-          setError('プラン情報の取得に失敗しました。');
+          setError('メンバーシップ情報の取得に失敗しました。');
         }
       } finally {
         if (!cancelled) {
-          setIsLoadingPlans(false);
+          setIsLoadingPlan(false);
         }
       }
     };
 
-    void loadPlans();
+    void loadPlan();
     return () => {
       cancelled = true;
     };
   }, [api, useMockSubscriptions]);
 
-  const planOptions = useMemo(() => toPlanOptions(plans), [plans]);
-  const selectedPlanDetail = useMemo(
-    () => planOptions.find((plan) => plan.id === selectedPlan) ?? null,
-    [planOptions, selectedPlan],
-  );
+  const featureList = useMemo(() => toFeatureList(plan), [plan]);
 
-  // プラン選択状態を保持
-  const handlePlanSelect = (planId: string) => {
-    setSelectedPlan(planId);
-    setError(null);
-  };
-
-  // 支払いステップへ進む前に選択状態を確認
-  const handleProceedToPayment = () => {
-    if (!selectedPlan) {
-      setError('プランを選択してください。');
+  const handleStartCheckout = async () => {
+    if (accessState === 'member') {
+      navigate(returnTo, { replace: true });
       return;
     }
-    setStep('payment');
-  };
 
-  // サブスク登録を DB に保存
-  const handleSubscribe = async () => {
-    if (!selectedPlan) {
-      setError('プランを選択してください。');
-      setStep('plans');
+    if (!plan) {
+      setError('メンバーシップ情報を確認できません。');
       return;
     }
 
@@ -128,14 +133,33 @@ export default function SubscriptionPage() {
       setIsProcessing(true);
       setError(null);
 
-      if (!useMockSubscriptions) {
-        await api.subscribeCurrent({ plan_id: selectedPlan });
+      if (useMockSubscriptions) {
+        navigate(returnTo, { replace: true });
+        return;
       }
 
-      navigate('/account');
-    } catch (subscribeError) {
-      console.error('Subscription error:', subscribeError);
-      setError('メンバーシップ登録に失敗しました。');
+      const billingToken = getBillingToken(auth);
+      if (!billingToken) {
+        setError('メンバーシップ登録を開始するには、もう一度ログインしてください。');
+        return;
+      }
+
+      const session = await api.createSubscriptionCheckoutSession({
+        plan_id: plan.id,
+        successUrl: buildAbsoluteAppUrl(
+          window.location.origin,
+          buildSubscriptionCompletionPath(returnTo),
+        ),
+        cancelUrl: buildAbsoluteAppUrl(
+          window.location.origin,
+          buildSubscriptionPath(returnTo),
+        ),
+      }, billingToken);
+
+      window.location.assign(session.url);
+    } catch (checkoutError) {
+      console.error('Subscription checkout error:', checkoutError);
+      setError('メンバーシップ登録の開始に失敗しました。');
     } finally {
       setIsProcessing(false);
     }
@@ -152,29 +176,30 @@ export default function SubscriptionPage() {
         hideMembershipLink={true}
       />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-24">
         <section className="mb-12 text-center">
-          <h2 className="mb-6 text-3xl font-bold text-white">メンバーシップ特典</h2>
-          <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-3">
+          <h2 className="mb-4 text-3xl font-bold text-white">メンバーシップ</h2>
+
+          <div className="mx-auto mt-8 grid max-w-4xl gap-8 md:grid-cols-3">
             <div className="rounded-lg bg-gray-800 p-6">
               <Shield className="mx-auto mb-4 h-12 w-12 text-primary" />
-              <h3 className="mb-2 text-xl font-semibold text-white">全作品見放題</h3>
+              <h3 className="mb-2 text-xl font-semibold text-white">会員登録後に有料化</h3>
               <p className="text-gray-400">
-                最新作から名作まで、すべての作品を追加料金なしで視聴できます。
+                まず無料会員としてログインし、その後にメンバーシップ登録を行う構成です。
               </p>
             </div>
             <div className="rounded-lg bg-gray-800 p-6">
               <CreditCard className="mx-auto mb-4 h-12 w-12 text-primary" />
-              <h3 className="mb-2 text-xl font-semibold text-white">いつでも解約可能</h3>
+              <h3 className="mb-2 text-xl font-semibold text-white">決済は Stripe</h3>
               <p className="text-gray-400">
-                契約期間の縛りなし。必要なときだけ利用できます。
+                登録、請求情報変更、解約は Stripe Checkout と Billing Portal で管理します。
               </p>
             </div>
             <div className="rounded-lg bg-gray-800 p-6">
               <Calendar className="mx-auto mb-4 h-12 w-12 text-primary" />
-              <h3 className="mb-2 text-xl font-semibold text-white">毎月更新される作品</h3>
+              <h3 className="mb-2 text-xl font-semibold text-white">月額固定</h3>
               <p className="text-gray-400">
-                新作が続々追加。飽きることなく楽しめます。
+                メンバーシップは月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円の単一プランです。
               </p>
             </div>
           </div>
@@ -186,112 +211,62 @@ export default function SubscriptionPage() {
           </div>
         )}
 
-        {step === 'plans' && (
-          <section className="mb-12">
-            <h2 className="mb-8 text-center text-2xl font-bold text-white">プランを選択</h2>
+        <section className="mx-auto max-w-4xl">
+          {isLoadingPlan ? (
+            <div className="text-center text-gray-400">メンバーシップ情報を読み込み中です...</div>
+          ) : plan ? (
+            <div className="rounded-3xl border border-amber-400/30 bg-gradient-to-br from-amber-500/10 via-gray-800 to-gray-900 p-8 shadow-2xl">
+              <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-amber-200">Membership</p>
+                  <h3 className="mt-3 text-3xl font-bold text-white">メンバーシップ</h3>
+                  <p className="mt-4 text-base leading-7 text-gray-300">
+                    このプランに登録すると、ログイン済みアカウントで全作品を視聴できます。
+                  </p>
 
-            {isLoadingPlans ? (
-              <div className="text-center text-gray-400">プラン情報を読み込み中です...</div>
-            ) : planOptions.length > 0 ? (
-              <>
-                <SubscriptionPlans
-                  plans={planOptions}
-                  selectedPlanId={selectedPlan}
-                  onSelectPlan={handlePlanSelect}
-                />
-                <div className="mt-8 text-center">
+                  {accessState === 'member' && !isMembershipLoading && (
+                    <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-100">
+                      メンバーシップ登録済みです。元の画面へ戻ってそのまま視聴できます。
+                    </div>
+                  )}
+
+                  <ul className="mt-6 space-y-3">
+                    {featureList.map((feature) => (
+                      <li key={feature} className="flex items-start gap-3 text-gray-200">
+                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-300" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="min-w-[260px] rounded-2xl border border-white/10 bg-black/20 p-6 text-center">
+                  <p className="text-sm uppercase tracking-[0.2em] text-gray-400">Monthly</p>
+                  <p className="mt-3 text-5xl font-bold text-white">¥{MEMBERSHIP_MONTHLY_PRICE.toLocaleString()}</p>
+                  <p className="mt-2 text-sm text-gray-400">税込 / 月</p>
                   <button
-                    onClick={handleProceedToPayment}
-                    className="rounded-lg bg-primary px-8 py-3 font-semibold text-white transition hover:bg-primary/90"
+                    onClick={() => {
+                      void handleStartCheckout();
+                    }}
+                    disabled={isProcessing || (isAuthenticated && isMembershipLoading)}
+                    className="mt-6 w-full rounded-xl bg-white px-6 py-3 font-semibold text-gray-900 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    次へ進む
+                    {isProcessing
+                      ? 'Stripe に移動しています...'
+                      : isAuthenticated && isMembershipLoading
+                        ? '登録状態を確認中...'
+                        : accessState === 'member'
+                          ? '元の画面へ戻る'
+                          : isAuthenticated
+                            ? 'メンバーシップに登録'
+                            : 'ログインして登録'}
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="text-center text-gray-400">表示できるプランがありません。</div>
-            )}
-          </section>
-        )}
-
-        {step === 'payment' && selectedPlanDetail && (
-          <section className="mx-auto max-w-xl">
-            <h2 className="mb-8 text-2xl font-bold text-white">支払い情報の入力</h2>
-            <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
-              <p className="text-sm text-gray-400">選択中のプラン</p>
-              <p className="mt-1 text-lg font-semibold text-white">{selectedPlanDetail.name}</p>
-              <p className="mt-1 text-sm text-gray-300">¥{selectedPlanDetail.price_monthly.toLocaleString()}/月</p>
+              </div>
             </div>
-            <div className="rounded-lg bg-dark-lighter p-6">
-              <form onSubmit={(event) => event.preventDefault()} className="space-y-6">
-                <div>
-                  <label className="mb-2 block text-gray-300">カード番号</label>
-                  <input
-                    type="text"
-                    placeholder="4242 4242 4242 4242"
-                    className="w-full rounded border border-dark-light bg-dark px-4 py-2 text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="mb-2 block text-gray-300">有効期限</label>
-                    <input
-                      type="text"
-                      placeholder="MM/YY"
-                      className="w-full rounded border border-dark-light bg-dark px-4 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-gray-300">セキュリティコード</label>
-                    <input
-                      type="text"
-                      placeholder="123"
-                      className="w-full rounded border border-dark-light bg-dark px-4 py-2 text-white"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-2 block text-gray-300">カード名義</label>
-                  <input
-                    type="text"
-                    placeholder="TARO YAMADA"
-                    className="w-full rounded border border-dark-light bg-dark px-4 py-2 text-white"
-                  />
-                </div>
-                <div className="pt-4">
-                  <button
-                    onClick={handleSubscribe}
-                    disabled={isProcessing}
-                    className="w-full rounded-lg bg-primary py-3 font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isProcessing ? '処理中...' : '登録する'}
-                  </button>
-                </div>
-              </form>
-            </div>
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => setStep('plans')}
-                className="text-gray-400 transition hover:text-white"
-              >
-                プラン選択に戻る
-              </button>
-            </div>
-          </section>
-        )}
-
-        <section className="mx-auto mt-12 max-w-2xl text-center text-sm text-gray-400">
-          <p className="mb-4">
-            ※ サブスクリプションは、選択したプランで自動更新されます。
-            解約は次回更新日の前日までいつでも可能です。
-          </p>
-          <p>
-            登録することで、
-            <a href="/terms" className="text-primary hover:underline">利用規約</a>
-            と
-            <a href="/privacy" className="text-primary hover:underline">プライバシーポリシー</a>
-            に同意したものとみなされます。
-          </p>
+          ) : (
+            <div className="text-center text-gray-400">表示できるメンバーシップがありません。</div>
+          )}
         </section>
       </main>
     </div>

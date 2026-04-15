@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { getStoredTokens, useAuthStatus } from '../lib/authBridge';
+import type { SubscriptionCurrent } from '../lib/apiClient';
+import { getBillingToken, useAuthStatus } from '../lib/authBridge';
+import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import useApiClient from '../lib/useApiClient';
+import { MEMBERSHIP_MONTHLY_PRICE } from '../lib/useMembershipStatus';
 
 type Profile = {
   displayName: string;
@@ -12,17 +15,10 @@ type Profile = {
   prefecture: string;
 };
 
-type Purchase = {
-  id: string;
-  title: string;
-  amount: number;
-  purchasedAt: string; // ISO
-};
-
 type Watch = {
   id: string;
   title: string;
-  watchedAt: string; // ISO
+  watchedAt: string;
 };
 
 type OidcProfile = {
@@ -59,11 +55,9 @@ const PREFECTURES = [
 
 const LS_PROFILE = 'mock_account_profile_v1';
 const LS_MEMBER = 'mock_is_member_v1';
-const LS_PURCHASES = 'mock_purchase_history_v1';
 const LS_WATCH = 'mock_watch_history_v1';
 const LS_REGISTERED_AT = 'mock_registered_at_v1';
 
-// localStorage から安全に読み込み（パース失敗時は fallback）
 function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -74,26 +68,31 @@ function loadJSON<T>(key: string, fallback: T): T {
   }
 }
 
-function saveJSON<T>(key: string, val: T) {
-  localStorage.setItem(key, JSON.stringify(val));
+function saveJSON<T>(key: string, value: T) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 export default function AccountSettingsPage() {
   const { isAuthenticated } = useAuthStatus();
   const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
-  const useMockPurchases = import.meta.env.VITE_USE_MOCK_PURCHASES === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
+  const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
+  const subscriptionPath = useMemo(
+    () => buildSubscriptionPath(getReturnToFromLocation(location)),
+    [location],
+  );
   const oidcUser = auth.user as OidcUser | null | undefined;
   const oidcProfile = oidcUser?.profile;
 
-  // ローカル保存値があればそれを優先し、なければOIDCのクレームから初期値を作成
   const initialProfile: Profile = useMemo(() => {
     const stored = loadJSON<Partial<Profile> | null>(LS_PROFILE, null);
     const email = oidcProfile?.email || '';
     const displayName = oidcProfile?.name || 'User';
+
     return {
       displayName: stored?.displayName ?? displayName,
       email: stored?.email ?? email,
@@ -103,36 +102,19 @@ export default function AccountSettingsPage() {
     };
   }, [oidcProfile]);
 
-  const [profile, setProfile] = useState<Profile>(initialProfile);
-  const [saved, setSaved] = useState('');
-
-  const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean | null>(LS_MEMBER, false));
-  const [purchases, setPurchases] = useState<Purchase[]>(() => loadJSON<Purchase[]>(LS_PURCHASES, []));
-  const [pointSummary, setPointSummary] = useState(() =>
-    ({
-      total: 2300,
-      expiringAmount: 500,
-      expiringDate: '2025-12-01',
-      paid: 1300,
-      free: 1000,
-    })
-  );
-  const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
-  const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
-  const useMockWallet = import.meta.env.VITE_USE_MOCK_WALLET === 'true';
-
-  // 登録日（参照用）。保存されていなければOIDCのクレームや現在時刻を使用して初期化
   const initialRegisteredAt = useMemo(() => {
     try {
       const stored = localStorage.getItem(LS_REGISTERED_AT);
       if (stored) return stored;
-      const authTime = oidcProfile?.auth_time; // epoch seconds
-      const created = oidcProfile?.created_at ?? oidcProfile?.updated_at; // epoch seconds or ISO
+
+      const authTime = oidcProfile?.auth_time;
+      const created = oidcProfile?.created_at ?? oidcProfile?.updated_at;
       const iso = authTime
         ? new Date(Number(authTime) * 1000).toISOString()
         : typeof created === 'number'
           ? new Date(Number(created) * 1000).toISOString()
           : (typeof created === 'string' ? created : new Date().toISOString());
+
       localStorage.setItem(LS_REGISTERED_AT, iso);
       return iso;
     } catch {
@@ -145,126 +127,94 @@ export default function AccountSettingsPage() {
       return now;
     }
   }, [oidcProfile]);
-  const registeredAt = initialRegisteredAt;
+
+  const [profile, setProfile] = useState<Profile>(initialProfile);
+  const [saved, setSaved] = useState('');
+  const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean>(LS_MEMBER, false));
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionCurrent['subscription'] | null>(null);
+  const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
+  const [isBillingPortalLoading, setIsBillingPortalLoading] = useState(false);
+  const [isSubscriptionActionLoading, setIsSubscriptionActionLoading] = useState(false);
 
   useEffect(() => {
     setProfile(initialProfile);
   }, [initialProfile]);
 
-  // プロフィールはサインイン済みかつモックOFF時のみAPIから取得
   useEffect(() => {
     let cancelled = false;
+
     const loadProfile = async () => {
       if (!isAuthenticated || useMockProfile) return;
+
       try {
-        const res = await api.getProfile();
+        const result = await api.getProfile();
         if (cancelled) return;
+
         setProfile((current) => ({
           ...current,
-          displayName: res.display_name ?? current.displayName,
-          email: res.email ?? current.email,
-          gender: res.gender ?? '',
-          age: res.age ?? '',
-          prefecture: res.prefecture ?? '',
+          displayName: result.display_name ?? current.displayName,
+          email: result.email ?? current.email,
+          gender: result.gender ?? '',
+          age: result.age ?? '',
+          prefecture: result.prefecture ?? '',
         }));
       } catch (error) {
         console.error('Error fetching profile:', error);
       }
     };
-    loadProfile();
+
+    void loadProfile();
     return () => {
       cancelled = true;
     };
   }, [api, isAuthenticated, useMockProfile]);
 
-  // 購入履歴の取得
   useEffect(() => {
     let cancelled = false;
-    const loadPurchases = async () => {
-      if (!isAuthenticated || useMockPurchases) return;
-      try {
-        const res = await api.getPurchases({ status: 'completed' });
-        if (cancelled) return;
-        const mapped = res.items.map((item) => ({
-          id: item.id,
-          title: item.title,
-          amount: item.amount_total,
-          purchasedAt: item.created_at,
-        }));
-        setPurchases(mapped);
-      } catch (error) {
-        console.error('Error fetching purchases:', error);
-      }
-    };
-    loadPurchases();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, isAuthenticated, useMockPurchases]);
 
-  // ???????
-  useEffect(() => {
-    let cancelled = false;
     const loadWatchHistory = async () => {
       if (!isAuthenticated || useMockWatchHistory) return;
+
       try {
-        const res = await api.getWatchHistory({ limit: 20 });
+        const result = await api.getWatchHistory({ limit: 20 });
         if (cancelled) return;
-        const mapped = res.items.map((item) => ({
+
+        const mapped = result.items.map((item) => ({
           id: item.movie_id,
           title: item.title,
           watchedAt: item.watched_at,
         }));
+
         setWatchHistory(mapped);
       } catch (error) {
         console.error('Error fetching watch history:', error);
       }
     };
-    loadWatchHistory();
+
+    void loadWatchHistory();
     return () => {
       cancelled = true;
     };
   }, [api, isAuthenticated, useMockWatchHistory]);
 
-  // ウォレット（ポイント）概要の取得
   useEffect(() => {
     let cancelled = false;
-    const loadWallet = async () => {
-      if (!isAuthenticated || useMockWallet) return;
-      try {
-        const res = await api.getWalletSummary();
-        if (cancelled) return;
-        setPointSummary({
-          total: res.total_points,
-          expiringAmount: res.expiring_soon_amount,
-          expiringDate: res.expiring_soon_date || '未定',
-          paid: res.paid_points,
-          free: res.bonus_points,
-        });
-      } catch (error) {
-        console.error('Error fetching wallet summary:', error);
-      }
-    };
-    loadWallet();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, isAuthenticated, useMockWallet]);
 
-  // サブスク状態の取得
-  useEffect(() => {
-    let cancelled = false;
     const loadSubscription = async () => {
       if (!isAuthenticated || useMockSubscriptions) return;
+
       try {
-        const res = await api.getSubscriptionCurrent();
+        const result = await api.getSubscriptionCurrent();
         if (cancelled) return;
-        setIsMember(res.active);
+
+        setIsMember(result.active);
+        setSubscriptionInfo(result.subscription);
       } catch (error) {
         console.error('Error fetching subscription:', error);
       }
     };
-    loadSubscription();
+
+    void loadSubscription();
     return () => {
       cancelled = true;
     };
@@ -272,20 +222,38 @@ export default function AccountSettingsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-96 text-white text-center">
-          <p className="mb-6">アカウント設定はログイン後に利用できます。</p>
-          <button onClick={() => navigate('/login')} className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">
-            ログインへ
-          </button>
+      <div className="flex min-h-screen items-center justify-center bg-gray-900">
+        <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
+          <p className="mb-6">
+            アカウント設定を利用するにはログインが必要です。会員登録がまだの場合は、無料会員として登録してください。
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full rounded bg-blue-600 py-2 font-semibold hover:bg-blue-700"
+            >
+              ログイン
+            </button>
+            <button
+              onClick={() => navigate('/signup')}
+              className="w-full rounded border border-gray-600 py-2 font-semibold hover:bg-gray-700"
+            >
+              会員登録する
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // プロフィール更新（モック時はローカル保存のみ）
+  const membershipPrice = MEMBERSHIP_MONTHLY_PRICE;
+  const renewalDate = subscriptionInfo?.renews_at
+    ? new Date(subscriptionInfo.renews_at).toLocaleDateString()
+    : null;
+
   const handleSave = async () => {
     let nextProfile = profile;
+
     if (!useMockProfile) {
       try {
         const updated = await api.updateProfile({
@@ -295,6 +263,7 @@ export default function AccountSettingsPage() {
           age: profile.age === '' ? null : Number(profile.age),
           prefecture: profile.prefecture || null,
         });
+
         nextProfile = {
           ...profile,
           displayName: updated.display_name ?? profile.displayName,
@@ -306,252 +275,290 @@ export default function AccountSettingsPage() {
         setProfile(nextProfile);
       } catch (error) {
         console.error('Error updating profile:', error);
-        setSaved('Save failed.');
+        setSaved('保存に失敗しました。');
         setTimeout(() => setSaved(''), 2500);
         return;
       }
     }
+
     saveJSON(LS_PROFILE, nextProfile);
-    setSaved('Saved.');
+    setSaved('保存しました。');
     setTimeout(() => setSaved(''), 2000);
   };
 
-  const handleChangePayment = () => {
-    const openBillingPortal = async () => {
-      const storedTokens = getStoredTokens();
-      const idToken = oidcUser?.id_token ?? oidcUser?.idToken ?? storedTokens?.id_token ?? null;
-      if (!idToken) {
-        alert('お支払い方法の変更には再ログインが必要です。');
-        return;
-      }
+  const handleOpenBillingPortal = async () => {
+  if (useMockSubscriptions) {
+    alert('請求情報の管理は Stripe 連携時に利用できます。');
+    return;
+  }
 
-      try {
-        const session = await api.createBillingPortalSession(
-          { returnUrl: `${window.location.origin}/account` },
-          idToken,
-        );
-        window.location.assign(session.url);
-      } catch (error) {
-        console.error('Error opening billing portal:', error);
-        alert('お支払い方法変更画面の起動に失敗しました。');
-      }
-    };
+  const billingToken = getBillingToken(auth);
 
-    void openBillingPortal();
+  if (!billingToken) {
+    alert('請求情報を管理するには再ログインが必要です。');
+    return;
+  }
+
+  try {
+    setIsBillingPortalLoading(true);
+    const session = await api.createBillingPortalSession(
+      { returnUrl: `${window.location.origin}/account` },
+      billingToken,
+    );
+    window.location.assign(session.url);
+  } catch (error) {
+    console.error('Error opening billing portal:', error);
+    alert('請求情報画面の起動に失敗しました。');
+  } finally {
+    setIsBillingPortalLoading(false);
+  }
   };
 
-  // 退会処理。モック時はローカル、通常時はAPI経由で退会状態を保存
   const handleCancelMembership = async () => {
-    if (!isMember) return;
-    if (!confirm('メンバーシップを退会しますか？')) return;
+  if (!isMember) return;
+  if (!confirm('メンバーシップを解約しますか？')) return;
 
-    if (!useMockSubscriptions) {
-      try {
-        const res = await api.cancelSubscriptionCurrent();
-        setIsMember(res.active);
-        saveJSON(LS_MEMBER, res.active);
-        alert('退会手続きが完了しました。');
-      } catch (error) {
-        console.error('Error canceling subscription:', error);
-        alert('退会手続きに失敗しました。');
-      }
+  if (!useMockSubscriptions) {
+    const billingToken = getBillingToken(auth);
+    if (!billingToken) {
+      alert('メンバーシップを解約するには、もう一度ログインしてください。');
       return;
     }
 
-    setIsMember(false);
-    saveJSON(LS_MEMBER, false);
-    alert('退会手続きが完了しました（モック）。');
+    try {
+      setIsSubscriptionActionLoading(true);
+      const result = await api.cancelSubscriptionCurrent(billingToken);
+      setIsMember(result.active);
+      setSubscriptionInfo(result.subscription);
+      saveJSON(LS_MEMBER, result.active);
+      alert('メンバーシップを解約しました。');
+    } catch (error) {
+      console.error('Error canceling subscription:', error);
+      alert('解約に失敗しました。');
+    } finally {
+      setIsSubscriptionActionLoading(false);
+    }
+    return;
+  }
+
+  setIsMember(false);
+  setSubscriptionInfo(null);
+  saveJSON(LS_MEMBER, false);
+  alert('メンバーシップを解約しました。');
   };
 
-  // UI確認用にモック履歴を生成
   const seedMock = () => {
-    // デモ用に履歴を投入
     const now = new Date();
-    const ps: Purchase[] = [
-      { id: 'p1', title: '1%er ワンパーセンター', amount: 1000, purchasedAt: new Date(now.getTime() - 86400000 * 3).toISOString() },
-      { id: 'p2', title: 'RE:BORN', amount: 500, purchasedAt: new Date(now.getTime() - 86400000 * 10).toISOString() },
+    const nextWatchHistory: Watch[] = [
+      { id: 'w1', title: '狂武蔵', watchedAt: new Date(now.getTime() - 1000 * 60 * 90).toISOString() },
+      { id: 'w2', title: 'RE:BORN', watchedAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString() },
     ];
-    const ws: Watch[] = [
-      { id: 'w1', title: '狂武蔵', watchedAt: new Date(now.getTime() - 3600000 * 5).toISOString() },
-      { id: 'w2', title: '1%er ワンパーセンター', watchedAt: new Date(now.getTime() - 3600000 * 30).toISOString() },
-    ];
-    setPurchases(ps);
-    setWatchHistory(ws);
-    saveJSON(LS_PURCHASES, ps);
-    saveJSON(LS_WATCH, ws);
+
+    setWatchHistory(nextWatchHistory);
+    saveJSON(LS_WATCH, nextWatchHistory);
     setIsMember(true);
+    setSubscriptionInfo({
+      id: 'mock-subscription',
+      user_id: 'mock-user',
+      plan_id: 'mock-membership',
+      status: 'active',
+      started_at: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 14).toISOString(),
+      renews_at: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 16).toISOString(),
+      canceled_at: null,
+      ended_at: null,
+      created_at: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 14).toISOString(),
+      updated_at: now.toISOString(),
+      plan_name: 'メンバーシップ',
+      price_monthly: MEMBERSHIP_MONTHLY_PRICE,
+      plan_is_active: true,
+    });
     saveJSON(LS_MEMBER, true);
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <div className="container mx-auto px-4 pt-24 pb-12 max-w-4xl">
-        <h1 className="text-3xl font-bold mb-6">アカウント設定</h1>
+      <div className="container mx-auto max-w-4xl px-4 pb-12 pt-24">
+        <h1 className="mb-6 text-3xl font-bold">アカウント設定</h1>
 
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">基本情報</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mb-8 rounded-lg bg-gray-800 p-6">
+          <h2 className="mb-4 text-xl font-semibold">プロフィール</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-gray-300 mb-2">ユーザー名</label>
+              <label className="mb-2 block text-gray-300">表示名</label>
               <input
                 type="text"
                 value={profile.displayName}
-                onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                onChange={(event) => setProfile({ ...profile, displayName: event.target.value })}
+                className="w-full rounded bg-gray-700 px-4 py-2 text-white"
                 placeholder="表示名"
               />
             </div>
             <div>
-              <label className="block text-gray-300 mb-2">メールアドレス</label>
+              <label className="mb-2 block text-gray-300">メールアドレス</label>
               <input
                 type="email"
                 value={profile.email}
-                onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                onChange={(event) => setProfile({ ...profile, email: event.target.value })}
+                className="w-full rounded bg-gray-700 px-4 py-2 text-white"
                 placeholder="you@example.com"
               />
             </div>
             <div>
-              <label className="block text-gray-300 mb-2">性別</label>
+              <label className="mb-2 block text-gray-300">性別</label>
               <select
                 value={profile.gender}
-                onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                onChange={(event) => setProfile({ ...profile, gender: event.target.value })}
+                className="w-full rounded bg-gray-700 px-4 py-2 text-white"
               >
                 <option value="">選択してください</option>
                 {GENDER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-gray-300 mb-2">年齢</label>
+              <label className="mb-2 block text-gray-300">年齢</label>
               <input
                 type="number"
                 min={0}
                 max={120}
                 value={profile.age}
-                onChange={(e) => {
-                  const next = e.target.value;
+                onChange={(event) => {
+                  const next = event.target.value;
                   setProfile({ ...profile, age: next === '' ? '' : Number(next) });
                 }}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-                placeholder="例: 29"
+                className="w-full rounded bg-gray-700 px-4 py-2 text-white"
+                placeholder="29"
               />
             </div>
             <div>
-              <label className="block text-gray-300 mb-2">都道府県</label>
+              <label className="mb-2 block text-gray-300">都道府県</label>
               <select
                 value={profile.prefecture}
-                onChange={(e) => setProfile({ ...profile, prefecture: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded"
+                onChange={(event) => setProfile({ ...profile, prefecture: event.target.value })}
+                className="w-full rounded bg-gray-700 px-4 py-2 text-white"
               >
                 <option value="">選択してください</option>
                 {PREFECTURES.map((prefecture) => (
-                  <option key={prefecture} value={prefecture}>{prefecture}</option>
+                  <option key={prefecture} value={prefecture}>
+                    {prefecture}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-gray-300 mb-2">登録日</label>
-              <div className="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded">
-                {new Date(registeredAt).toLocaleString()}
+              <label className="mb-2 block text-gray-300">登録日</label>
+              <div className="w-full rounded bg-gray-700 px-4 py-2 text-gray-200">
+                {new Date(initialRegisteredAt).toLocaleString()}
               </div>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-4">
-            <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold">保存</button>
-            {saved && <span className="text-green-400 text-sm">{saved}</span>}
+            <button
+              onClick={handleSave}
+              className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
+            >
+              保存
+            </button>
+            {saved && <span className="text-sm text-green-400">{saved}</span>}
           </div>
         </div>
 
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">お支払い方法</h2>
-            <button onClick={handleChangePayment} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">お支払い方法を変更</button>
-          </div>
-          <p className="text-gray-300 text-sm">テスト環境ではモック操作です。</p>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-3">
+        <div className="mb-8 rounded-lg border border-gray-700 bg-gray-800 p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-sm text-gray-400">ポイント残高</p>
-              <p className="text-3xl font-bold text-white">{pointSummary.total.toLocaleString()} pt</p>
-              <p className="text-sm text-gray-300 mt-1">
-                うち {pointSummary.expiringAmount.toLocaleString()} pt が {pointSummary.expiringDate} に失効予定
+              <h2 className="text-xl font-semibold">メンバーシップ</h2>
+              <p className="mt-2 text-sm text-gray-300">
+                単品購入は提供していません。ログイン済みユーザーはメンバーシップ登録により全作品を視聴できます。
               </p>
             </div>
-            <div className="flex gap-3">
-              <div className="bg-gray-700/60 px-4 py-2 rounded-lg">
-                <p className="text-xs text-gray-400">有償</p>
-                <p className="text-lg font-semibold text-white">{pointSummary.paid.toLocaleString()} pt</p>
-              </div>
-              <div className="bg-gray-700/60 px-4 py-2 rounded-lg">
-                <p className="text-xs text-gray-400">無償</p>
-                <p className="text-lg font-semibold text-white">{pointSummary.free.toLocaleString()} pt</p>
-              </div>
+            <span
+              className={`rounded px-3 py-1 text-sm ${
+                isMember ? 'bg-green-500/10 text-green-400' : 'bg-gray-600/30 text-gray-300'
+              }`}
+            >
+              {isMember ? '登録中' : '未登録'}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg bg-gray-700/60 p-4">
+              <p className="text-xs text-gray-400">料金</p>
+              <p className="mt-2 text-lg font-semibold">月額 {membershipPrice.toLocaleString()} 円</p>
+            </div>
+            <div className="rounded-lg bg-gray-700/60 p-4">
+              <p className="text-xs text-gray-400">次回更新日</p>
+              <p className="mt-2 text-lg font-semibold">{renewalDate ?? '未設定'}</p>
             </div>
           </div>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <p className="text-xs text-gray-400">
-              ※ポイントは有効期限の早いものから自動的に優先して利用されます。詳細はポイント画面で確認できます。
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            {isMember ? (
+              <>
+                <button
+                  onClick={() => {
+                    void handleOpenBillingPortal();
+                  }}
+                  disabled={isBillingPortalLoading}
+                  className="rounded bg-white px-4 py-2 font-semibold text-gray-900 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isBillingPortalLoading ? '起動中...' : '請求情報を管理'}
+                </button>
+                <button
+                  onClick={() => {
+                    void handleCancelMembership();
+                  }}
+                  disabled={isSubscriptionActionLoading}
+                  className="rounded bg-red-600 px-4 py-2 font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubscriptionActionLoading ? '処理中...' : 'メンバーシップを解約する'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => navigate(subscriptionPath)}
+                className="rounded bg-primary px-4 py-2 font-semibold hover:bg-primary/90"
+              >
+                メンバーシップに登録
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-lg bg-gray-800 p-6">
+            <h2 className="mb-4 text-xl font-semibold">視聴履歴</h2>
+            <ul className="space-y-2">
+              {watchHistory.length === 0 && <li className="text-sm text-gray-400">履歴はありません</li>}
+              {watchHistory.map((item) => (
+                <li key={item.id} className="flex justify-between gap-4 text-sm text-gray-200">
+                  <span>{item.title}</span>
+                  <span className="text-gray-400">{new Date(item.watchedAt).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-lg bg-gray-800 p-6">
+            <h2 className="mb-4 text-xl font-semibold">マイリスト</h2>
+            <p className="text-sm text-gray-300">
+              あとで見たい作品を一覧で管理できます。視聴導線はメンバーシップ登録済みアカウントに統一しています。
             </p>
             <button
-              onClick={() => navigate('/account/points')}
-              className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 text-sm"
+              onClick={() => navigate('/watchlist')}
+              className="mt-6 rounded bg-gray-700 px-4 py-2 font-semibold hover:bg-gray-600"
             >
-              ポイント画面を開く
+              マイリストを開く
             </button>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">視聴履歴</h2>
-            <ul className="space-y-2">
-              {watchHistory.length === 0 && <li className="text-gray-400 text-sm">履歴はありません</li>}
-              {watchHistory.map((w) => (
-                <li key={w.id} className="text-gray-200 text-sm flex justify-between">
-                  <span>{w.title}</span>
-                  <span className="text-gray-400">{new Date(w.watchedAt).toLocaleString()}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">購入履歴</h2>
-            <ul className="space-y-2">
-              {purchases.length === 0 && <li className="text-gray-400 text-sm">履歴はありません</li>}
-              {purchases.map((p) => (
-                <li key={p.id} className="text-gray-200 text-sm flex justify-between">
-                  <span>{p.title}</span>
-                  <span className="text-gray-400">¥{p.amount.toLocaleString()}・{new Date(p.purchasedAt).toLocaleString()}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">メンバーシップ</h2>
-            <span className={`px-2 py-1 rounded text-sm ${isMember ? 'bg-green-500/10 text-green-400' : 'bg-gray-600/30 text-gray-300'}`}>
-              {isMember ? '登録中' : '未登録'}
-            </span>
-          </div>
-          <div className="mt-4 flex items-center gap-4">
-            {isMember ? (
-              <button onClick={handleCancelMembership} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">退会する</button>
-            ) : (
-              <button onClick={() => navigate('/subscription')} className="bg-primary hover:bg-primary/90 px-4 py-2 rounded">メンバーシップに登録</button>
-            )}
-          </div>
-          <p className="text-gray-400 text-xs mt-2">退会はメンバーシップ登録者のみ可能です。</p>
-        </div>
-
-        <div className="text-center">
-          <button onClick={seedMock} className="text-xs text-gray-400 underline">デモデータを投入（視聴/購入履歴・メンバーシップ）</button>
+        <div className="mt-8 text-center">
+          <button onClick={seedMock} className="text-xs text-gray-400 underline">
+            デモデータを投入（視聴履歴・メンバーシップ）
+          </button>
         </div>
       </div>
     </div>

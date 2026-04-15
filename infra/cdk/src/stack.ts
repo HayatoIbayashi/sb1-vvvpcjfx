@@ -131,6 +131,7 @@ export class AuthSignupStack extends Stack {
       securityGroups: lambdaSg ? [lambdaSg] : undefined,
       environment: {
         DATABASE_URL: process.env.DATABASE_URL ?? '',
+        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
       },
     });
 
@@ -181,18 +182,8 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
-      path: '/v1/purchases',
-      methods: [apigwv2.HttpMethod.GET],
-      integration: moviesIntegration,
-    });
-    httpApi.addRoutes({
-      path: '/v1/purchases/{id}',
-      methods: [apigwv2.HttpMethod.GET],
-      integration: moviesIntegration,
-    });
-    httpApi.addRoutes({
       path: '/v1/subscriptions/current',
-      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST, apigwv2.HttpMethod.DELETE],
+      methods: [apigwv2.HttpMethod.GET],
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
@@ -201,13 +192,8 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
-      path: '/v1/wallets/current',
-      methods: [apigwv2.HttpMethod.GET],
-      integration: moviesIntegration,
-    });
-    httpApi.addRoutes({
-      path: '/v1/wallets/transactions',
-      methods: [apigwv2.HttpMethod.GET],
+      path: '/v1/stripe/webhook',
+      methods: [apigwv2.HttpMethod.POST],
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
@@ -274,6 +260,16 @@ export class AuthSignupStack extends Stack {
     httpApi.addRoutes({
       path: '/v1/billing-portal/session',
       methods: [apigwv2.HttpMethod.POST],
+      integration: billingPortalIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/subscriptions/checkout-session',
+      methods: [apigwv2.HttpMethod.POST],
+      integration: billingPortalIntegration,
+    });
+    httpApi.addRoutes({
+      path: '/v1/subscriptions/current',
+      methods: [apigwv2.HttpMethod.DELETE],
       integration: billingPortalIntegration,
     });
 
