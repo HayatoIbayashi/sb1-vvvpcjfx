@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import AccountSettingsPage from './AccountSettingsPage';
@@ -34,7 +34,7 @@ vi.mock('../lib/authBridge', () => ({
   }),
 }));
 
-vi.mock('react-oidc-context', () => ({
+vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockAuth,
 }));
 
@@ -61,6 +61,11 @@ describe('AccountSettingsPage', () => {
       gender: 'male',
       age: 30,
       prefecture: '東京都',
+      recommendation_preferences: {
+        hiddenCategoryIds: [],
+        warningCategoryIds: [],
+        desiredGenreIds: [],
+      },
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     });
@@ -81,6 +86,11 @@ describe('AccountSettingsPage', () => {
       gender: 'male',
       age: 30,
       prefecture: '東京都',
+      recommendation_preferences: {
+        hiddenCategoryIds: [],
+        warningCategoryIds: [],
+        desiredGenreIds: [],
+      },
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-02T00:00:00.000Z',
     });
@@ -121,11 +131,60 @@ describe('AccountSettingsPage', () => {
         gender: 'male',
         age: 30,
         prefecture: '東京都',
+        recommendationPreferences: {
+          hiddenCategoryIds: [],
+          warningCategoryIds: [],
+          desiredGenreIds: [],
+        },
       });
     });
 
     await waitFor(() => {
       expect(displayNameInput).toHaveValue('Updated Name');
+    });
+  });
+
+  it('stores recommendation preference selections locally without changing the profile api payload', async () => {
+    render(
+      <MemoryRouter>
+        <AccountSettingsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.getProfile).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '完全非表示:過度な暴力表現' }));
+    fireEvent.click(screen.getByRole('button', { name: '警告表示:ギャンブル' }));
+
+    const desiredGroup = screen.getByRole('heading', { name: '見たいジャンル' }).closest('div');
+    expect(desiredGroup).not.toBeNull();
+
+    const desiredButtons = within(desiredGroup as HTMLElement).getAllByRole('button');
+    fireEvent.click(desiredButtons[1]);
+    fireEvent.click(desiredButtons[2]);
+    fireEvent.click(screen.getByRole('button', { name: '視聴設定を保存' }));
+
+    await waitFor(() => {
+      expect(mockApi.updateProfile).toHaveBeenCalledWith({
+        displayName: 'DB Name',
+        email: 'user@example.com',
+        gender: 'male',
+        age: 30,
+        prefecture: '東京都',
+        recommendationPreferences: {
+          hiddenCategoryIds: ['graphic-violence'],
+          warningCategoryIds: ['gambling'],
+          desiredGenreIds: ['horror', 'sexual-content'],
+        },
+      });
+    });
+
+    expect(JSON.parse(localStorage.getItem('account_recommendation_preferences_v1') ?? '{}')).toEqual({
+      hiddenCategoryIds: ['graphic-violence'],
+      warningCategoryIds: ['gambling'],
+      desiredGenreIds: ['horror', 'sexual-content'],
     });
   });
 

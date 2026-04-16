@@ -9,6 +9,7 @@ import {
   type AdminAccountRole,
 } from './adminAccounts.js';
 import { buildMovieSearchClause } from './movieSearch.js';
+import { parseRecommendationPreferencesBody } from './recommendationPreferences.js';
 
 const MOVIE_COLUMNS = [
   'id',
@@ -511,6 +512,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             p.gender,
             p.age,
             p.prefecture,
+            COALESCE(p.recommendation_preferences, '{}'::jsonb) AS recommendation_preferences,
             p.created_at,
             p.updated_at
           FROM users u
@@ -540,6 +542,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const gender = typeof body.gender === 'string' ? body.gender : null;
         const age = typeof body.age === 'number' ? body.age : null;
         const prefecture = typeof body.prefecture === 'string' ? body.prefecture : null;
+        const recommendationPreferences = parseRecommendationPreferencesBody(body);
+        const recommendationPreferencesJson =
+          recommendationPreferences != null ? JSON.stringify(recommendationPreferences) : null;
 
         if (age != null && (age < 0 || age > 120)) {
           return response(400, { code: 'VALIDATION_ERROR', message: 'age must be 0..120' });
@@ -561,16 +566,27 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           }
 
           await client.query(
-            `INSERT INTO profiles (id, email, display_name, gender, age, prefecture, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, now(), now())
+            `INSERT INTO profiles (
+               id,
+               email,
+               display_name,
+               gender,
+               age,
+               prefecture,
+               recommendation_preferences,
+               created_at,
+               updated_at
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), now(), now())
              ON CONFLICT (id) DO UPDATE SET
                 email = EXCLUDED.email,
                 display_name = EXCLUDED.display_name,
                 gender = EXCLUDED.gender,
                 age = EXCLUDED.age,
                 prefecture = EXCLUDED.prefecture,
+                recommendation_preferences = COALESCE($7::jsonb, profiles.recommendation_preferences, '{}'::jsonb),
                 updated_at = now()`,
-            [userId, currentEmail, displayName, gender, age, prefecture],
+            [userId, currentEmail, displayName, gender, age, prefecture, recommendationPreferencesJson],
           );
 
           await client.query('COMMIT');
@@ -592,6 +608,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             p.gender,
             p.age,
             p.prefecture,
+            COALESCE(p.recommendation_preferences, '{}'::jsonb) AS recommendation_preferences,
             p.created_at,
             p.updated_at
           FROM users u

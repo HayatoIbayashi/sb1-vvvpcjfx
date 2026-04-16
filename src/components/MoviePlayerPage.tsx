@@ -330,11 +330,9 @@ export default function MoviePlayerPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-amber-200">Access Required</p>
             <h2 className="mt-4 text-3xl font-bold text-white">{title}条件があります</h2>
             <p className="mt-4 text-base leading-7 text-amber-50/90">
-              {movieAccessTier === 'registered'
-                ? 'この作品は無料会員向けです。ログインまたは会員登録を行うと視聴できます。'
-                : accessState === 'guest'
-                  ? 'この作品はメンバーシップ限定です。まずログインまたは会員登録を行ってください。'
-                  : `この作品はメンバーシップ限定です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円の登録で視聴できます。`}
+              {accessState === 'guest'
+                ? 'この作品はログイン後にご案内しています。まずログインしてください。'
+                : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">

@@ -423,8 +423,7 @@ export default function MovieManagementPage() {
                     className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   >
                     <option value="public">一般公開</option>
-                    <option value="registered">無料会員向け</option>
-                    <option value="member">メンバーシップ限定</option>
+                    <option value="member">メンバーシップ登録で視聴</option>
                   </select>
                 </div>
 

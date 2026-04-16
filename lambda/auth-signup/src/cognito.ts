@@ -3,6 +3,7 @@ import {
   CognitoIdentityProviderClient,
   SignUpCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
+import type { CognitoSignUpReq } from './types.js';
 
 const REGION = process.env.COGNITO_REGION || 'ap-northeast-1';
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID as string;
@@ -17,18 +18,32 @@ function secretHash(username: string): string | undefined {
 
 const cognito = new CognitoIdentityProviderClient({ region: REGION });
 
-export async function signUpToCognito(email: string, password: string) {
+function buildUserAttributes(payload: CognitoSignUpReq) {
+  const attributes = [
+    { Name: 'email', Value: payload.email },
+  ];
+
+  if (payload.displayName) {
+    attributes.push({ Name: 'name', Value: payload.displayName });
+    attributes.push({ Name: 'preferred_username', Value: payload.displayName });
+  }
+
+  if (payload.gender) {
+    attributes.push({ Name: 'gender', Value: payload.gender });
+  }
+
+  return attributes;
+}
+
+export async function signUpToCognito(payload: CognitoSignUpReq) {
   if (!CLIENT_ID) throw new Error('Missing env: COGNITO_CLIENT_ID');
   const params = {
     ClientId: CLIENT_ID,
-    Username: email,
-    Password: password,
-    SecretHash: secretHash(email),
-    UserAttributes: [
-      { Name: 'email', Value: email },
-    ],
+    Username: payload.email,
+    Password: payload.password,
+    SecretHash: secretHash(payload.email),
+    UserAttributes: buildUserAttributes(payload),
   };
   const res = await cognito.send(new SignUpCommand(params));
   return { userSub: res.UserSub as string, userConfirmed: !!res.UserConfirmed };
 }
-

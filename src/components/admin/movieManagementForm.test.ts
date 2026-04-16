@@ -29,7 +29,7 @@ describe('movieManagementForm', () => {
       duration: '15:00',
       genre: ['アクション'],
       cast: ['出演者'],
-      accessTier: 'registered',
+      accessTier: 'member',
       videoFile: new File(['dummy'], 'sample.mp4', { type: 'video/mp4' }),
     });
 
@@ -44,7 +44,7 @@ describe('movieManagementForm', () => {
       genre: ['アクション'],
       cast: ['出演者'],
       price: 1,
-      rental_price: 0,
+      rental_price: 1,
     });
   });
 

@@ -13,6 +13,12 @@ export type SignUpPayload = {
   displayName?: string | null;
 };
 
+export type RecommendationPreferences = {
+  hiddenCategoryIds: string[];
+  warningCategoryIds: string[];
+  desiredGenreIds: string[];
+};
+
 export type ProfileResponse = {
   id: string;
   email: string;
@@ -20,6 +26,7 @@ export type ProfileResponse = {
   gender: string | null;
   age: number | null;
   prefecture: string | null;
+  recommendation_preferences: RecommendationPreferences | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -30,6 +37,7 @@ export type ProfileUpdatePayload = {
   gender?: string | null;
   age?: number | null;
   prefecture?: string | null;
+  recommendationPreferences?: RecommendationPreferences | null;
 };
 
 export type SubscriptionPlan = {
@@ -148,6 +156,14 @@ function buildHeaders(base: HeadersInit = {}, authToken?: string | null): Header
 
 async function resolveJsonResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const payload = await res.json().catch(() => null) as { message?: unknown } | null;
+      const message = typeof payload?.message === 'string' && payload.message
+        ? payload.message
+        : `Request failed: ${res.status}`;
+      throw new Error(message);
+    }
     const msg = await res.text().catch(() => '');
     throw new Error(msg || `Request failed: ${res.status}`);
   }

@@ -72,7 +72,7 @@ describe('MovieDetailPage test detail copy', () => {
 
   it('replaces the detail wording with test copy when testDetailId is present', async () => {
     render(
-      <MemoryRouter initialEntries={['/movies/movie-2?testDetailId=registered-test-1']}>
+      <MemoryRouter initialEntries={['/movies/movie-2?testDetailId=member-test-1']}>
         <Routes>
           <Route path="/movies/:id" element={<MovieDetailPage />} />
         </Routes>
@@ -83,11 +83,11 @@ describe('MovieDetailPage test detail copy', () => {
       expect(mockApi.getMovie).toHaveBeenCalledWith('movie-2');
     });
 
-    expect(await screen.findByRole('heading', { name: '無料会員詳細テスト 01' })).toBeInTheDocument();
-    expect(screen.getByText('無料会員向けの詳細画面で、タイトルや説明文の見え方を確認するためのテスト文言です。')).toBeInTheDocument();
-    expect(screen.getByText('この詳細画面は無料会員用のテスト文言に差し替えています。')).toBeInTheDocument();
-    expect(screen.getByText('2026-04-01')).toBeInTheDocument();
-    expect(screen.getByText('00:24:00')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'ログイン後詳細テスト 01' })).toBeInTheDocument();
+    expect(screen.getByText('ログイン後に案内する作品の詳細画面で、説明文や導線の見え方を確認するためのテスト文言です。')).toBeInTheDocument();
+    expect(screen.getByText('この詳細画面はログイン後に案内する作品用のテスト文言に差し替えています。')).toBeInTheDocument();
+    expect(screen.getByText('2026-05-01')).toBeInTheDocument();
+    expect(screen.getByText('00:42:00')).toBeInTheDocument();
     expect(screen.queryByText('実データタイトル')).not.toBeInTheDocument();
   });
 });

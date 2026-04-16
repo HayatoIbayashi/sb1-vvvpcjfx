@@ -1,28 +1,31 @@
 import { useState } from 'react';
-import { useAuth } from 'react-oidc-context';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useAuthStatus } from '../lib/authBridge';
 import apiClient from '../lib/apiClient';
+import { getCognitoPasswordPolicyError, getCognitoPasswordPolicyMessage } from '../lib/cognitoPasswordPolicy';
 
 const PREFECTURES = [
-  '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
-  '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
-  '新潟県','富山県','石川県','福井県','山梨県','長野県',
-  '岐阜県','静岡県','愛知県','三重県',
-  '滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
-  '鳥取県','島根県','岡山県','広島県','山口県',
-  '徳島県','香川県','愛媛県','高知県',
-  '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県',
+  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
+  '岐阜県', '静岡県', '愛知県', '三重県',
+  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
+  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
+  '徳島県', '香川県', '愛媛県', '高知県',
+  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
 ];
 
 const GENDER_OPTIONS = [
   { value: 'male', label: '男性' },
   { value: 'female', label: '女性' },
   { value: 'other', label: 'その他' },
-  { value: 'prefer_not_to_say', label: '未回答' },
+  { value: 'prefer_not_to_say', label: '回答しない' },
 ];
 
 function SignUpPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +36,8 @@ function SignUpPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 認証済みの場合はサインアップ不要
+  const passwordPolicyError = getCognitoPasswordPolicyError(password);
+
   if (auth.isLoading) {
     return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading...</div>;
   }
@@ -52,16 +56,25 @@ function SignUpPage() {
     );
   }
 
-  // 入力バリデーション後にサインアップAPI → Hosted UI へ遷移
-  const handleHostedSignup = async () => {
+  const handleSignUp = async () => {
     try {
       setError('');
       setLoading(true);
 
       const ageNum = Number(age);
-      if (!email || !password) throw new Error('メールとパスワードを入力してください');
-      if (!Number.isFinite(ageNum) || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 120) throw new Error('年齢は整数で0〜120の範囲で入力してください');
-      if (!prefecture) throw new Error('都道府県を選択してください');
+
+      if (!email || !password) {
+        throw new Error('メールアドレスとパスワードを入力してください');
+      }
+      if (passwordPolicyError) {
+        throw new Error(passwordPolicyError);
+      }
+      if (!Number.isFinite(ageNum) || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 120) {
+        throw new Error('年齢は整数で0〜120の範囲で入力してください');
+      }
+      if (!prefecture) {
+        throw new Error('都道府県を選択してください');
+      }
 
       await apiClient.signUp({
         email,
@@ -72,10 +85,10 @@ function SignUpPage() {
         displayName: displayName || null,
       });
 
-      auth.signinRedirect({
-        extraQueryParams: {
-          login_hint: email || undefined,
-          screen_hint: 'signup',
+      navigate(`/signup/confirm?email=${encodeURIComponent(email)}`, {
+        replace: true,
+        state: {
+          message: '確認コードを送信しました。メールをご確認ください。',
         },
       });
     } catch (e) {
@@ -88,7 +101,7 @@ function SignUpPage() {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-96">
-        <h1 className="text-2xl font-bold text-white mb-6">アカウント作成</h1>
+        <h1 className="text-2xl font-bold text-white mb-6">アカウント登録</h1>
         <div className="space-y-4 mb-4">
           <div>
             <label className="block text-gray-300 mb-2" htmlFor="displayName">アカウント名</label>
@@ -121,13 +134,15 @@ function SignUpPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 bg-gray-700 text-white rounded"
-              placeholder="8文字以上を推奨"
+              placeholder="Aa1!aaaa 形式"
               required
             />
-            <p className="text-xs text-gray-400 mt-2">注意: リダイレクト後、パスワードは再入力が必要です。</p>
+            <p className="mt-2 text-xs text-gray-400">{getCognitoPasswordPolicyMessage()}</p>
+            <p className="mt-1 text-xs text-gray-500">登録後は確認コード入力画面に進みます。メールに届くコードを使って確認してください。</p>
+            {password && passwordPolicyError && <p className="mt-2 text-xs text-red-400">{passwordPolicyError}</p>}
           </div>
           <div>
-            <label className="block text-gray-300 mb-2" htmlFor="gender">性別（未回答可）</label>
+            <label className="block text-gray-300 mb-2" htmlFor="gender">性別</label>
             <select
               id="gender"
               value={gender}
@@ -172,8 +187,8 @@ function SignUpPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
         <button
-          onClick={handleHostedSignup}
-          disabled={loading || !email || !password || !age || !prefecture}
+          onClick={handleSignUp}
+          disabled={loading || !email || !password || !age || !prefecture || !!passwordPolicyError}
           className="w-full bg-blue-600 disabled:bg-blue-600/60 text-white py-2 rounded font-semibold hover:bg-blue-700"
         >
           {loading ? '処理中...' : 'サインアップへ進む'}

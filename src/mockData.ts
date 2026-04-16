@@ -46,7 +46,7 @@ export const MOCK_MOVIES: Movie[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     price: 1,
-    rental_price: 0
+    rental_price: 1
   },
   {
     id: '3',

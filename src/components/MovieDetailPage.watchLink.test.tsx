@@ -113,7 +113,7 @@ describe('MovieDetailPage watch link', () => {
 
   it('opens the watch page from a local mock movie without calling the movie api', async () => {
     render(
-      <MemoryRouter initialEntries={['/movies/2?testDetailId=registered-test-1']}>
+      <MemoryRouter initialEntries={['/movies/2?testDetailId=member-test-1']}>
         <Routes>
           <Route path="/movies/:id" element={<MovieDetailPage />} />
           <Route path="/watch/:id" element={<WatchRouteProbe />} />

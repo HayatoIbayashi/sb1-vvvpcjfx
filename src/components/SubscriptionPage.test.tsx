@@ -30,7 +30,7 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('react-oidc-context', () => ({
+vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockAuth,
 }));
 

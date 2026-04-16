@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAuth } from 'react-oidc-context';
+import { useAuth } from '../context/AuthContext';
 
 type StoredTokens = {
   id_token?: string;
@@ -12,6 +12,10 @@ type AuthUserWithTokens = {
   accessToken?: string;
   id_token?: string;
   idToken?: string;
+};
+
+type AuthWithRemoveUser = {
+  removeUser?: () => Promise<void> | void;
 };
 
 function getUserTokens(auth: ReturnType<typeof useAuth>) {
@@ -38,6 +42,36 @@ export function clearStoredTokens() {
   } catch {
     return;
   }
+}
+
+export function clearOidcArtifacts() {
+  try {
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key) continue;
+      if (key.startsWith('oidc.user:') || key.startsWith('oidc.')) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    return;
+  }
+}
+
+export async function logoutLocally(
+  auth: AuthWithRemoveUser,
+  redirectToHome: () => void = () => {
+    window.location.replace('/');
+  },
+) {
+  clearStoredTokens();
+  clearOidcArtifacts();
+  await auth.removeUser?.();
+  redirectToHome();
 }
 
 export function getBillingToken(auth: ReturnType<typeof useAuth>): string | null {
@@ -67,8 +101,7 @@ export function useAuthStatus() {
   const actions = useMemo(() => ({
     loginHosted: () => auth.signinRedirect(),
     logoutAll: () => {
-      clearStoredTokens();
-      auth.signoutRedirect();
+      void logoutLocally(auth);
     },
   }), [auth]);
 

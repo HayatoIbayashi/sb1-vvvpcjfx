@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route} from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import SignUpPage from './components/SignUpPage';
+import ConfirmSignUpPage from './components/ConfirmSignUpPage';
 import PasswordResetPage from './components/PasswordResetPage';
 import MovieDetailPage from './components/MovieDetailPage';
 import MovieListPage from './components/MovieListPage';
@@ -20,6 +21,7 @@ function App() {
         <Route path="/" element={<MovieListPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/signup/confirm" element={<ConfirmSignUpPage />} />
         <Route path="/password-reset" element={<PasswordResetPage />} />
         <Route path="/movies/:id" element={<MovieDetailPage />} />
         <Route path="/watch/:id" element={<MoviePlayerPage />} />

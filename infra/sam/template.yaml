@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Auth Signup (Hosted UI誘導) - SAM Template
+Description: Auth Signup Hosted UI - SAM Template
 
 Globals:
   Function:
@@ -110,18 +110,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: auth-signup
-      # ルートを CodeUri にし、ビルド成果物 dist/ と node_modules を一緒にデプロイする
+      # Deploy from lambda/auth-signup with dist/ and node_modules included
       CodeUri: ../../lambda/auth-signup
       Handler: dist/handler.handler
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds: !Ref SubnetIds
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt AuthSignupDbFunction.Arn
       Environment:
         Variables:
           COGNITO_REGION: !Ref AWS::Region
           COGNITO_CLIENT_ID: !If [UseExistingCognito, !Ref ExistingCognitoClientId, !Ref UserPoolClient]
-          DATABASE_URL: !Ref DatabaseUrl
+          DB_UPSERT_LAMBDA_NAME: !Ref AuthSignupDbFunction
       Events:
         Signup:
           Type: HttpApi
@@ -129,6 +132,20 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/auth/signup
             Method: POST
+
+  AuthSignupDbFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: auth-signup-db
+      CodeUri: ../../lambda/auth-signup
+      Handler: dist/dbHandler.handler
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
 
   MoviesListFunction:
     Type: AWS::Serverless::Function

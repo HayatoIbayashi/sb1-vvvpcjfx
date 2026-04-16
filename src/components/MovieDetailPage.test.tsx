@@ -126,7 +126,7 @@ describe('MovieDetailPage', () => {
     expect(await screen.findByRole('button', { name: '今すぐ視聴する' })).toBeInTheDocument();
   });
 
-  it('shows the watch button for registered users on registered-only movies', async () => {
+  it('shows the membership link for logged-in users on membership videos', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
     mockApi.getMovie.mockResolvedValue({
       id: 'movie-1',
@@ -142,7 +142,7 @@ describe('MovieDetailPage', () => {
       director: null,
       release_year: null,
       price: 1,
-      rental_price: 0,
+      rental_price: 1,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -159,7 +159,7 @@ describe('MovieDetailPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('button', { name: '今すぐ視聴する' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /月額 1,000 円で登録/ })).toBeInTheDocument();
   });
 
   it('preserves the current movie detail path when linking to subscription', async () => {

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from 'react-oidc-context';
-import type { SubscriptionCurrent } from '../lib/apiClient';
+import { useAuth } from '../context/AuthContext';
+import type { RecommendationPreferences as RecommendationPreferencesPayload, SubscriptionCurrent } from '../lib/apiClient';
 import { getBillingToken, useAuthStatus } from '../lib/authBridge';
+import {
+  RECOMMENDATION_CONTENT_FILTER_MASTER,
+  RECOMMENDATION_GENRE_MASTER,
+  type RecommendationPreferenceOption,
+} from '../lib/recommendationPreferenceMaster';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import useApiClient from '../lib/useApiClient';
 import { MEMBERSHIP_MONTHLY_PRICE } from '../lib/useMembershipStatus';
@@ -14,6 +19,9 @@ type Profile = {
   age: number | '';
   prefecture: string;
 };
+
+type RecommendationPreferences = RecommendationPreferencesPayload;
+type RecommendationPreferencesResponse = Partial<RecommendationPreferences> | null | undefined;
 
 type Watch = {
   id: string;
@@ -57,6 +65,10 @@ const LS_PROFILE = 'mock_account_profile_v1';
 const LS_MEMBER = 'mock_is_member_v1';
 const LS_WATCH = 'mock_watch_history_v1';
 const LS_REGISTERED_AT = 'mock_registered_at_v1';
+const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
+
+const CONTENT_FILTER_MASTER_IDS = new Set(RECOMMENDATION_CONTENT_FILTER_MASTER.map((option) => option.id));
+const GENRE_MASTER_IDS = new Set(RECOMMENDATION_GENRE_MASTER.map((option) => option.id));
 
 function loadJSON<T>(key: string, fallback: T): T {
   try {
@@ -70,6 +82,122 @@ function loadJSON<T>(key: string, fallback: T): T {
 
 function saveJSON<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function sanitizeSelection(values: unknown, allowedIds: Set<string>) {
+  if (!Array.isArray(values)) return [];
+
+  return Array.from(
+    new Set(
+      values.filter((value): value is string => typeof value === 'string' && allowedIds.has(value)),
+    ),
+  );
+}
+
+function sanitizeRecommendationPreferences(
+  raw: RecommendationPreferencesResponse,
+): RecommendationPreferences {
+  return {
+    hiddenCategoryIds: sanitizeSelection(raw?.hiddenCategoryIds, CONTENT_FILTER_MASTER_IDS),
+    warningCategoryIds: sanitizeSelection(raw?.warningCategoryIds, CONTENT_FILTER_MASTER_IDS),
+    desiredGenreIds: sanitizeSelection(raw?.desiredGenreIds, GENRE_MASTER_IDS),
+  };
+}
+
+function toggleRecommendationSelection(
+  current: RecommendationPreferences,
+  key: keyof RecommendationPreferences,
+  optionId: string,
+): RecommendationPreferences {
+  const nextSet = new Set(current[key]);
+
+  if (nextSet.has(optionId)) {
+    nextSet.delete(optionId);
+  } else {
+    nextSet.add(optionId);
+  }
+
+  if (key === 'hiddenCategoryIds') {
+    const warningSet = new Set(current.warningCategoryIds);
+    warningSet.delete(optionId);
+    return {
+      ...current,
+      hiddenCategoryIds: Array.from(nextSet),
+      warningCategoryIds: Array.from(warningSet),
+    };
+  }
+
+  if (key === 'warningCategoryIds') {
+    const hiddenSet = new Set(current.hiddenCategoryIds);
+    hiddenSet.delete(optionId);
+    return {
+      ...current,
+      hiddenCategoryIds: Array.from(hiddenSet),
+      warningCategoryIds: Array.from(nextSet),
+    };
+  }
+
+  return {
+    ...current,
+    desiredGenreIds: Array.from(nextSet),
+  };
+}
+
+type PreferenceButtonGroupProps = {
+  title: string;
+  description: string;
+  options: RecommendationPreferenceOption[];
+  selectedIds: string[];
+  selectedTone: 'red' | 'amber' | 'sky';
+  onToggle: (optionId: string) => void;
+};
+
+function PreferenceButtonGroup({
+  title,
+  description,
+  options,
+  selectedIds,
+  selectedTone,
+  onToggle,
+}: PreferenceButtonGroupProps) {
+  const selectedSet = new Set(selectedIds);
+
+  const selectedClassMap = {
+    red: 'border-red-400 bg-red-500/10 text-red-200',
+    amber: 'border-amber-400 bg-amber-500/10 text-amber-100',
+    sky: 'border-sky-400 bg-sky-500/10 text-sky-100',
+  } as const;
+
+  return (
+    <div className="rounded-lg bg-gray-700/40 p-4">
+      <h3 className="text-base font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-sm text-gray-300">{description}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {options.map((option) => {
+          const isSelected = selectedSet.has(option.id);
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={isSelected}
+              aria-label={`${title}:${option.label}`}
+              onClick={() => onToggle(option.id)}
+              className={`rounded-lg border px-4 py-3 text-left transition ${
+                isSelected
+                  ? selectedClassMap[selectedTone]
+                  : 'border-gray-600 bg-gray-800/80 text-gray-200 hover:border-gray-500 hover:bg-gray-800'
+              }`}
+            >
+              <div className="font-medium">{option.label}</div>
+              {option.description && (
+                <div className="mt-1 text-xs text-gray-400">{option.description}</div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function AccountSettingsPage() {
@@ -129,6 +257,11 @@ export default function AccountSettingsPage() {
   }, [oidcProfile]);
 
   const [profile, setProfile] = useState<Profile>(initialProfile);
+  const [recommendationPreferences, setRecommendationPreferences] = useState<RecommendationPreferences>(() =>
+    sanitizeRecommendationPreferences(
+      loadJSON<Partial<RecommendationPreferences> | null>(LS_RECOMMENDATION_PREFERENCES, null),
+    ),
+  );
   const [saved, setSaved] = useState('');
   const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean>(LS_MEMBER, false));
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionCurrent['subscription'] | null>(null);
@@ -158,6 +291,13 @@ export default function AccountSettingsPage() {
           age: result.age ?? '',
           prefecture: result.prefecture ?? '',
         }));
+        setRecommendationPreferences(
+          sanitizeRecommendationPreferences(result.recommendation_preferences),
+        );
+        saveJSON(
+          LS_RECOMMENDATION_PREFERENCES,
+          sanitizeRecommendationPreferences(result.recommendation_preferences),
+        );
       } catch (error) {
         console.error('Error fetching profile:', error);
       }
@@ -262,6 +402,7 @@ export default function AccountSettingsPage() {
           gender: profile.gender && profile.gender !== 'prefer_not_to_say' ? profile.gender : null,
           age: profile.age === '' ? null : Number(profile.age),
           prefecture: profile.prefecture || null,
+          recommendationPreferences,
         });
 
         nextProfile = {
@@ -273,6 +414,9 @@ export default function AccountSettingsPage() {
           prefecture: updated.prefecture ?? profile.prefecture,
         };
         setProfile(nextProfile);
+        setRecommendationPreferences(
+          sanitizeRecommendationPreferences(updated.recommendation_preferences),
+        );
       } catch (error) {
         console.error('Error updating profile:', error);
         setSaved('保存に失敗しました。');
@@ -282,6 +426,7 @@ export default function AccountSettingsPage() {
     }
 
     saveJSON(LS_PROFILE, nextProfile);
+    saveJSON(LS_RECOMMENDATION_PREFERENCES, recommendationPreferences);
     setSaved('保存しました。');
     setTimeout(() => setSaved(''), 2000);
   };
@@ -461,6 +606,64 @@ export default function AccountSettingsPage() {
               className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
             >
               保存
+            </button>
+            {saved && <span className="text-sm text-green-400">{saved}</span>}
+          </div>
+        </div>
+
+        <div className="mb-8 rounded-lg bg-gray-800 p-6">
+          <h2 className="text-xl font-semibold text-white">視聴設定</h2>
+          <p className="mt-2 text-sm text-gray-300">
+            レコメンド対象や表示制御に使う仮設定です。選択肢はマスター管理にしているので、今後は項目差し替えだけで拡張できます。
+          </p>
+
+          <div className="mt-6 grid gap-4">
+            <PreferenceButtonGroup
+              title="完全非表示"
+              description="選択した項目を含む作品はレコメンド対象から除外します。"
+              options={RECOMMENDATION_CONTENT_FILTER_MASTER}
+              selectedIds={recommendationPreferences.hiddenCategoryIds}
+              selectedTone="red"
+              onToggle={(optionId) => {
+                setRecommendationPreferences((current) =>
+                  toggleRecommendationSelection(current, 'hiddenCategoryIds', optionId),
+                );
+              }}
+            />
+
+            <PreferenceButtonGroup
+              title="警告表示"
+              description="選択した項目を含む作品は表示前に注意喚起を出す想定です。完全非表示と重複した場合は完全非表示を優先します。"
+              options={RECOMMENDATION_CONTENT_FILTER_MASTER}
+              selectedIds={recommendationPreferences.warningCategoryIds}
+              selectedTone="amber"
+              onToggle={(optionId) => {
+                setRecommendationPreferences((current) =>
+                  toggleRecommendationSelection(current, 'warningCategoryIds', optionId),
+                );
+              }}
+            />
+
+            <PreferenceButtonGroup
+              title="見たいジャンル"
+              description="選択した項目を今後のおすすめで優先する想定です。"
+              options={RECOMMENDATION_GENRE_MASTER}
+              selectedIds={recommendationPreferences.desiredGenreIds}
+              selectedTone="sky"
+              onToggle={(optionId) => {
+                setRecommendationPreferences((current) =>
+                  toggleRecommendationSelection(current, 'desiredGenreIds', optionId),
+                );
+              }}
+            />
+          </div>
+
+          <div className="mt-4 flex items-center gap-4">
+            <button
+              onClick={handleSave}
+              className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
+            >
+              視聴設定を保存
             </button>
             {saved && <span className="text-sm text-green-400">{saved}</span>}
           </div>

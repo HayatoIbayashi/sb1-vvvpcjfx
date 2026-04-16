@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { signUpToCognito } from './cognito.js';
-import { upsertUserAndProfile } from './db.js';
+import { invokeDbUpsert } from './invokeDbUpsert.js';
 import type { SignUpReq } from './types.js';
 
 function response(statusCode: number, body: unknown, headers?: Record<string, string>): APIGatewayProxyResultV2 {
@@ -52,19 +52,28 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     // 1) Cognito SignUp
     let userSub: string;
     try {
-      const { userSub: sub } = await signUpToCognito(payload.email, payload.password);
+      const { userSub: sub } = await signUpToCognito({
+        email: payload.email,
+        password: payload.password,
+        gender: payload.gender ?? null,
+        displayName: payload.displayName ?? null,
+      });
       userSub = sub;
     } catch (error: unknown) {
-      const msg = getErrorName(error) || getErrorMessage(error, 'Cognito error');
-      if (msg === 'UsernameExistsException') {
+      const errorName = getErrorName(error);
+      const errorMessage = getErrorMessage(error, 'Cognito error');
+      if (errorName === 'UsernameExistsException') {
         return response(409, { code: 'USERNAME_EXISTS', message: 'User already exists' });
       }
-      return response(500, { code: 'COGNITO_ERROR', message: msg });
+      if (errorName === 'InvalidPasswordException' || errorName === 'InvalidParameterException') {
+        return response(400, { code: errorName, message: errorMessage });
+      }
+      return response(500, { code: 'COGNITO_ERROR', message: errorMessage });
     }
 
-    // 2) DB upsert (users + profiles)
+    // 2) DB upsert via VPC Lambda
     try {
-      await upsertUserAndProfile({
+      await invokeDbUpsert({
         userId: userSub,
         email: payload.email,
         gender: payload.gender ?? null,

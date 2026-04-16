@@ -20,14 +20,11 @@ describe('HOME_DISPLAY_SAMPLES', () => {
 });
 
 describe('HOME_MOVIE_LIST_TEST_SECTIONS', () => {
-  it('provides fixed test sections for registered and member lists', () => {
+  it('provides a fixed post-login test section', () => {
     expect(HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => section.title)).toEqual([
-      '無料会員用動画',
-      'メンバーシップ限定動画',
+      'ログイン後のおすすめ動画',
     ]);
-    expect(HOME_MOVIE_LIST_TEST_SECTIONS.every((section) => section.items.length > 0)).toBe(true);
     expect(HOME_MOVIE_LIST_TEST_SECTIONS[0].items).toHaveLength(3);
-    expect(HOME_MOVIE_LIST_TEST_SECTIONS[1].items).toHaveLength(3);
   });
 
   it('uses inline svg images for all list test samples', () => {

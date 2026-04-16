@@ -176,6 +176,33 @@ resources:
         SecurityGroupEgress:
           - IpProtocol: -1
             CidrIp: 0.0.0.0/0
+    CognitoIdpEndpointSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Interface endpoint SG for Cognito User Pools API
+        VpcId: ${env:VPC_ID}
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            SourceSecurityGroupId:
+              Ref: LambdaSecurityGroup
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+    CognitoIdpVpcEndpoint:
+      Type: AWS::EC2::VPCEndpoint
+      Properties:
+        VpcId: ${env:VPC_ID}
+        ServiceName: com.amazonaws.${aws:region}.cognito-idp
+        VpcEndpointType: Interface
+        PrivateDnsEnabled: true
+        SubnetIds:
+          - ${env:SUBNET_ID_1}
+          - ${env:SUBNET_ID_2}
+          - ${env:SUBNET_ID_3}
+        SecurityGroupIds:
+          - Ref: CognitoIdpEndpointSecurityGroup
     UserPool:
       Type: AWS::Cognito::UserPool
       Properties:

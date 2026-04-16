@@ -76,12 +76,12 @@ function MovieListPage() {
     let cancelled = false;
     const useMock = import.meta.env.VITE_USE_MOCK_REVIEWS === 'true';
     async function loadRatings() {
-        if (!movies.length) {
-          if (!cancelled) {
-            setTopRated([]);
-          }
-          return;
+      if (!movies.length) {
+        if (!cancelled) {
+          setTopRated([]);
         }
+        return;
+      }
       try {
         const results = await Promise.all(
           movies.map(async (movie) => {
@@ -117,12 +117,9 @@ function MovieListPage() {
     };
   }, [movies, api]);
 
-  const { publicMovies, registeredMovies, memberMovies } = partitionMoviesByAccess(movies);
+  const { publicMovies, memberMovies } = partitionMoviesByAccess(movies);
   const availableNowMovies = movies.filter((movie) => canAccessMovie(accessState, movie));
-  const heroMovie = availableNowMovies[0] ?? movies[0] ?? null;
-  const registeredTestTargetMovies = registeredMovies.length
-    ? registeredMovies
-    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'registered');
+  const heroMovie = availableNowMovies[0] ?? publicMovies[0] ?? memberMovies[0] ?? movies[0] ?? null;
   const memberTestTargetMovies = memberMovies.length
     ? memberMovies
     : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'member');
@@ -135,13 +132,13 @@ function MovieListPage() {
         className="group relative cursor-pointer overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
         onClick={() => handleMovieClick(movie.id)}
       >
-        <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+        <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="aspect-[2/3] w-full object-cover" />
         <span className={`absolute left-2 top-2 rounded-full border px-2 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}>
           {getMovieAccessLabel(accessTier)}
         </span>
         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <div className="absolute bottom-0 left-0 p-4">
-            <h3 className="mb-1 text-white font-semibold">{movie.title}</h3>
+            <h3 className="mb-1 font-semibold text-white">{movie.title}</h3>
             <p className="text-sm text-gray-300">{movie.release_date}</p>
             <p className="mt-2 line-clamp-2 text-sm text-gray-400">{movie.description}</p>
           </div>
@@ -220,9 +217,9 @@ function MovieListPage() {
 
             return (
               <article
-              key={item.id}
-              className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg"
-            >
+                key={item.id}
+                className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg"
+              >
                 {cardContent}
               </article>
             );
@@ -231,6 +228,16 @@ function MovieListPage() {
       </section>
     );
   };
+
+  const publicSectionDescription = accessState === 'guest'
+    ? '未ログインでも見られる配信内容を一覧で確認できます。'
+    : accessState === 'registered'
+      ? 'ログイン後でもそのまま見られる配信内容をまとめて表示しています。'
+      : '現在のアカウント状態でそのまま視聴できる配信内容です。';
+
+  const memberSectionDescription = accessState === 'member'
+    ? 'メンバーシップ登録済みのため、そのまま視聴できます。'
+    : `月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録後に視聴できる作品です。`;
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -255,9 +262,9 @@ function MovieListPage() {
               <form className="relative hidden md:block" onSubmit={handleSearchSubmit}>
                 <input
                   type="text"
-                  placeholder="作品を検索..."
+                  placeholder="動画を検索..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(event) => setSearchQuery(event.target.value)}
                   className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
                 />
                 <button
@@ -271,7 +278,9 @@ function MovieListPage() {
 
               {isAuthenticated ? (
                 <div className="flex items-center gap-4">
-                  <Link to="/account" className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">設定</Link>
+                  <Link to="/account" className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">
+                    設定
+                  </Link>
                   <button onClick={handleLogout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">
                     <LogOut className="h-5 w-5" />
                     <span>ログアウト</span>
@@ -350,49 +359,35 @@ function MovieListPage() {
           </div>
         </section>
 
-        {HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => (
+        {accessState !== 'guest' && HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => (
           <div key={section.id}>
             {renderHomeTestSection(
               section.title,
               section.description,
               section.accessLabel,
               section.items,
-              section.id === 'registered-test-list' ? registeredTestTargetMovies : memberTestTargetMovies,
+              memberTestTargetMovies,
             )}
           </div>
         ))}
 
-        {renderMovieSection(
-          '今すぐ見られる動画',
-          accessState === 'guest'
-            ? '未ログインでも視聴できる作品です。'
-            : accessState === 'registered'
-              ? '現在のアカウント状態でそのまま視聴できる作品です。'
-              : 'メンバーシップ登録済みのため、すべての公開作品を視聴できます。',
-          availableNowMovies,
-        )}
+        {renderMovieSection('配信内容一覧', publicSectionDescription, publicMovies)}
 
-        {accessState === 'guest' && renderMovieSection(
-          '会員登録で見られる動画',
-          '無料会員登録を行うと視聴できる作品です。',
-          registeredMovies,
-        )}
-
-        {accessState !== 'member' && renderMovieSection(
-          'メンバーシップ限定動画',
-          `月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で視聴できる作品です。`,
+        {accessState !== 'guest' && renderMovieSection(
+          'ログイン後にご案内する動画',
+          memberSectionDescription,
           memberMovies,
         )}
 
         {topRated.length > 0 && renderMovieSection(
-          '高評価作品',
+          '高評価動画',
           'レビュー評価の高い作品です。',
           topRated,
         )}
 
-        {publicMovies.length === 0 && registeredMovies.length === 0 && memberMovies.length === 0 && (
+        {publicMovies.length === 0 && memberMovies.length === 0 && (
           <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
-            表示できる作品がありません。
+            表示できる動画がありません。
           </div>
         )}
       </main>

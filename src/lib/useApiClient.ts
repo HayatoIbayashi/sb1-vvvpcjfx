@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useAuth } from 'react-oidc-context';
+import { useAuth } from '../context/AuthContext';
 import { createApiClient } from './apiClient';
 import { getBestToken } from './authBridge';
 

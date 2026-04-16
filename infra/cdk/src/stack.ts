@@ -73,6 +73,23 @@ export class AuthSignupStack extends Stack {
       ? new ec2.SecurityGroup(this, 'LambdaSg', { vpc, allowAllOutbound: true, description: 'Lambda SG for RDS access' })
       : undefined;
 
+    if (vpc && lambdaSg && subnets?.length) {
+      const cognitoEndpointSg = new ec2.SecurityGroup(this, 'CognitoIdpEndpointSg', {
+        vpc,
+        allowAllOutbound: true,
+        description: 'Interface endpoint SG for Cognito User Pools API',
+      });
+      cognitoEndpointSg.addIngressRule(lambdaSg, ec2.Port.tcp(443), 'Allow Lambda to reach Cognito User Pools API');
+
+      new ec2.InterfaceVpcEndpoint(this, 'CognitoIdpEndpoint', {
+        vpc,
+        service: new ec2.InterfaceVpcEndpointService(`com.amazonaws.${Stack.of(this).region}.cognito-idp`, 443),
+        subnets: { subnets },
+        securityGroups: [cognitoEndpointSg],
+        privateDnsEnabled: true,
+      });
+    }
+
     // 任意: 既存のRDS SGにインバウンド許可を自動付与（提供された場合）
     const rdsSgId = process.env.RDS_SG_ID;
     if (vpc && lambdaSg && rdsSgId) {

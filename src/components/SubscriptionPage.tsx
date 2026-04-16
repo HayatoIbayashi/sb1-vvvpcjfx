@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Calendar, CreditCard, Shield } from 'lucide-react';
-import { useAuth } from 'react-oidc-context';
+import { useAuth } from '../context/AuthContext';
 import { Header } from './common/Header';
 import { getBillingToken, useAuthStatus } from '../lib/authBridge';
 import {

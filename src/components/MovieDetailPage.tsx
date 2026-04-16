@@ -166,7 +166,7 @@ function MovieDetailPage() {
       );
     }
 
-    if (accessState === 'registered') {
+    if (isAuthenticated) {
       return (
         <Link
           to={subscriptionPath}
@@ -200,7 +200,7 @@ function MovieDetailPage() {
     ? '確認中'
     : ({
         guest: '未ログイン',
-        registered: '無料会員登録済み',
+        registered: 'ログイン済み',
         member: 'メンバーシップ登録済み',
       }[accessState]);
 
@@ -208,9 +208,9 @@ function MovieDetailPage() {
     ? '視聴権限を確認しています。'
     : canWatchMovie
       ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
-      : movieAccessTier === 'registered'
-        ? 'この作品は無料会員向けです。ログインまたは会員登録すると視聴できます。'
-        : `この作品はメンバーシップ限定です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円の登録で視聴できます。`;
+      : accessState === 'guest'
+        ? 'この作品はログイン後にご案内しています。ログイン後、メンバーシップ登録で視聴できます。'
+        : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`;
 
   return (
     <div className="min-h-screen bg-gray-900">

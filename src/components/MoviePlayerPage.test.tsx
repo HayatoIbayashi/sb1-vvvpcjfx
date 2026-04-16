@@ -133,7 +133,7 @@ describe('MoviePlayerPage', () => {
     });
   });
 
-  it('records watch history when playback starts for registered users on registered-only movies', async () => {
+  it('does not record watch history for logged-in users before membership registration', async () => {
     mockApi.getSubscriptionCurrent.mockResolvedValue({
       active: false,
       subscription: null,
@@ -152,7 +152,7 @@ describe('MoviePlayerPage', () => {
       director: null,
       release_year: null,
       price: 1,
-      rental_price: 0,
+      rental_price: 1,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -169,10 +169,8 @@ describe('MoviePlayerPage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '再生' }));
-
     await waitFor(() => {
-      expect(mockApi.addWatchHistory).toHaveBeenCalledWith('movie-1');
+      expect(mockApi.addWatchHistory).not.toHaveBeenCalled();
     });
   });
 

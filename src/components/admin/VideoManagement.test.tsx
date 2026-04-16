@@ -46,7 +46,7 @@ describe('VideoManagement', () => {
       created_at: '2026-04-13T00:00:00.000Z',
       updated_at: '2026-04-13T00:00:00.000Z',
       price: 1,
-      rental_price: 0,
+      rental_price: 1,
     });
 
     render(<VideoManagement />);
@@ -62,7 +62,7 @@ describe('VideoManagement', () => {
     fireEvent.change(screen.getByLabelText('再生時間'), { target: { value: '15分' } });
     fireEvent.change(screen.getByLabelText('ジャンル'), { target: { value: 'テスト' } });
     fireEvent.change(screen.getByLabelText('出演者'), { target: { value: '出演者' } });
-    fireEvent.change(screen.getByLabelText('公開範囲'), { target: { value: 'registered' } });
+    fireEvent.change(screen.getByLabelText('公開範囲'), { target: { value: 'member' } });
 
     const file = new File(['video'], 'new-upload.mp4', { type: 'video/mp4' });
     fireEvent.change(screen.getByLabelText('MP4ファイル'), { target: { files: [file] } });
@@ -82,7 +82,7 @@ describe('VideoManagement', () => {
         genre: ['テスト'],
         cast: ['出演者'],
         price: 1,
-        rental_price: 0,
+        rental_price: 1,
       });
     });
 
@@ -108,7 +108,7 @@ describe('VideoManagement', () => {
           created_at: '2026-04-13T00:00:00.000Z',
           updated_at: '2026-04-13T00:00:00.000Z',
           price: 1,
-          rental_price: 0,
+          rental_price: 1,
         },
       ],
     });

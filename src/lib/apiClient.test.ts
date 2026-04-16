@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApiClient } from './apiClient';
 
-const jsonResponse = (body: unknown) =>
+const jsonResponse = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
+    status: init?.status,
     headers: { 'Content-Type': 'application/json' },
   });
 
@@ -315,6 +316,11 @@ describe('apiClient movies', () => {
         gender: null,
         age: null,
         prefecture: null,
+        recommendation_preferences: {
+          hiddenCategoryIds: [],
+          warningCategoryIds: [],
+          desiredGenreIds: [],
+        },
         created_at: null,
         updated_at: null,
       }),
@@ -329,6 +335,11 @@ describe('apiClient movies', () => {
       gender: 'male',
       age: 30,
       prefecture: 'Tokyo',
+      recommendationPreferences: {
+        hiddenCategoryIds: ['graphic-violence'],
+        warningCategoryIds: ['gambling'],
+        desiredGenreIds: ['action'],
+      },
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -347,8 +358,32 @@ describe('apiClient movies', () => {
           gender: 'male',
           age: 30,
           prefecture: 'Tokyo',
+          recommendationPreferences: {
+            hiddenCategoryIds: ['graphic-violence'],
+            warningCategoryIds: ['gambling'],
+            desiredGenreIds: ['action'],
+          },
         }),
       }),
     );
+  });
+
+  it('throws the message field from a JSON error response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        { code: 'InvalidParameterException', message: 'Password did not conform with policy' },
+        { status: 400 },
+      ),
+    );
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+
+    await expect(
+      client.signUp({
+        email: 'user@example.com',
+        password: 'short',
+      }),
+    ).rejects.toThrow('Password did not conform with policy');
   });
 });

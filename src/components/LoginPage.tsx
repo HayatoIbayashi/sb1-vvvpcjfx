@@ -1,8 +1,15 @@
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from 'react-oidc-context';
-import { useState } from 'react';
-import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { useAuth } from '../context/AuthContext';
+import { InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { useAuthStatus } from '../lib/authBridge';
+import { createCognitoClient, getCognitoClientId } from '../lib/cognitoClient';
+
+type LoginPageLocationState = {
+  from?: { pathname?: string };
+  email?: string;
+  flashMessage?: string;
+};
 
 function LoginPage() {
   const auth = useAuth();
@@ -12,6 +19,13 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const state = (location.state as LoginPageLocationState | null) ?? null;
+
+  useEffect(() => {
+    if (state?.email) {
+      setEmail(state.email);
+    }
+  }, [state?.email]);
 
   // 認証状態に応じて画面を切り替え
   if (auth.isLoading) {
@@ -45,13 +59,11 @@ function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const region = import.meta.env.VITE_COGNITO_REGION ?? 'ap-northeast-1';
-      const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID ?? '51p21ae4hhsgjtd1jfakg4mpiu';
-      const cognito = new CognitoIdentityProviderClient({ region });
+      const cognito = createCognitoClient();
 
       const command = new InitiateAuthCommand({
         AuthFlow: 'USER_PASSWORD_AUTH',
-        ClientId: clientId,
+        ClientId: getCognitoClientId(),
         AuthParameters: {
           USERNAME: email,
           PASSWORD: password,
@@ -70,10 +82,24 @@ function LoginPage() {
         }),
       );
 
-      const state = location.state as { from?: { pathname?: string } } | null;
       const redirectTo = state?.from?.pathname ?? '/';
       navigate(redirectTo, { replace: true });
-    } catch {
+    } catch (loginError) {
+      const errorName =
+        typeof loginError === 'object' && loginError && 'name' in loginError
+          ? String((loginError as { name?: unknown }).name)
+          : null;
+
+      if (errorName === 'UserNotConfirmedException') {
+        navigate(`/signup/confirm?email=${encodeURIComponent(email)}`, {
+          replace: true,
+          state: {
+            message: '確認コードを入力してください。確認メールが未着なら再送できます。',
+          },
+        });
+        return;
+      }
+
       setError('メールまたはパスワードが正しくありません');
     }
   };
@@ -83,6 +109,7 @@ function LoginPage() {
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-96">
         <h1 className="text-2xl font-bold text-white mb-6">ログイン</h1>
         <form onSubmit={handlePasswordLogin} className="space-y-4">
+          {state?.flashMessage && <p className="text-green-400">{state.flashMessage}</p>}
           {error && <p className="text-red-500">{error}</p>}
           <div>
             <label className="block text-gray-300 mb-2" htmlFor="email">
