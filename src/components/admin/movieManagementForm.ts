@@ -1,7 +1,12 @@
 import type { AdminMovieWritePayload } from '../../lib/apiClient';
 import type { Database } from '../../lib/types';
+import { getMovieAccessTier, type MovieAccessTier, toMovieAccessPayload } from '../../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+export type MovieFormData = Partial<Movie> & {
+  accessTier: MovieAccessTier;
+  videoFile: File | null;
+};
 
 function normalizeNullableText(value: string | null | undefined) {
   if (value == null) return null;
@@ -9,7 +14,25 @@ function normalizeNullableText(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
-export function createEmptyFormData(): Partial<Movie> {
+function normalizeDateForDateInput(value: string | null | undefined) {
+  const trimmed = normalizeNullableText(value);
+  if (!trimmed) return '';
+
+  const directDateMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:\D.*)?$/);
+  if (directDateMatch) {
+    const [, year, month, day] = directDateMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return trimmed;
+}
+
+export function createEmptyFormData(): MovieFormData {
   return {
     title: '',
     description: '',
@@ -20,6 +43,24 @@ export function createEmptyFormData(): Partial<Movie> {
     duration: '',
     genre: [],
     cast: [],
+    accessTier: 'public',
+    videoFile: null,
+  };
+}
+
+export function createMovieFormData(movie: Movie): MovieFormData {
+  return {
+    title: movie.title,
+    description: movie.description || '',
+    thumbnail: movie.thumbnail || '',
+    thumbnail_top: movie.thumbnail_top || '',
+    thumbnail_detail: movie.thumbnail_detail || '',
+    release_date: normalizeDateForDateInput(movie.release_date),
+    duration: movie.duration || '',
+    genre: movie.genre || [],
+    cast: movie.cast || [],
+    accessTier: getMovieAccessTier(movie),
+    videoFile: null,
   };
 }
 
@@ -30,7 +71,7 @@ export function splitCsv(value: string) {
     .filter(Boolean);
 }
 
-export function buildMoviePayload(formData: Partial<Movie>): AdminMovieWritePayload {
+export function buildMoviePayload(formData: MovieFormData): AdminMovieWritePayload {
   return {
     title: formData.title || '',
     description: normalizeNullableText(formData.description),
@@ -41,5 +82,6 @@ export function buildMoviePayload(formData: Partial<Movie>): AdminMovieWritePayl
     duration: normalizeNullableText(formData.duration),
     genre: formData.genre ?? [],
     cast: formData.cast ?? [],
+    ...toMovieAccessPayload(formData.accessTier),
   };
 }

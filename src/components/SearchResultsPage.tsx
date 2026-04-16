@@ -6,13 +6,9 @@ import useApiClient from '../lib/useApiClient';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
+import { matchesMovieSearchQuery } from '../lib/movieSearch';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
-
-function matchesQuery(movie: Movie, query: string) {
-  const q = query.toLowerCase();
-  return movie.title.toLowerCase().includes(q) || (movie.description?.toLowerCase() || '').includes(q);
-}
 
 export default function SearchResultsPage() {
   const navigate = useNavigate();
@@ -43,7 +39,7 @@ export default function SearchResultsPage() {
       setError(null);
       try {
         if (useMockMovies) {
-          const filtered = MOCK_MOVIES.filter((movie) => matchesQuery(movie, query));
+          const filtered = MOCK_MOVIES.filter((movie) => matchesMovieSearchQuery(movie, query));
           if (!cancelled) setMovies(filtered);
           return;
         }

@@ -4,12 +4,21 @@ import { Crown, Heart, Play } from 'lucide-react';
 import type { Database } from '../lib/types';
 import { Header } from './common/Header';
 import { MOCK_MOVIES } from '../mockData';
+import { getLocalMockMovie } from '../lib/mockMovieResolver';
 import { useAuthStatus } from '../lib/authBridge';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import { getHomeMovieListTestItem } from './homeDisplaySamples';
+import {
+  canAccessMovie,
+  getMovieAccessBadgeClass,
+  getMovieAccessLabel,
+  getMovieAccessSummary,
+  getMovieAccessTier,
+} from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -25,6 +34,19 @@ function MovieDetailPage() {
     () => buildSubscriptionPath(getReturnToFromLocation(location)),
     [location],
   );
+  const testDetailId = useMemo(
+    () => new URLSearchParams(location.search).get('testDetailId'),
+    [location.search],
+  );
+  const testDetailItem = useMemo(
+    () => getHomeMovieListTestItem(testDetailId),
+    [testDetailId],
+  );
+  const localMockMovie = useMemo(() => getLocalMockMovie(movieId), [movieId]);
+  const shouldUseLocalMockMovie = useMemo(
+    () => !!localMockMovie && !useMockMovies,
+    [localMockMovie, useMockMovies],
+  );
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -36,8 +58,8 @@ function MovieDetailPage() {
     const loadMovie = async () => {
       if (!movieId) return;
 
-      if (useMockMovies) {
-        const foundMovie = MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
+      if (useMockMovies || shouldUseLocalMockMovie) {
+        const foundMovie = localMockMovie ?? MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
         if (!cancelled) {
           setMovie(foundMovie);
         }
@@ -51,7 +73,7 @@ function MovieDetailPage() {
         }
       } catch (error) {
         console.error('Error fetching movie:', error);
-        const fallback = MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
+        const fallback = localMockMovie ?? MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
         if (!cancelled) {
           setMovie(fallback);
         }
@@ -62,7 +84,7 @@ function MovieDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [api, movieId, useMockMovies]);
+  }, [api, localMockMovie, movieId, shouldUseLocalMockMovie, useMockMovies]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,25 +131,33 @@ function MovieDetailPage() {
       }
     } catch (error) {
       console.error('Watchlist update error:', error);
-      alert('マイリストの更新に失敗しました');
+      alert('マイリストの更新に失敗しました。');
     } finally {
       setIsWatchlistBusy(false);
     }
   };
 
+  const movieAccessTier = movie ? getMovieAccessTier(movie) : 'member';
+  const canWatchMovie = movie ? canAccessMovie(accessState, movie) : false;
+  const displayTitle = testDetailItem?.detail.title ?? movie?.title ?? '';
+  const displayDescription = testDetailItem?.detail.description ?? movie?.description ?? '';
+  const displayReleaseDate = testDetailItem?.detail.releaseDate ?? movie?.release_date ?? '-';
+  const displayDuration = testDetailItem?.detail.duration ?? movie?.duration ?? '-';
+  const testDetailNote = testDetailItem?.detail.note ?? null;
+
   const renderPrimaryActions = () => {
     if (isMembershipLoading && isAuthenticated) {
       return (
         <div className="rounded-xl border border-gray-700 bg-gray-800/80 px-5 py-4 text-sm text-gray-300">
-          メンバーシップ状態を確認しています...
+          視聴権限を確認しています...
         </div>
       );
     }
 
-    if (accessState === 'member') {
+    if (canWatchMovie) {
       return (
         <button
-          onClick={() => navigate(`/watch/${movieId}`)}
+          onClick={() => navigate(`/watch/${movieId}?autoplay=1`)}
           className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
         >
           <Play className="h-5 w-5" />
@@ -170,17 +200,17 @@ function MovieDetailPage() {
     ? '確認中'
     : ({
         guest: '未ログイン',
-        registered: '会員登録済み',
+        registered: '無料会員登録済み',
         member: 'メンバーシップ登録済み',
       }[accessState]);
 
   const accessDescription = isMembershipLoading && isAuthenticated
-    ? 'メンバーシップ状態を確認しています。'
-    : ({
-        guest: '作品の視聴には会員登録が必要です。ログイン後にメンバーシップへ登録できます。',
-        registered: `現在は無料会員です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で全作品を視聴できます。`,
-        member: 'メンバーシップ登録済みです。この作品をすぐに視聴できます。',
-      }[accessState]);
+    ? '視聴権限を確認しています。'
+    : canWatchMovie
+      ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
+      : movieAccessTier === 'registered'
+        ? 'この作品は無料会員向けです。ログインまたは会員登録すると視聴できます。'
+        : `この作品はメンバーシップ限定です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円の登録で視聴できます。`;
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -197,26 +227,32 @@ function MovieDetailPage() {
             <div className="md:w-1/3">
               <img
                 src={getTestMovieThumbnail(movie, 'detail')}
-                alt={movie.title}
+                alt={displayTitle}
                 className="w-full rounded-lg shadow-lg"
               />
             </div>
             <div className="md:w-2/3">
-              <h1 className="mb-4 text-3xl font-bold text-white">{movie.title}</h1>
-              <p className="mb-6 text-gray-300">{movie.description}</p>
+              <h1 className="mb-4 text-3xl font-bold text-white">{displayTitle}</h1>
+              <p className="mb-6 text-gray-300">{displayDescription}</p>
+
+              {testDetailNote && (
+                <div className="mb-6 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-5 py-4 text-sm leading-6 text-cyan-50">
+                  {testDetailNote}
+                </div>
+              )}
 
               <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
                 <div>
                   <h3 className="font-semibold text-gray-400">公開日</h3>
-                  <p className="text-white">{movie.release_date || '-'}</p>
+                  <p className="text-white">{displayReleaseDate}</p>
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-400">時間</h3>
-                  <p className="text-white">{movie.duration || '-'}</p>
+                  <p className="text-white">{displayDuration}</p>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-400">視聴方法</h3>
-                  <p className="text-white">メンバーシップ見放題</p>
+                  <h3 className="font-semibold text-gray-400">公開範囲</h3>
+                  <p className="text-white">{getMovieAccessLabel(movieAccessTier)}</p>
                 </div>
               </div>
 
@@ -229,10 +265,11 @@ function MovieDetailPage() {
                     <p className="mt-2 text-xl font-semibold text-white">{accessStatusText}</p>
                     <p className="mt-2 text-sm leading-6 text-amber-50/90">{accessDescription}</p>
                   </div>
-                  <div className="rounded-full border border-amber-300/30 bg-black/20 px-4 py-2 text-sm text-amber-100">
-                    月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円
+                  <div className={`rounded-full border px-4 py-2 text-sm ${getMovieAccessBadgeClass(movieAccessTier)}`}>
+                    {getMovieAccessLabel(movieAccessTier)}
                   </div>
                 </div>
+                <p className="mt-4 text-sm text-amber-50/80">{getMovieAccessSummary(movieAccessTier)}</p>
               </div>
 
               <div className="flex flex-wrap gap-4">

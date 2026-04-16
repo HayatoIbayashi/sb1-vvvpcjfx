@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import MoviePlayerPage from './MoviePlayerPage';
 
-const { mockApi, mockAuthStatus } = vi.hoisted(() => ({
+const { mockApi, mockAuthStatus, mockLinkToStorageFile, mockReactPlayer } = vi.hoisted(() => ({
   mockApi: {
     getMovie: vi.fn(),
     addWatchHistory: vi.fn(),
@@ -12,6 +12,8 @@ const { mockApi, mockAuthStatus } = vi.hoisted(() => ({
   mockAuthStatus: {
     isAuthenticated: true,
   },
+  mockLinkToStorageFile: vi.fn(),
+  mockReactPlayer: vi.fn(),
 }));
 
 vi.mock('../lib/useApiClient', () => ({
@@ -23,11 +25,23 @@ vi.mock('../lib/authBridge', () => ({
 }));
 
 vi.mock('../lib/storageUtils', () => ({
-  linkToStorageFile: vi.fn().mockResolvedValue('https://example.com/movie.mp4'),
+  AWS_SAMPLE_VIDEO_STORAGE_PATH: 'public/sample_output1.mp4',
+  linkToStorageFile: mockLinkToStorageFile,
 }));
 
 vi.mock('react-player', () => ({
-  default: () => <div>player</div>,
+  default: (props: { url: string; playing: boolean }) => {
+    mockReactPlayer(props);
+    return (
+      <div
+        data-testid="react-player"
+        data-url={props.url}
+        data-playing={props.playing ? 'true' : 'false'}
+      >
+        player
+      </div>
+    );
+  },
 }));
 
 describe('MoviePlayerPage', () => {
@@ -37,9 +51,12 @@ describe('MoviePlayerPage', () => {
     mockApi.getMovie.mockReset();
     mockApi.addWatchHistory.mockReset();
     mockApi.getSubscriptionCurrent.mockReset();
+    mockLinkToStorageFile.mockReset();
+    mockReactPlayer.mockReset();
+
     mockApi.getMovie.mockResolvedValue({
       id: 'movie-1',
-      title: '作品A',
+      title: '動画A',
       description: '説明',
       thumbnail: null,
       thumbnail_top: null,
@@ -50,8 +67,8 @@ describe('MoviePlayerPage', () => {
       cast: [],
       director: null,
       release_year: null,
-      price: 1000,
-      rental_price: 500,
+      price: 1,
+      rental_price: 1,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -64,7 +81,7 @@ describe('MoviePlayerPage', () => {
       item: {
         id: 'history-1',
         movie_id: 'movie-1',
-        title: '作品A',
+        title: '動画A',
         thumbnail: null,
         watched_at: '2026-04-13T10:00:00.000Z',
       },
@@ -87,13 +104,14 @@ describe('MoviePlayerPage', () => {
         plan_is_active: true,
       },
     });
+    mockLinkToStorageFile.mockResolvedValue('https://example.com/movie.mp4');
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('records watch history after loading the movie for members', async () => {
+  it('records watch history when playback starts for members', async () => {
     render(
       <MemoryRouter initialEntries={['/watch/movie-1']}>
         <Routes>
@@ -106,12 +124,97 @@ describe('MoviePlayerPage', () => {
       expect(mockApi.getMovie).toHaveBeenCalledWith('movie-1');
     });
 
+    expect(mockApi.addWatchHistory).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByRole('button', { name: '再生' }));
+
     await waitFor(() => {
       expect(mockApi.addWatchHistory).toHaveBeenCalledWith('movie-1');
     });
   });
 
-  it('shows membership CTA for registered users without active subscription', async () => {
+  it('records watch history when playback starts for registered users on registered-only movies', async () => {
+    mockApi.getSubscriptionCurrent.mockResolvedValue({
+      active: false,
+      subscription: null,
+    });
+    mockApi.getMovie.mockResolvedValue({
+      id: 'movie-1',
+      title: '動画A',
+      description: '説明',
+      thumbnail: null,
+      thumbnail_top: null,
+      thumbnail_detail: null,
+      release_date: '2026-04-01',
+      duration: '20分',
+      genre: [],
+      cast: [],
+      director: null,
+      release_year: null,
+      price: 1,
+      rental_price: 0,
+      is_published: true,
+      publish_at: '2026-04-01T00:00:00.000Z',
+      unpublish_at: null,
+      view_window_days: 2,
+      created_at: '2026-04-01T00:00:00.000Z',
+      updated_at: '2026-04-01T00:00:00.000Z',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/watch/movie-1']}>
+        <Routes>
+          <Route path="/watch/:id" element={<MoviePlayerPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '再生' }));
+
+    await waitFor(() => {
+      expect(mockApi.addWatchHistory).toHaveBeenCalledWith('movie-1');
+    });
+  });
+
+  it('autoplays the AWS sample video when opened with autoplay', async () => {
+    render(
+      <MemoryRouter initialEntries={['/watch/movie-1?autoplay=1']}>
+        <Routes>
+          <Route path="/watch/:id" element={<MoviePlayerPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockLinkToStorageFile).toHaveBeenCalledWith('public/sample_output1.mp4');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('react-player')).toHaveAttribute('data-url', 'https://example.com/movie.mp4');
+      expect(screen.getByTestId('react-player')).toHaveAttribute('data-playing', 'true');
+    });
+  });
+
+  it('uses the local mock movie for non-uuid ids without calling the movie api', async () => {
+    render(
+      <MemoryRouter initialEntries={['/watch/2']}>
+        <Routes>
+          <Route path="/watch/:id" element={<MoviePlayerPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect((await screen.findAllByText('RE:BORN')).length).toBeGreaterThan(0);
+    expect(mockApi.getMovie).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '再生' }));
+
+    await waitFor(() => {
+      expect(mockApi.addWatchHistory).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows membership CTA for registered users on member-only movies', async () => {
     mockApi.getSubscriptionCurrent.mockResolvedValue({
       active: false,
       subscription: null,

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
 import type { Database } from '../lib/types';
@@ -8,7 +8,15 @@ import * as mockReviews from '../lib/mockReviews';
 import { useAuthStatus } from '../lib/authBridge';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
-import { HOME_DISPLAY_SAMPLES } from './homeDisplaySamples';
+import { HOME_DISPLAY_SAMPLES, HOME_MOVIE_LIST_TEST_SECTIONS } from './homeDisplaySamples';
+import {
+  canAccessMovie,
+  getMovieAccessBadgeClass,
+  getMovieAccessLabel,
+  getMovieAccessTier,
+  partitionMoviesByAccess,
+} from '../lib/movieAccess';
+import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -18,9 +26,9 @@ function MovieListPage() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated, logoutAll } = useAuthStatus();
+  const { accessState } = useMembershipStatus();
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
-  const [ratingMap, setRatingMap] = useState<Record<string, number>>({});
   const [topRated, setTopRated] = useState<Movie[]>([]);
   const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
@@ -43,7 +51,6 @@ function MovieListPage() {
     navigate(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
-  // 作品一覧を取得（モック優先、失敗時はモックにフォールバック）
   useEffect(() => {
     let cancelled = false;
     const loadMovies = async () => {
@@ -59,124 +66,219 @@ function MovieListPage() {
         if (!cancelled) setMovies(MOCK_MOVIES);
       }
     };
-    loadMovies();
+    void loadMovies();
     return () => {
       cancelled = true;
     };
   }, [api, useMockMovies]);
 
-  // 各作品の平均評価を取得して「高評価作品」を作成
   useEffect(() => {
     let cancelled = false;
     const useMock = import.meta.env.VITE_USE_MOCK_REVIEWS === 'true';
     async function loadRatings() {
-      if (!movies.length) {
-        if (!cancelled) {
-          setRatingMap({});
-          setTopRated([]);
+        if (!movies.length) {
+          if (!cancelled) {
+            setTopRated([]);
+          }
+          return;
         }
-        return;
-      }
       try {
         const results = await Promise.all(
-          movies.map(async (m) => {
+          movies.map(async (movie) => {
             try {
               const items = useMock
-                ? await mockReviews.getReviews(m.id)
-                : (await api.getReviews(m.id)).items;
-              const avg = items.length ? items.reduce((s, r) => s + r.rating, 0) / items.length : 0;
-              return [m.id, avg] as [string, number];
+                ? await mockReviews.getReviews(movie.id)
+                : (await api.getReviews(movie.id)).items;
+              const avg = items.length ? items.reduce((sum, review) => sum + review.rating, 0) / items.length : 0;
+              return [movie.id, avg] as [string, number];
             } catch {
-              return [m.id, 0] as [string, number];
+              return [movie.id, 0] as [string, number];
             }
-          })
+          }),
         );
         if (cancelled) return;
-        const map: Record<string, number> = {};
-        for (const [id, avg] of results) map[id] = avg;
+        const nextRatingMap: Record<string, number> = {};
+        for (const [id, avg] of results) nextRatingMap[id] = avg;
         const sorted = movies
           .slice()
-          .sort((a, b) => (map[b.id] ?? 0) - (map[a.id] ?? 0))
-          .filter((m) => (map[m.id] ?? 0) > 0)
+          .sort((a, b) => (nextRatingMap[b.id] ?? 0) - (nextRatingMap[a.id] ?? 0))
+          .filter((movie) => (nextRatingMap[movie.id] ?? 0) > 0)
           .slice(0, 10);
-        setRatingMap(map);
         setTopRated(sorted);
       } catch {
         if (!cancelled) {
-          setRatingMap({});
           setTopRated([]);
         }
       }
     }
-    loadRatings();
+    void loadRatings();
     return () => {
       cancelled = true;
     };
   }, [movies, api]);
 
-  const displayMovies = movies;
+  const { publicMovies, registeredMovies, memberMovies } = partitionMoviesByAccess(movies);
+  const availableNowMovies = movies.filter((movie) => canAccessMovie(accessState, movie));
+  const heroMovie = availableNowMovies[0] ?? movies[0] ?? null;
+  const registeredTestTargetMovies = registeredMovies.length
+    ? registeredMovies
+    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'registered');
+  const memberTestTargetMovies = memberMovies.length
+    ? memberMovies
+    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'member');
+
+  const renderMovieCard = (movie: Movie) => {
+    const accessTier = getMovieAccessTier(movie);
+    return (
+      <div
+        key={movie.id}
+        className="group relative cursor-pointer overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
+        onClick={() => handleMovieClick(movie.id)}
+      >
+        <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
+        <span className={`absolute left-2 top-2 rounded-full border px-2 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}>
+          {getMovieAccessLabel(accessTier)}
+        </span>
+        <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+          <div className="absolute bottom-0 left-0 p-4">
+            <h3 className="mb-1 text-white font-semibold">{movie.title}</h3>
+            <p className="text-sm text-gray-300">{movie.release_date}</p>
+            <p className="mt-2 line-clamp-2 text-sm text-gray-400">{movie.description}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMovieSection = (title: string, description: string, sectionMovies: Movie[]) => {
+    if (!sectionMovies.length) return null;
+    return (
+      <section className="mb-12">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+          <p className="mt-2 text-sm text-gray-400">{description}</p>
+        </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {sectionMovies.map((movie) => renderMovieCard(movie))}
+        </div>
+      </section>
+    );
+  };
+
+  const renderHomeTestSection = (
+    title: string,
+    description: string,
+    accessLabel: string,
+    items: typeof HOME_MOVIE_LIST_TEST_SECTIONS[number]['items'],
+    targetMovies: Movie[],
+  ) => {
+    if (!items.length) return null;
+
+    return (
+      <section className="mb-12">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">{title}</h2>
+            <p className="mt-2 text-sm text-gray-400">{description}</p>
+          </div>
+          <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-3 py-1 text-sm text-fuchsia-200">
+            TEST LIST
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+          {items.map((item, index) => {
+            const targetMovie = targetMovies[index % targetMovies.length] ?? null;
+            const cardContent = (
+              <>
+                <img src={item.image} alt={item.title} className="aspect-[16/9] w-full object-cover" />
+                <div className="space-y-3 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+                      {item.subtitle}
+                    </p>
+                    <span className="rounded-full border border-gray-600 px-2.5 py-1 text-xs text-gray-200">
+                      {accessLabel}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white">{item.title}</h3>
+                  <p className="text-sm leading-6 text-gray-300">{item.description}</p>
+                </div>
+              </>
+            );
+
+            if (targetMovie) {
+              return (
+                <Link
+                  key={item.id}
+                  to={`/movies/${targetMovie.id}?testDetailId=${encodeURIComponent(item.id)}`}
+                  className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
+                >
+                  {cardContent}
+                </Link>
+              );
+            }
+
+            return (
+              <article
+              key={item.id}
+              className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg"
+            >
+                {cardContent}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
+      <header className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            {/* Left side */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-8">
-              <h1 className="text-2xl font-bold text-white">
-                <img
-                  src="https://sb1-vvvpcjfx-assets.s3.ap-northeast-1.amazonaws.com/assets/WiiBER_logo.png"
-                  alt="WiiBER"
-                  className="h-8 cursor-pointer"
-                  onClick={() => navigate('/')}
-                />
-              </h1>
-              <nav className="hidden md:flex space-x-6">
+              <nav className="hidden space-x-6 md:flex">
                 <Link to="/" className="text-white hover:text-gray-300">
                   ホーム
                 </Link>
               </nav>
-              {/* Subscription Button */}
               <Link
                 to={subscriptionPath}
-                className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition hidden md:block"
+                className="hidden rounded-lg bg-primary px-4 py-2 font-semibold text-white transition hover:bg-primary/90 md:block"
               >
                 メンバーシップ
               </Link>
             </div>
 
-            {/* Right side */}
             <div className="flex items-center space-x-8">
-              {/* Search */}
               <form className="relative hidden md:block" onSubmit={handleSearchSubmit}>
                 <input
                   type="text"
                   placeholder="作品を検索..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-80 md:w-96 px-4 py-2 pl-10 bg-gray-800 text-white rounded-full border border-gray-700 focus:outline-none focus:border-gray-500"
+                  className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
                 />
                 <button
                   type="submit"
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 transform text-gray-400 hover:text-gray-200"
                   aria-label="検索"
                 >
                   <Search className="h-4 w-4" />
                 </button>
               </form>
 
-              {/* Auth Button */}
               {isAuthenticated ? (
                 <div className="flex items-center gap-4">
-                  <Link to="/account" className="text-gray-300 hover:text-white px-3 py-1.5 rounded-md hover:bg-gray-800/60">設定</Link>
-                  <button onClick={handleLogout} className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-gray-800/60">
+                  <Link to="/account" className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">設定</Link>
+                  <button onClick={handleLogout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">
                     <LogOut className="h-5 w-5" />
                     <span>ログアウト</span>
                   </button>
                 </div>
               ) : (
-                <button onClick={handleLogin} className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-gray-800/60">
+                <button onClick={handleLogin} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white">
                   <LogIn className="h-5 w-5" />
                   <span>ログイン</span>
                 </button>
@@ -186,24 +288,24 @@ function MovieListPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 pt-24 pb-12">
-        {/* Hero Section */}
-        {movies.length > 0 && (
+      <main className="container mx-auto px-4 pb-12 pt-24">
+        {heroMovie && (
           <section className="mb-12">
-            <div className="relative h-[60vh] rounded-xl overflow-hidden">
+            <div className="relative h-[60vh] overflow-hidden rounded-xl">
               <img
-                src={getTestMovieThumbnail(movies[0], 'hero')}
-                alt={movies[0].title}
-                className="w-full h-full object-cover"
+                src={getTestMovieThumbnail(heroMovie, 'hero')}
+                alt={heroMovie.title}
+                className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
                 <div className="absolute bottom-0 left-0 p-8">
-                  <h2 className="text-4xl font-bold text-white mb-4">{movies[0].title}</h2>
-
+                  <div className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}>
+                    {getMovieAccessLabel(getMovieAccessTier(heroMovie))}
+                  </div>
+                  <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
                   <button
-                    onClick={() => handleMovieClick(movies[0].id)}
-                    className="bg-white text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition"
+                    onClick={() => handleMovieClick(heroMovie.id)}
+                    className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
                   >
                     詳細を見る
                   </button>
@@ -213,18 +315,17 @@ function MovieListPage() {
           </section>
         )}
 
-        {/* 表示確認用の固定サンプル */}
         <section className="mb-12">
-          <div className="flex items-end justify-between gap-4 mb-6">
+          <div className="mb-6 flex items-end justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">表示確認用サンプル</h2>
-              <p className="text-gray-400 mt-2">メイン画面でテキストと画像の見え方を確認するための固定表示です。</p>
+              <p className="mt-2 text-gray-400">メイン画面でテキストと画像の見え方を確認するための固定表示です。</p>
             </div>
             <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
               TEST DISPLAY
             </span>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_1fr] gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr_1fr]">
             {HOME_DISPLAY_SAMPLES.map((sample, index) => (
               <article
                 key={sample.id}
@@ -249,129 +350,54 @@ function MovieListPage() {
           </div>
         </section>
 
-        {/* New Releases */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">新着動画</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {displayMovies.map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
-                onClick={() => handleMovieClick(movie.id)}
-              >
-                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
-                    <p className="text-gray-300 text-sm">{movie.release_date}</p>
-                    <p className="text-gray-400 text-sm mt-2 line-clamp-2">{movie.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+        {HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => (
+          <div key={section.id}>
+            {renderHomeTestSection(
+              section.title,
+              section.description,
+              section.accessLabel,
+              section.items,
+              section.id === 'registered-test-list' ? registeredTestTargetMovies : memberTestTargetMovies,
+            )}
           </div>
-        </section>
+        ))}
 
+        {renderMovieSection(
+          '今すぐ見られる動画',
+          accessState === 'guest'
+            ? '未ログインでも視聴できる作品です。'
+            : accessState === 'registered'
+              ? '現在のアカウント状態でそのまま視聴できる作品です。'
+              : 'メンバーシップ登録済みのため、すべての公開作品を視聴できます。',
+          availableNowMovies,
+        )}
 
-        {/* メンバーシップ限定動画（強調レイアウト追加） */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">メンバーシップ限定動画</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {displayMovies.slice(0, 10).map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative rounded-lg overflow-hidden ring-2 ring-yellow-500/60 hover:ring-yellow-400 transition cursor-pointer"
-                onClick={() => handleMovieClick(movie.id)}
-              >
-                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
-                <span className="absolute top-2 left-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded">メンバー限定</span>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
-                    <p className="text-gray-300 text-sm">{movie.release_date}</p>
-                    <p className="text-gray-400 text-sm mt-2 line-clamp-2">{movie.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+        {accessState === 'guest' && renderMovieSection(
+          '会員登録で見られる動画',
+          '無料会員登録を行うと視聴できる作品です。',
+          registeredMovies,
+        )}
+
+        {accessState !== 'member' && renderMovieSection(
+          'メンバーシップ限定動画',
+          `月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で視聴できる作品です。`,
+          memberMovies,
+        )}
+
+        {topRated.length > 0 && renderMovieSection(
+          '高評価作品',
+          'レビュー評価の高い作品です。',
+          topRated,
+        )}
+
+        {publicMovies.length === 0 && registeredMovies.length === 0 && memberMovies.length === 0 && (
+          <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
+            表示できる作品がありません。
           </div>
-        </section>
-        {/* 好みに合わせた動画 */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">あなたの好みに合わせた動画</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {displayMovies.slice(2, 12).map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
-                onClick={() => handleMovieClick(movie.id)}
-              >
-                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
-                    <p className="text-gray-300 text-sm">{movie.release_date}</p>
-                    <p className="text-gray-400 text-sm mt-2 line-clamp-2">{movie.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* おすすめ動画 */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">おすすめ動画</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {displayMovies.slice().reverse().slice(0, 10).map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
-                onClick={() => handleMovieClick(movie.id)}
-              >
-                <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
-                    <p className="text-gray-300 text-sm">{movie.release_date}</p>
-                    <p className="text-gray-400 text-sm mt-2 line-clamp-2">{movie.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 高評価作品 */}
-        {topRated.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-6">高評価作品</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {topRated.map((movie) => (
-                <div
-                  key={movie.id}
-                  className="group relative rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
-                  onClick={() => handleMovieClick(movie.id)}
-                >
-                  <img src={getTestMovieThumbnail(movie, 'card')} alt={movie.title} className="w-full aspect-[2/3] object-cover" />
-                  <span className="absolute top-2 right-2 bg-black/70 text-yellow-400 text-xs font-bold px-2 py-1 rounded">
-                    ★ {(ratingMap[movie.id] ?? 0).toFixed(1)}
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="absolute bottom-0 left-0 p-4">
-                      <h3 className="text-white font-semibold mb-1">{movie.title}</h3>
-                      <p className="text-gray-300 text-sm">{movie.release_date}</p>
-                      <p className="text-gray-400 text-sm mt-2 line-clamp-2">{movie.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         )}
       </main>
-      {/* Footer */}
-      <footer className="bg-gray-900 border-t border-gray-800">
+
+      <footer className="border-t border-gray-800 bg-gray-900">
         <div className="container mx-auto px-4 py-8">
           <p className="text-center text-gray-400">Copyright WiiBER All Rights Reserved.</p>
         </div>
@@ -381,8 +407,3 @@ function MovieListPage() {
 }
 
 export default MovieListPage;
-
-
-
-
-

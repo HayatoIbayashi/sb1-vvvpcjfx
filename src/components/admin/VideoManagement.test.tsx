@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VideoManagement } from './VideoManagement';
 
@@ -29,7 +29,7 @@ describe('VideoManagement', () => {
     vi.unstubAllEnvs();
   });
 
-  it('creates a video via admin movie api without purchase pricing', async () => {
+  it('creates a video via admin movie api and keeps the mp4 selection out of the payload', async () => {
     mockApi.createAdminMovie.mockResolvedValue({
       id: 'video-1',
       title: 'テスト動画',
@@ -45,7 +45,7 @@ describe('VideoManagement', () => {
       release_year: null,
       created_at: '2026-04-13T00:00:00.000Z',
       updated_at: '2026-04-13T00:00:00.000Z',
-      price: 0,
+      price: 1,
       rental_price: 0,
     });
 
@@ -62,8 +62,13 @@ describe('VideoManagement', () => {
     fireEvent.change(screen.getByLabelText('再生時間'), { target: { value: '15分' } });
     fireEvent.change(screen.getByLabelText('ジャンル'), { target: { value: 'テスト' } });
     fireEvent.change(screen.getByLabelText('出演者'), { target: { value: '出演者' } });
+    fireEvent.change(screen.getByLabelText('公開範囲'), { target: { value: 'registered' } });
 
-    fireEvent.click(screen.getByRole('button', { name: '登録する' }));
+    const file = new File(['video'], 'new-upload.mp4', { type: 'video/mp4' });
+    fireEvent.change(screen.getByLabelText('MP4ファイル'), { target: { files: [file] } });
+    expect(screen.getByText('選択中のMP4: new-upload.mp4')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '追加する' }));
 
     await waitFor(() => {
       expect(mockApi.createAdminMovie).toHaveBeenCalledWith({
@@ -76,11 +81,56 @@ describe('VideoManagement', () => {
         duration: '15分',
         genre: ['テスト'],
         cast: ['出演者'],
+        price: 1,
+        rental_price: 0,
       });
     });
 
-    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('price');
-    expect(mockApi.createAdminMovie.mock.calls[0][0]).not.toHaveProperty('rental_price');
     expect(await screen.findByText('テスト動画')).toBeInTheDocument();
+  });
+
+  it('shows replacement guidance and normalizes release date for existing videos', async () => {
+    mockApi.getAdminMovies.mockResolvedValue({
+      items: [
+        {
+          id: 'video-1',
+          title: '既存動画',
+          description: '説明',
+          thumbnail: null,
+          thumbnail_top: null,
+          thumbnail_detail: null,
+          release_date: '2024/12/6',
+          duration: '15分',
+          genre: ['テスト'],
+          cast: ['出演者'],
+          director: null,
+          release_year: null,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+          price: 1,
+          rental_price: 0,
+        },
+      ],
+    });
+
+    render(<VideoManagement />);
+
+    const row = (await screen.findByText('既存動画')).closest('tr');
+    expect(row).not.toBeNull();
+
+    fireEvent.click(within(row as HTMLTableRowElement).getByRole('button', { name: '既存動画 を編集' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('公開日')).toHaveValue('2024-12-06');
+    });
+
+    expect(
+      screen.getByText('現在のファイル名は未連携のため取得できません。ここで選択した MP4 は既存ファイルの置き換え予定として扱われます。'),
+    ).toBeInTheDocument();
+
+    const file = new File(['video'], 'replacement.mp4', { type: 'video/mp4' });
+    fireEvent.change(screen.getByLabelText('MP4ファイル'), { target: { files: [file] } });
+
+    expect(screen.getByText('選択中のMP4: replacement.mp4')).toBeInTheDocument();
   });
 });

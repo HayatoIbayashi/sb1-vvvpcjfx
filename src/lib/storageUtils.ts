@@ -4,6 +4,8 @@ import amplifyConfig from '../../amplify_outputs.json';
 
 Amplify.configure(amplifyConfig);
 
+export const AWS_SAMPLE_VIDEO_STORAGE_PATH = 'public/sample_output1.mp4';
+
 /**
  * Amplify Storageからファイルの署名付きURLを取得
  */

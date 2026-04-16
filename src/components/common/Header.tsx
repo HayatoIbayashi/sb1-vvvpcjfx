@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Search, LogOut, LogIn } from 'lucide-react';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../../lib/subscriptionNavigation';
 
@@ -31,7 +31,6 @@ export function Header({
 }: HeaderProps) {
   // ナビゲーション用フック
   const location = useLocation();
-  const navigate = useNavigate();
   const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
   return (
@@ -41,14 +40,6 @@ export function Header({
           {/* 左側: ロゴとナビゲーションリンク */}
           <div className="flex items-center space-x-8">
             {/* ロゴ (クリックでホームに戻る) */}
-            <h1 className="text-2xl font-bold text-white">
-              <img 
-                src="../src/assets/WiiBER_logo.png" 
-                alt="WiiBER" 
-                className="h-8 cursor-pointer"
-                onClick={() => navigate('/')}
-              />
-            </h1>
             <nav className="hidden md:flex space-x-6">
               <Link to="/" className="text-white hover:text-gray-300">
                 ホーム

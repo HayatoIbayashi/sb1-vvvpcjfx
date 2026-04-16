@@ -8,6 +8,7 @@ import {
   updateAdminAccount,
   type AdminAccountRole,
 } from './adminAccounts.js';
+import { buildMovieSearchClause } from './movieSearch.js';
 
 const MOVIE_COLUMNS = [
   'id',
@@ -342,22 +343,6 @@ function buildSubscriptionCreateInput(body: Record<string, unknown> | null): Sub
   return {
     plan_id: requireString(body.plan_id, 'plan_id'),
   };
-}
-
-function buildSearchClause(isAdmin: boolean) {
-  const fields = isAdmin
-    ? [
-        "COALESCE(title, '')",
-        "COALESCE(description, '')",
-        "COALESCE(array_to_string(genre, ' '), '')",
-        "COALESCE(array_to_string(\"cast\", ' '), '')",
-      ]
-    : [
-        "COALESCE(title, '')",
-        "COALESCE(description, '')",
-      ];
-
-  return fields.map((field) => `${field} ILIKE $1`).join(' OR ');
 }
 
 function parseLimit(value?: string | null) {
@@ -1401,7 +1386,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const offset = parseOffset(event.queryStringParameters?.offset);
 
     const params: Array<string | number> = [];
-    const whereClause = q ? `WHERE ${buildSearchClause(isAdmin)}` : '';
+    const whereClause = q ? `WHERE ${buildMovieSearchClause(isAdmin)}` : '';
     if (q) params.push(`%${q}%`);
 
     let sql = `SELECT ${MOVIE_COLUMNS.join(', ')} FROM ${table} ${whereClause}`;

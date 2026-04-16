@@ -4,8 +4,16 @@ import { ArrowLeft, Edit2, Plus, Trash2 } from 'lucide-react';
 import useApiClient from '../../lib/useApiClient';
 import { MOCK_MOVIES } from '../../mockData';
 import type { Database } from '../../lib/types';
+import { getMovieAccessLabel, toMovieAccessPayload } from '../../lib/movieAccess';
 import { getTestMovieThumbnail } from '../../lib/testMovieThumbnails';
-import { buildMoviePayload, createEmptyFormData, splitCsv } from './movieManagementForm';
+import {
+  buildMoviePayload,
+  createEmptyFormData,
+  createMovieFormData,
+  splitCsv,
+  type MovieFormData,
+} from './movieManagementForm';
+import VideoFileField from './VideoFileField';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -20,7 +28,7 @@ export default function MovieManagementPage() {
   const [query, setQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-  const [formData, setFormData] = useState<Partial<Movie>>(createEmptyFormData());
+  const [formData, setFormData] = useState<MovieFormData>(createEmptyFormData());
 
   useEffect(() => {
     let cancelled = false;
@@ -32,17 +40,25 @@ export default function MovieManagementPage() {
 
         if (useMockMovies) {
           await new Promise((resolve) => setTimeout(resolve, 300));
-          if (!cancelled) setMovies(MOCK_MOVIES);
+          if (!cancelled) {
+            setMovies(MOCK_MOVIES);
+          }
           return;
         }
 
-        const res = await api.getAdminMovies();
-        if (!cancelled) setMovies(res.items);
+        const response = await api.getAdminMovies();
+        if (!cancelled) {
+          setMovies(response.items);
+        }
       } catch (err) {
-        if (!cancelled) setError('作品データの取得に失敗しました');
+        if (!cancelled) {
+          setError('動画データの取得に失敗しました。');
+        }
         console.error('Error fetching movies:', err);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -54,10 +70,12 @@ export default function MovieManagementPage() {
 
   const filteredMovies = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return movies;
+    if (!normalizedQuery) {
+      return movies;
+    }
 
     return movies.filter((movie) => {
-      const fields = [
+      const searchTarget = [
         movie.title || '',
         movie.description || '',
         (movie.genre || []).join(' '),
@@ -65,9 +83,14 @@ export default function MovieManagementPage() {
       ]
         .join(' ')
         .toLowerCase();
-      return fields.includes(normalizedQuery);
+
+      return searchTarget.includes(normalizedQuery);
     });
   }, [movies, query]);
+
+  const updateFormData = (patch: Partial<MovieFormData>) => {
+    setFormData((current) => ({ ...current, ...patch }));
+  };
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -85,17 +108,7 @@ export default function MovieManagementPage() {
   const openEditModal = (movie: Movie) => {
     setError(null);
     setSelectedMovie(movie);
-    setFormData({
-      title: movie.title,
-      description: movie.description || '',
-      thumbnail: movie.thumbnail || '',
-      thumbnail_top: movie.thumbnail_top || '',
-      thumbnail_detail: movie.thumbnail_detail || '',
-      release_date: movie.release_date || '',
-      duration: movie.duration || '',
-      genre: movie.genre || [],
-      cast: movie.cast || [],
-    });
+    setFormData(createMovieFormData(movie));
     setIsModalOpen(true);
   };
 
@@ -103,18 +116,18 @@ export default function MovieManagementPage() {
     try {
       setError(null);
       if (!formData.title?.trim()) {
-        setError('タイトルは必須です');
+        setError('タイトルは必須です。');
         return;
       }
 
       if (!useMockMovies) {
         const createdMovie = await api.createAdminMovie(buildMoviePayload(formData));
-        setMovies((prev) => [createdMovie, ...prev]);
+        setMovies((current) => [createdMovie, ...current]);
         closeModal();
         return;
       }
 
-      const newMovie: Movie = {
+      const createdMovie: Movie = {
         id: Math.random().toString(36).slice(2, 11),
         title: formData.title || '',
         description: formData.description || null,
@@ -125,59 +138,68 @@ export default function MovieManagementPage() {
         duration: formData.duration || null,
         director: null,
         release_year: null,
-        price: 0,
-        rental_price: 0,
+        ...toMovieAccessPayload(formData.accessTier),
         genre: formData.genre || [],
         cast: formData.cast || [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      setMovies((prev) => [newMovie, ...prev]);
+      setMovies((current) => [createdMovie, ...current]);
       closeModal();
     } catch (err) {
-      setError('作品の作成に失敗しました');
+      setError('動画の新規追加に失敗しました。');
       console.error('Error creating movie:', err);
     }
   };
 
-  const handleUpdate = async (id: string) => {
+  const handleUpdate = async (movieId: string) => {
     try {
       setError(null);
       if (!formData.title?.trim()) {
-        setError('タイトルは必須です');
+        setError('タイトルは必須です。');
         return;
       }
 
       if (!useMockMovies) {
-        const updatedMovie = await api.updateAdminMovie(id, buildMoviePayload(formData));
-        setMovies((prev) => prev.map((movie) => (movie.id === id ? updatedMovie : movie)));
-      } else {
-        setMovies((prev) => prev.map((movie) => (
-          movie.id === id
-            ? { ...movie, ...formData, updated_at: new Date().toISOString() }
-            : movie
-        )));
+        const updatedMovie = await api.updateAdminMovie(movieId, buildMoviePayload(formData));
+        setMovies((current) => current.map((movie) => (movie.id === movieId ? updatedMovie : movie)));
+        closeModal();
+        return;
       }
 
+      const { accessTier, videoFile, ...nextFields } = formData;
+      void videoFile;
+      setMovies((current) => current.map((movie) => (
+        movie.id === movieId
+          ? {
+              ...movie,
+              ...nextFields,
+              ...toMovieAccessPayload(accessTier),
+              updated_at: new Date().toISOString(),
+            }
+          : movie
+      )));
       closeModal();
     } catch (err) {
-      setError('作品の更新に失敗しました');
+      setError('動画の更新に失敗しました。');
       console.error('Error updating movie:', err);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('本当にこの作品を削除しますか？')) return;
+  const handleDelete = async (movieId: string) => {
+    if (!window.confirm('この動画を削除しますか？')) {
+      return;
+    }
 
     try {
       setError(null);
       if (!useMockMovies) {
-        await api.deleteAdminMovie(id);
+        await api.deleteAdminMovie(movieId);
       }
-      setMovies((prev) => prev.filter((movie) => movie.id !== id));
+      setMovies((current) => current.filter((movie) => movie.id !== movieId));
     } catch (err) {
-      setError('作品の削除に失敗しました');
+      setError('動画の削除に失敗しました。');
       console.error('Error deleting movie:', err);
     }
   };
@@ -187,21 +209,22 @@ export default function MovieManagementPage() {
       <header className="bg-dark-lighter shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-400 transition hover:text-white"
+                aria-label="トップへ戻る"
               >
                 <ArrowLeft className="h-6 w-6" />
               </button>
-              <h1 className="text-2xl font-bold text-white">作品管理</h1>
+              <h1 className="text-2xl font-bold text-white">動画管理</h1>
             </div>
             <button
               onClick={openCreateModal}
-              className="flex items-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-white transition hover:bg-primary/90"
             >
               <Plus className="h-5 w-5" />
-              <span>新規作成</span>
+              <span>新規動画追加</span>
             </button>
           </div>
         </div>
@@ -209,62 +232,74 @@ export default function MovieManagementPage() {
 
       <main className="container mx-auto px-4 py-8">
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-6">
+          <div className="mb-6 rounded-lg border border-red-500 bg-red-500/10 px-4 py-3 text-red-400">
             {error}
           </div>
         )}
 
         <div className="mb-6">
-          <label className="block text-gray-300 mb-2">作品検索</label>
+          <label htmlFor="movie-management-search" className="mb-2 block text-gray-300">
+            動画検索
+          </label>
           <input
+            id="movie-management-search"
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="タイトル・説明・監督・ジャンル・出演者で検索"
-            className="w-full px-4 py-2 bg-dark-light text-white rounded border border-transparent focus:border-gray-600 outline-none"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="タイトル・説明・出演者・ジャンルで検索"
+            className="w-full rounded border border-transparent bg-dark-light px-4 py-2 text-white outline-none transition focus:border-gray-600"
           />
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-white"></div>
           </div>
         ) : (
           <div className="grid gap-6">
             {filteredMovies.map((movie) => (
               <div
                 key={movie.id}
-                className="bg-dark-lighter rounded-lg shadow-lg overflow-hidden"
+                className="overflow-hidden rounded-lg bg-dark-lighter shadow-lg"
               >
-                <div className="flex items-start p-6 gap-6">
+                <div className="flex items-start gap-6 p-6">
                   <img
                     src={getTestMovieThumbnail(movie, 'card')}
                     alt={movie.title}
-                    className="w-32 h-48 object-cover rounded-lg"
+                    className="h-48 w-32 rounded-lg object-cover"
                   />
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-xl font-bold text-white mb-2">{movie.title}</h2>
-                    <p className="text-gray-400 mb-4 line-clamp-2">{movie.description || '説明なし'}</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="mb-2 text-xl font-bold text-white">{movie.title}</h2>
+                    <p className="mb-4 line-clamp-2 text-gray-400">
+                      {movie.description || '説明はありません。'}
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 text-sm text-gray-300 md:grid-cols-2">
                       <div>
-                        <span className="text-gray-500">視聴形態:</span> メンバーシップ見放題
+                        <span className="text-gray-500">公開範囲:</span>{' '}
+                        {getMovieAccessLabel(createMovieFormData(movie).accessTier)}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">公開日:</span> {movie.release_date || '-'}
                       </div>
                       <div className="md:col-span-2">
-                        <span className="text-gray-500">ジャンル:</span> {(movie.genre || []).join(', ') || '-'}
+                        <span className="text-gray-500">ジャンル:</span>{' '}
+                        {(movie.genre || []).join(', ') || '-'}
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col space-y-2">
+                  <div className="flex flex-col gap-2">
                     <button
                       onClick={() => openEditModal(movie)}
-                      className="flex items-center space-x-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+                      className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-white transition hover:bg-blue-600"
+                      aria-label={`${movie.title} を編集`}
                     >
                       <Edit2 className="h-4 w-4" />
                       <span>編集</span>
                     </button>
                     <button
                       onClick={() => handleDelete(movie.id)}
-                      className="flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
+                      className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-white transition hover:bg-red-600"
+                      aria-label={`${movie.title} を削除`}
                     >
                       <Trash2 className="h-4 w-4" />
                       <span>削除</span>
@@ -273,9 +308,10 @@ export default function MovieManagementPage() {
                 </div>
               </div>
             ))}
+
             {!filteredMovies.length && (
-              <div className="text-center text-gray-400 py-12 border border-dashed border-gray-700 rounded-lg">
-                該当する作品が見つかりません
+              <div className="rounded-lg border border-dashed border-gray-700 py-12 text-center text-gray-400">
+                条件に一致する動画が見つかりません。
               </div>
             )}
           </div>
@@ -283,113 +319,140 @@ export default function MovieManagementPage() {
       </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-lighter p-8 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-white mb-6">
-              {selectedMovie ? '作品を編集' : '新規作品を作成'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-dark-lighter p-8 shadow-xl">
+            <h2 className="mb-6 text-2xl font-bold text-white">
+              {selectedMovie ? '動画を編集' : '新規動画を追加'}
             </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-gray-300 mb-2">タイトル</label>
+                  <label className="mb-2 block text-gray-300">タイトル</label>
                   <input
                     type="text"
                     value={formData.title || ''}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ title: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">説明</label>
+                  <label className="mb-2 block text-gray-300">説明</label>
                   <textarea
                     value={formData.description || ''}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded h-32"
+                    onChange={(event) => updateFormData({ description: event.target.value })}
+                    className="h-32 w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">サムネイルURL</label>
+                  <label className="mb-2 block text-gray-300">サムネイル URL</label>
                   <input
                     type="text"
                     value={formData.thumbnail || ''}
-                    onChange={(e) => setFormData({ ...formData, thumbnail: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ thumbnail: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">トップ用サムネイルURL</label>
+                  <label className="mb-2 block text-gray-300">トップ表示用サムネイル URL</label>
                   <input
                     type="text"
                     value={formData.thumbnail_top || ''}
-                    onChange={(e) => setFormData({ ...formData, thumbnail_top: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ thumbnail_top: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">詳細用サムネイルURL</label>
+                  <label className="mb-2 block text-gray-300">詳細表示用サムネイル URL</label>
                   <input
                     type="text"
                     value={formData.thumbnail_detail || ''}
-                    onChange={(e) => setFormData({ ...formData, thumbnail_detail: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ thumbnail_detail: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">ジャンル（カンマ区切り）</label>
+                  <label className="mb-2 block text-gray-300">ジャンル</label>
                   <input
                     type="text"
                     value={(formData.genre || []).join(', ')}
-                    onChange={(e) => setFormData({ ...formData, genre: splitCsv(e.target.value) })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ genre: splitCsv(event.target.value) })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
+                    placeholder="アクション, ドラマ"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">出演者（カンマ区切り）</label>
+                  <label className="mb-2 block text-gray-300">出演者</label>
                   <input
                     type="text"
                     value={(formData.cast || []).join(', ')}
-                    onChange={(e) => setFormData({ ...formData, cast: splitCsv(e.target.value) })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ cast: splitCsv(event.target.value) })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
+                    placeholder="出演者A, 出演者B"
                   />
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-gray-300 mb-2">公開日</label>
+                  <label className="mb-2 block text-gray-300">公開日</label>
                   <input
                     type="date"
                     value={formData.release_date || ''}
-                    onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ release_date: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 mb-2">上映時間</label>
+                  <label className="mb-2 block text-gray-300">再生時間</label>
                   <input
                     type="text"
                     value={formData.duration || ''}
-                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                    onChange={(event) => updateFormData({ duration: event.target.value })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
+                    placeholder="120分 / 01:30:00"
                   />
                 </div>
+                <div>
+                  <label className="mb-2 block text-gray-300">公開範囲</label>
+                  <select
+                    value={formData.accessTier}
+                    onChange={(event) => updateFormData({
+                      accessTier: event.target.value as MovieFormData['accessTier'],
+                    })}
+                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
+                  >
+                    <option value="public">一般公開</option>
+                    <option value="registered">無料会員向け</option>
+                    <option value="member">メンバーシップ限定</option>
+                  </select>
+                </div>
+
+                <VideoFileField
+                  inputId="movie-management-mp4"
+                  isEditMode={selectedMovie != null}
+                  selectedFile={formData.videoFile}
+                  onSelectFile={(videoFile) => updateFormData({ videoFile })}
+                />
+
                 <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                  単品購入とレンタルは廃止しました。作品はメンバーシップ見放題として公開されます。
+                  MP4 の実アップロードは Elemental 実装と接続してから有効化します。今は管理画面の入力導線だけ先に用意しています。
                 </div>
               </div>
             </div>
-            <div className="flex justify-end space-x-4 mt-8">
+
+            <div className="mt-8 flex justify-end gap-4">
               <button
                 onClick={closeModal}
-                className="px-6 py-2 bg-dark-light text-gray-300 rounded-lg hover:bg-dark transition"
+                className="rounded-lg bg-dark-light px-6 py-2 text-gray-300 transition hover:bg-dark"
               >
                 キャンセル
               </button>
               <button
                 onClick={() => (selectedMovie ? handleUpdate(selectedMovie.id) : handleCreate())}
-                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                className="rounded-lg bg-primary px-6 py-2 text-white transition hover:bg-primary/90"
               >
-                {selectedMovie ? '更新' : '作成'}
+                {selectedMovie ? '更新' : '追加'}
               </button>
             </div>
           </div>

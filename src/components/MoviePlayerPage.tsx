@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { ArrowLeft, Maximize, Pause, Play, RefreshCcw, Volume2, VolumeX } from 'lucide-react';
 import type { Database } from '../lib/types';
-import { linkToStorageFile } from '../lib/storageUtils';
+import { AWS_SAMPLE_VIDEO_STORAGE_PATH, linkToStorageFile } from '../lib/storageUtils';
 import useApiClient from '../lib/useApiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { MOCK_MOVIES } from '../mockData';
+import { getLocalMockMovie } from '../lib/mockMovieResolver';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import { canAccessMovie, getMovieAccessLabel, getMovieAccessTier } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -22,6 +24,15 @@ export default function MoviePlayerPage() {
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
   const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
+  const shouldAutoplay = useMemo(
+    () => new URLSearchParams(location.search).get('autoplay') === '1',
+    [location.search],
+  );
+  const localMockMovie = useMemo(() => getLocalMockMovie(id), [id]);
+  const shouldUseLocalMockMovie = useMemo(
+    () => !!localMockMovie && !useMockMovies,
+    [localMockMovie, useMockMovies],
+  );
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [storageUrl, setStorageUrl] = useState('');
@@ -34,22 +45,33 @@ export default function MoviePlayerPage() {
   const [error, setError] = useState<string | null>(null);
   const [quality, setQuality] = useState<'1080p' | '720p' | '360p'>('1080p');
   const [showControls, setShowControls] = useState(true);
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [controlsTimeout, setControlsTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [duration, setDuration] = useState(0);
+  const hasRecordedWatchHistoryRef = useRef(false);
 
+  const movieAccessTier = movie ? getMovieAccessTier(movie) : 'member';
+  const canWatchMovie = movie ? canAccessMovie(accessState, movie) : false;
   const videoUrls = {
     '1080p': storageUrl,
     '720p': storageUrl,
     '360p': storageUrl,
   };
 
-  const resetControlsTimer = () => {
+  const resetControlsTimer = useCallback(() => {
     setShowControls(true);
     if (controlsTimeout) {
       clearTimeout(controlsTimeout);
     }
     setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
-  };
+  }, [controlsTimeout]);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+      }
+    };
+  }, [controlsTimeout]);
 
   const formatTime = (seconds: number) => {
     const date = new Date(0);
@@ -72,15 +94,26 @@ export default function MoviePlayerPage() {
         throw new Error('movie id is required');
       }
 
-      if (useMockMovies) {
-        const found = MOCK_MOVIES.find((item) => item.id === id);
-        if (!found) throw new Error('movie not found');
-        setMovie(found);
+      if (useMockMovies || shouldUseLocalMockMovie) {
+        const foundMovie = localMockMovie ?? MOCK_MOVIES.find((item) => item.id === id);
+        if (!foundMovie) {
+          throw new Error('movie not found');
+        }
+        setMovie(foundMovie);
         return;
       }
 
-      const item = await api.getMovie(id);
-      setMovie(item);
+      try {
+        const item = await api.getMovie(id);
+        setMovie(item);
+      } catch (fetchError) {
+        if (localMockMovie) {
+          setMovie(localMockMovie);
+          return;
+        }
+
+        throw fetchError;
+      }
     } catch (fetchError) {
       if (fetchError instanceof Error) {
         if (fetchError.message.includes('Failed to fetch')) {
@@ -94,26 +127,47 @@ export default function MoviePlayerPage() {
     } finally {
       setLoading(false);
     }
-  }, [api, id, useMockMovies]);
+  }, [api, id, localMockMovie, shouldUseLocalMockMovie, useMockMovies]);
+
+  const fetchStorageUrl = useCallback(async () => {
+    try {
+      const url = await linkToStorageFile(AWS_SAMPLE_VIDEO_STORAGE_PATH);
+      setStorageUrl(url);
+    } catch (storageError) {
+      console.error('Error fetching storage URL:', storageError);
+      setError('AWS 上のサンプル動画の取得に失敗しました。');
+    }
+  }, []);
 
   useEffect(() => {
     void fetchMovie();
-
-    const fetchStorageUrl = async () => {
-      try {
-        const url = await linkToStorageFile('public/1h辟｡鬘後・蜍慕判sample_output1.mp4');
-        setStorageUrl(url);
-      } catch (storageError) {
-        console.error('Error fetching storage URL:', storageError);
-      }
-    };
-
     void fetchStorageUrl();
-  }, [fetchMovie]);
+  }, [fetchMovie, fetchStorageUrl]);
+
+  useEffect(() => {
+    hasRecordedWatchHistoryRef.current = false;
+  }, [movie?.id]);
+
+  useEffect(() => {
+    if (!shouldAutoplay || !storageUrl || !canWatchMovie) {
+      return;
+    }
+
+    setIsPlaying(true);
+  }, [canWatchMovie, shouldAutoplay, storageUrl]);
 
   useEffect(() => {
     const recordWatchHistory = async () => {
-      if (!movie?.id || accessState !== 'member') return;
+      if (
+        !isPlaying
+        || !movie?.id
+        || !isAuthenticated
+        || accessState === 'guest'
+        || !canWatchMovie
+        || hasRecordedWatchHistoryRef.current
+      ) {
+        return;
+      }
 
       if (useMockWatchHistory) {
         try {
@@ -131,24 +185,34 @@ export default function MoviePlayerPage() {
             ...current.filter((item) => item.id !== movie.id),
           ];
           localStorage.setItem(key, JSON.stringify(next));
+          hasRecordedWatchHistoryRef.current = true;
         } catch (historyError) {
           console.error('Error saving mock watch history:', historyError);
         }
         return;
       }
 
+      if (getLocalMockMovie(movie.id)) {
+        hasRecordedWatchHistoryRef.current = true;
+        return;
+      }
+
       try {
         await api.addWatchHistory(movie.id);
+        hasRecordedWatchHistoryRef.current = true;
       } catch (historyError) {
         console.error('Error recording watch history:', historyError);
       }
     };
 
     void recordWatchHistory();
-  }, [api, accessState, movie, useMockWatchHistory]);
+  }, [api, accessState, canWatchMovie, isAuthenticated, isPlaying, movie, useMockWatchHistory]);
 
   const handleRetry = () => {
+    setStorageUrl('');
+    setIsPlaying(false);
     void fetchMovie();
+    void fetchStorageUrl();
   };
 
   const handlePlayPause = () => {
@@ -190,7 +254,9 @@ export default function MoviePlayerPage() {
 
   const handleFullscreen = () => {
     const player = document.querySelector('.player-wrapper');
-    if (!player) return;
+    if (!player) {
+      return;
+    }
 
     if (!document.fullscreenElement) {
       void player.requestFullscreen();
@@ -199,10 +265,15 @@ export default function MoviePlayerPage() {
     }
   };
 
-  if (loading || (isAuthenticated && isMembershipLoading)) {
+  const isPlayerPreparing = !!movie && canWatchMovie && !storageUrl && !error;
+
+  if (loading || (isAuthenticated && isMembershipLoading) || isPlayerPreparing) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
+        <div className="text-center text-white">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
+          {isPlayerPreparing && <p className="mt-4 text-sm text-gray-300">サンプル動画を準備しています...</p>}
+        </div>
       </div>
     );
   }
@@ -232,8 +303,16 @@ export default function MoviePlayerPage() {
     );
   }
 
-  if (accessState !== 'member') {
-    const title = movie?.title ? `「${movie.title}」の視聴には` : '視聴には';
+  if (!movie) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+        <p className="text-lg">動画が見つかりません。</p>
+      </div>
+    );
+  }
+
+  if (!canWatchMovie) {
+    const title = movie.title ? `「${movie.title}」の視聴には` : '視聴には';
 
     return (
       <div className="min-h-screen bg-gray-900 text-white">
@@ -242,18 +321,20 @@ export default function MoviePlayerPage() {
             <button onClick={() => navigate(-1)} className="text-gray-400 transition hover:text-white">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-xl font-bold">{movie?.title || '視聴制限'}</h1>
+            <h1 className="text-xl font-bold">{movie.title || '動画再生'}</h1>
           </div>
         </header>
 
         <main className="container mx-auto px-4 py-16">
           <div className="mx-auto max-w-2xl rounded-2xl border border-amber-400/30 bg-amber-500/10 p-8 text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-amber-200">Access Required</p>
-            <h2 className="mt-4 text-3xl font-bold text-white">{title}メンバーシップ登録が必要です</h2>
+            <h2 className="mt-4 text-3xl font-bold text-white">{title}条件があります</h2>
             <p className="mt-4 text-base leading-7 text-amber-50/90">
-              {accessState === 'guest'
-                ? 'まずは会員登録またはログインを行い、その後メンバーシップへ登録してください。'
-                : `無料会員のままでは再生できません。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録で視聴できます。`}
+              {movieAccessTier === 'registered'
+                ? 'この作品は無料会員向けです。ログインまたは会員登録を行うと視聴できます。'
+                : accessState === 'guest'
+                  ? 'この作品はメンバーシップ限定です。まずログインまたは会員登録を行ってください。'
+                  : `この作品はメンバーシップ限定です。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円の登録で視聴できます。`}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -280,6 +361,9 @@ export default function MoviePlayerPage() {
                   月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録
                 </button>
               )}
+              <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-gray-200">
+                {getMovieAccessLabel(movieAccessTier)}
+              </div>
             </div>
           </div>
         </main>
@@ -295,7 +379,7 @@ export default function MoviePlayerPage() {
             <button onClick={() => navigate(-1)} className="mr-4 text-gray-400 transition hover:text-white">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-xl font-bold text-white">{movie?.title || '動画プレイヤー'}</h1>
+            <h1 className="text-xl font-bold text-white">{movie.title || '動画プレイヤー'}</h1>
           </div>
         </div>
       </header>
@@ -346,13 +430,21 @@ export default function MoviePlayerPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <button onClick={handlePlayPause} className="text-white transition hover:text-blue-500">
+                  <button
+                    onClick={handlePlayPause}
+                    aria-label={isPlaying ? '一時停止' : '再生'}
+                    className="text-white transition hover:text-blue-500"
+                  >
                     {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
                   </button>
 
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      <button onClick={handleMute} className="text-white transition hover:text-blue-500">
+                      <button
+                        onClick={handleMute}
+                        aria-label={isMuted ? 'ミュート解除' : 'ミュート'}
+                        className="text-white transition hover:text-blue-500"
+                      >
                         {isMuted ? <VolumeX className="h-6 w-6" /> : <Volume2 className="h-6 w-6" />}
                       </button>
                       <input
@@ -377,7 +469,11 @@ export default function MoviePlayerPage() {
                   </div>
                 </div>
 
-                <button onClick={handleFullscreen} className="text-white transition hover:text-blue-500">
+                <button
+                  onClick={handleFullscreen}
+                  aria-label="全画面表示"
+                  className="text-white transition hover:text-blue-500"
+                >
                   <Maximize className="h-6 w-6" />
                 </button>
               </div>
@@ -385,24 +481,24 @@ export default function MoviePlayerPage() {
           </div>
 
           <div className="mt-8">
-            <h2 className="mb-4 text-2xl font-bold text-white">{movie?.title || ''}</h2>
-            <p className="mb-4 text-gray-400">{movie?.description || ''}</p>
+            <h2 className="mb-4 text-2xl font-bold text-white">{movie.title}</h2>
+            <p className="mb-4 text-gray-400">{movie.description || ''}</p>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-400">監督:</span>{' '}
-                <span className="text-white">{movie?.director || '-'}</span>
+                <span className="text-white">{movie.director || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-400">時間:</span>{' '}
-                <span className="text-white">{movie?.duration || '-'}</span>
+                <span className="text-gray-400">再生時間:</span>{' '}
+                <span className="text-white">{movie.duration || '-'}</span>
               </div>
               <div>
                 <span className="text-gray-400">公開年:</span>{' '}
-                <span className="text-white">{movie?.release_year || '-'}</span>
+                <span className="text-white">{movie.release_year || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-400">視聴形態:</span>{' '}
-                <span className="text-white">メンバーシップ見放題</span>
+                <span className="text-gray-400">公開範囲:</span>{' '}
+                <span className="text-white">{getMovieAccessLabel(movieAccessTier)}</span>
               </div>
             </div>
           </div>

@@ -351,7 +351,7 @@ export default function AccountSettingsPage() {
     const now = new Date();
     const nextWatchHistory: Watch[] = [
       { id: 'w1', title: '狂武蔵', watchedAt: new Date(now.getTime() - 1000 * 60 * 90).toISOString() },
-      { id: 'w2', title: 'RE:BORN', watchedAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString() },
+      { id: 'w2', title: 'SAMPLE', watchedAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString() },
     ];
 
     setWatchHistory(nextWatchHistory);

@@ -23,8 +23,8 @@ export const MOCK_MOVIES: Movie[] = [
     release_year: 2024,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    price: 1000,
-    rental_price: 500
+    price: 0,
+    rental_price: 0
   },
   {
     id: '2',
@@ -45,8 +45,8 @@ export const MOCK_MOVIES: Movie[] = [
     release_year: 2017,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    price: 1000,
-    rental_price: 500
+    price: 1,
+    rental_price: 0
   },
   {
     id: '3',
@@ -68,7 +68,7 @@ export const MOCK_MOVIES: Movie[] = [
     release_year: 1999,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    price: 1000,
-    rental_price: 500
+    price: 1,
+    rental_price: 1
   }
 ];

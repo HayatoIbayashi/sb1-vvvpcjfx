@@ -6,6 +6,8 @@ type ThumbnailMovie = {
 
 type ThumbnailVariant = 'card' | 'hero' | 'detail';
 
+const TEST_THUMBNAIL_TITLE = 'SAMPLEMOVIE';
+
 const PALETTES = [
   { start: '#0f172a', end: '#1d4ed8', accent: '#38bdf8' },
   { start: '#111827', end: '#c2410c', accent: '#f59e0b' },
@@ -47,10 +49,10 @@ function escapeSvgText(value: string) {
 
 function normalizeThumbnailTitle(title?: string | null) {
   if (!title) {
-    return 'TEST VIDEO';
+    return TEST_THUMBNAIL_TITLE;
   }
 
-  return title.replaceAll('テスト映画', 'テスト動画');
+  return TEST_THUMBNAIL_TITLE;
 }
 
 function wrapTitle(title: string, maxLength: number) {

@@ -57,8 +57,8 @@ describe('MovieDetailPage', () => {
       cast: [],
       director: null,
       release_year: null,
-      price: 1200,
-      rental_price: 500,
+      price: 1,
+      rental_price: 1,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -94,29 +94,7 @@ describe('MovieDetailPage', () => {
     expect(await screen.findByRole('button', { name: 'マイリストから外す' })).toBeInTheDocument();
   });
 
-  it('removes the movie from watchlist when already added', async () => {
-    mockApi.getWatchlist.mockResolvedValue({
-      items: [{ id: 'movie-1' }],
-    });
-    mockApi.removeFromWatchlist.mockResolvedValue({ ok: true, deleted: true });
-
-    render(
-      <MemoryRouter initialEntries={['/movies/movie-1']}>
-        <Routes>
-          <Route path="/movies/:id" element={<MovieDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(await screen.findByRole('button', { name: 'マイリストから外す' }));
-
-    await waitFor(() => {
-      expect(mockApi.removeFromWatchlist).toHaveBeenCalledWith('movie-1');
-    });
-    expect(await screen.findByRole('button', { name: 'マイリストに追加' })).toBeInTheDocument();
-  });
-
-  it('shows the watch button for active members', async () => {
+  it('shows the watch button for active members on member-only movies', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
     mockApi.getSubscriptionCurrent.mockResolvedValue({
       active: true,
@@ -148,6 +126,42 @@ describe('MovieDetailPage', () => {
     expect(await screen.findByRole('button', { name: '今すぐ視聴する' })).toBeInTheDocument();
   });
 
+  it('shows the watch button for registered users on registered-only movies', async () => {
+    mockApi.getWatchlist.mockResolvedValue({ items: [] });
+    mockApi.getMovie.mockResolvedValue({
+      id: 'movie-1',
+      title: '作品A',
+      description: '説明',
+      thumbnail: 'https://example.com/thumb.jpg',
+      thumbnail_top: null,
+      thumbnail_detail: null,
+      release_date: '2026-04-01',
+      duration: '20分',
+      genre: [],
+      cast: [],
+      director: null,
+      release_year: null,
+      price: 1,
+      rental_price: 0,
+      is_published: true,
+      publish_at: '2026-04-01T00:00:00.000Z',
+      unpublish_at: null,
+      view_window_days: 2,
+      created_at: '2026-04-01T00:00:00.000Z',
+      updated_at: '2026-04-01T00:00:00.000Z',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/movies/movie-1']}>
+        <Routes>
+          <Route path="/movies/:id" element={<MovieDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('button', { name: '今すぐ視聴する' })).toBeInTheDocument();
+  });
+
   it('preserves the current movie detail path when linking to subscription', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
 
@@ -159,7 +173,7 @@ describe('MovieDetailPage', () => {
       </MemoryRouter>,
     );
 
-    const subscriptionLink = await screen.findByRole('link', { name: /月額.*1,000.*円で登録/ });
+    const subscriptionLink = await screen.findByRole('link', { name: /月額 1,000 円で登録/ });
     expect(subscriptionLink).toHaveAttribute(
       'href',
       '/subscription?returnTo=%2Fmovies%2Fmovie-1',

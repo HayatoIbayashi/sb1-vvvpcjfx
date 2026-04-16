@@ -10,8 +10,8 @@ describe('testMovieThumbnails', () => {
     });
 
     expect(result.startsWith('data:image/svg+xml;charset=UTF-8,')).toBe(true);
-    expect(decodeURIComponent(result)).toContain('テスト動画：アクション');
-    expect(decodeURIComponent(result)).not.toContain('テスト映画');
+    expect(decodeURIComponent(result)).toContain('SAMPLEMOVIE');
+    expect(decodeURIComponent(result)).not.toContain('テスト動画：アクション');
     expect(decodeURIComponent(result)).toContain('カード表示');
     expect(decodeURIComponent(result)).toContain('公開日 2026-04-15');
   });
