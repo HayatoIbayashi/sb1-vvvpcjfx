@@ -35,20 +35,24 @@ describe('MovieListPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_USE_MOCK_MOVIES', 'false');
     vi.stubEnv('VITE_USE_MOCK_REVIEWS', 'false');
+
     mockApi.getMovies.mockReset();
     mockApi.getReviews.mockReset();
+    mockAuthStatus.isAuthenticated = false;
+    mockMembershipStatus.accessState = 'guest';
+
     mockApi.getMovies.mockResolvedValue({
       items: [
         {
           id: 'movie-public',
           title: '公開動画',
-          description: '公開作品です。',
+          description: '未ログインでも視聴できる公開動画です。',
           thumbnail: null,
           thumbnail_top: null,
           thumbnail_detail: null,
           release_date: '2026-04-01',
           duration: '20:00',
-          genre: [],
+          genre: ['アクション'],
           cast: [],
           director: null,
           release_year: null,
@@ -59,14 +63,14 @@ describe('MovieListPage', () => {
         },
         {
           id: 'movie-member',
-          title: '登録後動画',
-          description: 'ログイン後に案内する作品です。',
+          title: 'メンバー向け動画',
+          description: 'メンバーシップ登録後に視聴できる動画です。',
           thumbnail: null,
           thumbnail_top: null,
           thumbnail_detail: null,
           release_date: '2026-04-02',
           duration: '25:00',
-          genre: [],
+          genre: ['ドキュメンタリー'],
           cast: [],
           director: null,
           release_year: null,
@@ -78,11 +82,9 @@ describe('MovieListPage', () => {
       ],
     });
     mockApi.getReviews.mockResolvedValue({ items: [] });
-    mockAuthStatus.isAuthenticated = false;
-    mockMembershipStatus.accessState = 'guest';
   });
 
-  it('shows only the public catalog section for guests', async () => {
+  it('shows recommendation cards and the public catalog for guests', async () => {
     render(
       <MemoryRouter>
         <MovieListPage />
@@ -93,12 +95,14 @@ describe('MovieListPage', () => {
       expect(mockApi.getMovies).toHaveBeenCalledTimes(1);
     });
 
+    expect(screen.getByRole('heading', { name: 'おすすめ動画' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '配信内容一覧' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'ログイン後のおすすめ動画' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'ログイン後にご案内する動画' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'おすすめ動画:公開動画' })).toBeInTheDocument();
+    expect(screen.getByText('アクション')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'ドキュメンタリー' })).not.toBeInTheDocument();
   });
 
-  it('shows the post-login test list and member guidance after login', async () => {
+  it('shows the member section title as the genre name after login', async () => {
     mockAuthStatus.isAuthenticated = true;
     mockMembershipStatus.accessState = 'registered';
 
@@ -112,15 +116,10 @@ describe('MovieListPage', () => {
       expect(mockApi.getMovies).toHaveBeenCalledTimes(1);
     });
 
-    expect(screen.getByRole('heading', { name: 'ログイン後のおすすめ動画' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'ログイン後にご案内する動画' })).toBeInTheDocument();
-    expect(screen.getByText('ログイン後テスト動画 01')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ドキュメンタリー' })).toBeInTheDocument();
   });
 
-  it('navigates to the movie detail page when a post-login test card is clicked', async () => {
-    mockAuthStatus.isAuthenticated = true;
-    mockMembershipStatus.accessState = 'registered';
-
+  it('opens the movie detail page when a recommendation card is clicked', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
@@ -134,7 +133,7 @@ describe('MovieListPage', () => {
       expect(mockApi.getMovies).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole('link', { name: /ログイン後テスト動画 01/ }));
+    fireEvent.click(screen.getByRole('link', { name: 'おすすめ動画:公開動画' }));
 
     expect(await screen.findByText('動画詳細画面')).toBeInTheDocument();
   });
