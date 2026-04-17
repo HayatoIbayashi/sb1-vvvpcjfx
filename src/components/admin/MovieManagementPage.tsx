@@ -13,6 +13,7 @@ import {
   splitCsv,
   type MovieFormData,
 } from './movieManagementForm';
+import MovieGenreField from './MovieGenreField';
 import VideoFileField from './VideoFileField';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -372,13 +373,9 @@ export default function MovieManagementPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-gray-300">ジャンル</label>
-                  <input
-                    type="text"
-                    value={(formData.genre || []).join(', ')}
-                    onChange={(event) => updateFormData({ genre: splitCsv(event.target.value) })}
-                    className="w-full rounded bg-dark-light px-4 py-2 text-white"
-                    placeholder="アクション, ドラマ"
+                  <MovieGenreField
+                    selectedGenres={formData.genre || []}
+                    onChange={(genre) => updateFormData({ genre })}
                   />
                 </div>
                 <div>

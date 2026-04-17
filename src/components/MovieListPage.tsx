@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LogIn, LogOut, Search } from 'lucide-react';
 import type { Database } from '../lib/types';
@@ -8,17 +8,37 @@ import * as mockReviews from '../lib/mockReviews';
 import { useAuthStatus } from '../lib/authBridge';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
-import { HOME_MOVIE_LIST_TEST_SECTIONS } from './homeDisplaySamples';
+import {
+  getHomeMemberCatalogFallbackItems,
+  getHomeMovieListTestSections,
+  getHomePublicCatalogFallbackItems,
+} from './homeDisplaySamples';
+import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import { getRecommendationGenreLabels } from '../lib/recommendationPreferenceMaster';
 import {
   canAccessMovie,
   getMovieAccessBadgeClass,
-  getMovieAccessLabel,
   getMovieAccessTier,
   partitionMoviesByAccess,
 } from '../lib/movieAccess';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+
+const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
+
+function getStoredDesiredGenreIds() {
+  try {
+    const raw = localStorage.getItem(LS_RECOMMENDATION_PREFERENCES);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { desiredGenreIds?: unknown };
+    return Array.isArray(parsed?.desiredGenreIds)
+      ? parsed.desiredGenreIds.filter((value): value is string => typeof value === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function pickRecommendationMovies(movies: Movie[], limit = 3) {
   const selected: Movie[] = [];
@@ -45,8 +65,12 @@ function pickRecommendationMovies(movies: Movie[], limit = 3) {
   return selected;
 }
 
-function getPrimaryGenre(movie: Movie) {
-  return movie.genre.find((genre) => typeof genre === 'string' && genre.trim()) ?? 'おすすめ';
+function getMovieByLoopIndex(movies: Movie[], index: number) {
+  if (!movies.length) {
+    return null;
+  }
+
+  return movies[index % movies.length] ?? null;
 }
 
 export default function MovieListPage() {
@@ -55,6 +79,9 @@ export default function MovieListPage() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [topRated, setTopRated] = useState<Movie[]>([]);
+  const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
+    getRecommendationGenreLabels(getStoredDesiredGenreIds()),
+  );
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const { accessState } = useMembershipStatus();
   const api = useApiClient();
@@ -91,6 +118,38 @@ export default function MovieListPage() {
       cancelled = true;
     };
   }, [api, useMockMovies]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSampleGenreLabels(getRecommendationGenreLabels(getStoredDesiredGenreIds()));
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDesiredGenres = async () => {
+      const storedLabels = getRecommendationGenreLabels(getStoredDesiredGenreIds());
+      if (!cancelled) {
+        setSampleGenreLabels(storedLabels);
+      }
+
+      try {
+        const result = await api.getProfile();
+        if (cancelled) return;
+
+        setSampleGenreLabels(
+          getRecommendationGenreLabels(result.recommendation_preferences?.desiredGenreIds),
+        );
+      } catch (error) {
+        console.error('Error fetching recommendation genres:', error);
+      }
+    };
+
+    void loadDesiredGenres();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,13 +207,34 @@ export default function MovieListPage() {
   const memberTestTargetMovies = memberMovies.length
     ? memberMovies
     : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'member');
+  const homeMovieListTestSections = useMemo(
+    () => getHomeMovieListTestSections(sampleGenreLabels),
+    [sampleGenreLabels],
+  );
+  const publicCatalogFallbackItems = useMemo(
+    () => getHomePublicCatalogFallbackItems(sampleGenreLabels),
+    [sampleGenreLabels],
+  );
+  const memberCatalogFallbackItems = useMemo(
+    () => getHomeMemberCatalogFallbackItems(sampleGenreLabels),
+    [sampleGenreLabels],
+  );
   const recommendationSourceMovies = availableNowMovies.length
     ? availableNowMovies
-    : publicMovies.length
+      : publicMovies.length
       ? publicMovies
       : movies;
   const recommendationMovies = pickRecommendationMovies(recommendationSourceMovies);
-  const memberSectionTitle = memberMovies.length ? getPrimaryGenre(memberMovies[0]) : 'おすすめ';
+  const fallbackMemberSectionTitle = sampleGenreLabels[0] ?? 'おすすめ';
+  const memberSectionTitle = memberMovies.length
+    ? getPrimaryMovieGenre(memberMovies[0], fallbackMemberSectionTitle)
+    : fallbackMemberSectionTitle;
+  const publicFallbackTargetMovies = publicMovies.length
+    ? publicMovies
+    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'public');
+  const memberFallbackTargetMovies = memberMovies.length
+    ? memberMovies
+    : memberTestTargetMovies;
 
   const renderMovieCard = (movie: Movie) => {
     const accessTier = getMovieAccessTier(movie);
@@ -173,7 +253,7 @@ export default function MovieListPage() {
         <span
           className={`absolute left-2 top-2 rounded-full border px-2 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
         >
-          {getMovieAccessLabel(accessTier)}
+          {getPrimaryMovieGenre(movie)}
         </span>
         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <div className="absolute bottom-0 left-0 p-4">
@@ -205,8 +285,7 @@ export default function MovieListPage() {
   const renderHomeTestSection = (
     title: string,
     description: string,
-    accessLabel: string,
-    items: typeof HOME_MOVIE_LIST_TEST_SECTIONS[number]['items'],
+    items: ReturnType<typeof getHomeMovieListTestSections>[number]['items'],
     targetMovies: Movie[],
   ) => {
     if (!items.length) return null;
@@ -224,17 +303,22 @@ export default function MovieListPage() {
         </div>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
           {items.map((item, index) => {
-            const targetMovie = targetMovies[index % targetMovies.length] ?? null;
+            const targetMovie =
+              getMovieByLoopIndex(targetMovies, index) ??
+              getMovieByLoopIndex(memberMovies, index) ??
+              getMovieByLoopIndex(movies, index) ??
+              getMovieByLoopIndex(MOCK_MOVIES, index);
             const cardContent = (
               <>
-                <img src={item.image} alt={item.title} className="aspect-[16/9] w-full object-cover" />
-                <div className="space-y-3 p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="aspect-[16/9] w-full object-cover"
+                />
+                <div className="space-y-2 p-5">
+                  <div className="flex justify-end">
+                    <span className="rounded-full border border-gray-600 px-2.5 py-1 text-xs font-semibold text-gray-200">
                       {item.subtitle}
-                    </p>
-                    <span className="rounded-full border border-gray-600 px-2.5 py-1 text-xs text-gray-200">
-                      {accessLabel}
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-white">{item.title}</h3>
@@ -248,6 +332,7 @@ export default function MovieListPage() {
                 <Link
                   key={item.id}
                   to={`/movies/${targetMovie.id}?testDetailId=${encodeURIComponent(item.id)}`}
+                  aria-label={`動画:${item.title}`}
                   className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 >
                   {cardContent}
@@ -305,15 +390,14 @@ export default function MovieListPage() {
                 />
                 <div className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
-                      {getPrimaryGenre(movie)}
-                    </p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">公開日</p>
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                     >
-                      {getMovieAccessLabel(accessTier)}
+                      {getMovieGenreSummary(movie)}
                     </span>
                   </div>
+                  <p className="text-sm text-gray-400">{movie.release_date || '-'}</p>
                   <h3 className="text-xl font-bold text-white">{movie.title}</h3>
                   <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
@@ -336,6 +420,10 @@ export default function MovieListPage() {
     accessState === 'member'
       ? 'メンバーシップ登録中のため、そのまま視聴できる動画を表示しています。'
       : `月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円のメンバーシップ登録後に視聴できる動画です。`;
+  const publicSectionTitle = accessState === 'guest' ? '紹介動画' : '配信内容一覧';
+  const publicFallbackDescription = accessState === 'guest'
+    ? '紹介動画の元データが未登録のため、暫定のテスト一覧を表示しています。'
+    : '配信内容一覧の元データが未登録のため、暫定のテスト一覧を表示しています。';
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -418,7 +506,7 @@ export default function MovieListPage() {
                   <div
                     className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}
                   >
-                    {getMovieAccessLabel(getMovieAccessTier(heroMovie))}
+                    {getMovieGenreSummary(heroMovie)}
                   </div>
                   <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
                   <button
@@ -436,27 +524,43 @@ export default function MovieListPage() {
         {renderRecommendationSection()}
 
         {accessState !== 'guest' &&
-          HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => (
+          homeMovieListTestSections.map((section) => (
             <div key={section.id}>
               {renderHomeTestSection(
                 section.title,
                 section.description,
-                section.accessLabel,
                 section.items,
                 memberTestTargetMovies,
               )}
             </div>
           ))}
 
-        {renderMovieSection('配信内容一覧', publicSectionDescription, publicMovies)}
+        {publicMovies.length > 0
+          ? renderMovieSection(publicSectionTitle, publicSectionDescription, publicMovies)
+          : renderHomeTestSection(
+              publicSectionTitle,
+              publicFallbackDescription,
+              publicCatalogFallbackItems,
+              publicFallbackTargetMovies,
+            )}
 
         {accessState !== 'guest' &&
-          renderMovieSection(memberSectionTitle, memberSectionDescription, memberMovies)}
+          (memberMovies.length > 0
+            ? renderMovieSection(memberSectionTitle, memberSectionDescription, memberMovies)
+            : renderHomeTestSection(
+                memberSectionTitle,
+                'メンバー向け一覧の元データが未登録のため、暫定のテスト一覧を表示しています。',
+                memberCatalogFallbackItems,
+                memberFallbackTargetMovies,
+              ))}
 
         {topRated.length > 0 &&
           renderMovieSection('高評価動画', 'レビュー評価の高い作品を表示しています。', topRated)}
 
-        {publicMovies.length === 0 && memberMovies.length === 0 && (
+        {publicMovies.length === 0
+          && memberMovies.length === 0
+          && publicFallbackTargetMovies.length === 0
+          && memberFallbackTargetMovies.length === 0 && (
           <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
             表示できる動画がありません。
           </div>

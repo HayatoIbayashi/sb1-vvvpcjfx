@@ -12,6 +12,7 @@ import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
+import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
 import {
   canAccessMovie,
   getMovieAccessBadgeClass,
@@ -143,15 +144,14 @@ function MovieDetailPage() {
   const displayDescription = testDetailItem?.detail.description ?? movie?.description ?? '';
   const displayReleaseDate = testDetailItem?.detail.releaseDate ?? movie?.release_date ?? '-';
   const displayDuration = testDetailItem?.detail.duration ?? movie?.duration ?? '-';
+  const displayGenreSummary = getMovieGenreSummary(movie);
+  const displayPrimaryGenre = getPrimaryMovieGenre(movie);
   const testDetailNote = testDetailItem?.detail.note ?? null;
+  const isAccessStatePending = isAuthenticated && isMembershipLoading;
 
   const renderPrimaryActions = () => {
-    if (isMembershipLoading && isAuthenticated) {
-      return (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/80 px-5 py-4 text-sm text-gray-300">
-          視聴権限を確認しています...
-        </div>
-      );
+    if (isAccessStatePending) {
+      return null;
     }
 
     if (canWatchMovie) {
@@ -196,21 +196,17 @@ function MovieDetailPage() {
     );
   };
 
-  const accessStatusText = isMembershipLoading && isAuthenticated
-    ? '確認中'
-    : ({
-        guest: '未ログイン',
-        registered: 'ログイン済み',
-        member: 'メンバーシップ登録済み',
-      }[accessState]);
+  const accessStatusText = ({
+    guest: '未ログイン',
+    registered: 'ログイン済み',
+    member: 'メンバーシップ登録済み',
+  }[accessState]);
 
-  const accessDescription = isMembershipLoading && isAuthenticated
-    ? '視聴権限を確認しています。'
-    : canWatchMovie
-      ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
-      : accessState === 'guest'
-        ? 'この作品はログイン後にご案内しています。ログイン後、メンバーシップ登録で視聴できます。'
-        : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`;
+  const accessDescription = canWatchMovie
+    ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
+    : accessState === 'guest'
+      ? 'この作品はログイン後にご案内しています。ログイン後、メンバーシップ登録で視聴できます。'
+      : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`;
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -232,7 +228,12 @@ function MovieDetailPage() {
               />
             </div>
             <div className="md:w-2/3">
-              <h1 className="mb-4 text-3xl font-bold text-white">{displayTitle}</h1>
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold text-white">{displayTitle}</h1>
+                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-1 text-sm font-semibold text-cyan-100">
+                  {displayPrimaryGenre}
+                </span>
+              </div>
               <p className="mb-6 text-gray-300">{displayDescription}</p>
 
               {testDetailNote && (
@@ -251,26 +252,28 @@ function MovieDetailPage() {
                   <p className="text-white">{displayDuration}</p>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-400">公開範囲</h3>
-                  <p className="text-white">{getMovieAccessLabel(movieAccessTier)}</p>
+                  <h3 className="font-semibold text-gray-400">ジャンル</h3>
+                  <p className="text-white">{displayGenreSummary}</p>
                 </div>
               </div>
 
-              <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200">
-                      Access
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-white">{accessStatusText}</p>
-                    <p className="mt-2 text-sm leading-6 text-amber-50/90">{accessDescription}</p>
+              {!isAccessStatePending && (
+                <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200">
+                        Access
+                      </p>
+                      <p className="mt-2 text-xl font-semibold text-white">{accessStatusText}</p>
+                      <p className="mt-2 text-sm leading-6 text-amber-50/90">{accessDescription}</p>
+                    </div>
+                    <div className={`rounded-full border px-4 py-2 text-sm ${getMovieAccessBadgeClass(movieAccessTier)}`}>
+                      {displayPrimaryGenre}
+                    </div>
                   </div>
-                  <div className={`rounded-full border px-4 py-2 text-sm ${getMovieAccessBadgeClass(movieAccessTier)}`}>
-                    {getMovieAccessLabel(movieAccessTier)}
-                  </div>
+                  <p className="mt-4 text-sm text-amber-50/80">{getMovieAccessSummary(movieAccessTier)}</p>
                 </div>
-                <p className="mt-4 text-sm text-amber-50/80">{getMovieAccessSummary(movieAccessTier)}</p>
-              </div>
+              )}
 
               <div className="flex flex-wrap gap-4">
                 {renderPrimaryActions()}

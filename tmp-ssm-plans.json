@@ -1,0 +1,1 @@
+{"commands":["export PGPASSWORD=\u0027gTuUC2s8C2kDwMxKqLzAu8F3\u0027\npsql -h database-1.cpgqmsiso90v.ap-northeast-1.rds.amazonaws.com -U postgres -d postgres -c \"SELECT id, name, price_monthly, stripe_price_id, is_active FROM subscription_plans ORDER BY price_monthly ASC, created_at ASC;\""]}

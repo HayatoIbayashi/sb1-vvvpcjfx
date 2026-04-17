@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { HOME_DISPLAY_SAMPLES, HOME_MOVIE_LIST_TEST_SECTIONS } from './homeDisplaySamples';
+import {
+  getHomeMemberCatalogFallbackItems,
+  getHomeMovieListTestSections,
+  getHomePublicCatalogFallbackItems,
+  HOME_DISPLAY_SAMPLES,
+  HOME_MEMBER_CATALOG_FALLBACK_ITEMS,
+  HOME_MOVIE_LIST_TEST_SECTIONS,
+  HOME_PUBLIC_CATALOG_FALLBACK_ITEMS,
+} from './homeDisplaySamples';
 
 describe('HOME_DISPLAY_SAMPLES', () => {
   it('provides three fixed samples for the top page test display', () => {
@@ -34,5 +42,38 @@ describe('HOME_MOVIE_LIST_TEST_SECTIONS', () => {
         expect(item.description.length).toBeGreaterThan(10);
       }
     }
+  });
+
+  it('replaces test genres with provided recommendation genre labels', () => {
+    const sections = getHomeMovieListTestSections(['ホラー描写', 'ギャンブル', '性的表現']);
+
+    expect(sections[0].items.map((item) => item.subtitle)).toEqual([
+      'ホラー描写',
+      'ギャンブル',
+      '性的表現',
+    ]);
+  });
+});
+
+describe('catalog fallback test items', () => {
+  it('provides fixed public and member fallback cards', () => {
+    expect(HOME_PUBLIC_CATALOG_FALLBACK_ITEMS).toHaveLength(3);
+    expect(HOME_MEMBER_CATALOG_FALLBACK_ITEMS).toHaveLength(3);
+  });
+
+  it('replaces fallback subtitles with provided recommendation genre labels', () => {
+    const publicItems = getHomePublicCatalogFallbackItems(['ホラー描写', 'ギャンブル', '性的表現']);
+    const memberItems = getHomeMemberCatalogFallbackItems(['ホラー描写', 'ギャンブル', '性的表現']);
+
+    expect(publicItems.map((item) => item.subtitle)).toEqual([
+      'ホラー描写',
+      'ギャンブル',
+      '性的表現',
+    ]);
+    expect(memberItems.map((item) => item.subtitle)).toEqual([
+      'ホラー描写',
+      'ギャンブル',
+      '性的表現',
+    ]);
   });
 });

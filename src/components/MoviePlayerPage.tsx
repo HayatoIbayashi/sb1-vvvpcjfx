@@ -10,7 +10,8 @@ import { MOCK_MOVIES } from '../mockData';
 import { getLocalMockMovie } from '../lib/mockMovieResolver';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
-import { canAccessMovie, getMovieAccessLabel, getMovieAccessTier } from '../lib/movieAccess';
+import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import { canAccessMovie } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -49,7 +50,6 @@ export default function MoviePlayerPage() {
   const [duration, setDuration] = useState(0);
   const hasRecordedWatchHistoryRef = useRef(false);
 
-  const movieAccessTier = movie ? getMovieAccessTier(movie) : 'member';
   const canWatchMovie = movie ? canAccessMovie(accessState, movie) : false;
   const videoUrls = {
     '1080p': storageUrl,
@@ -360,7 +360,7 @@ export default function MoviePlayerPage() {
                 </button>
               )}
               <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-gray-200">
-                {getMovieAccessLabel(movieAccessTier)}
+                {getPrimaryMovieGenre(movie)}
               </div>
             </div>
           </div>
@@ -495,8 +495,8 @@ export default function MoviePlayerPage() {
                 <span className="text-white">{movie.release_year || '-'}</span>
               </div>
               <div>
-                <span className="text-gray-400">公開範囲:</span>{' '}
-                <span className="text-white">{getMovieAccessLabel(movieAccessTier)}</span>
+                <span className="text-gray-400">ジャンル:</span>{' '}
+                <span className="text-white">{getMovieGenreSummary(movie)}</span>
               </div>
             </div>
           </div>

@@ -60,7 +60,7 @@ describe('VideoManagement', () => {
     fireEvent.change(screen.getByLabelText('説明'), { target: { value: '説明' } });
     fireEvent.change(screen.getByLabelText('公開日'), { target: { value: '2026-04-13' } });
     fireEvent.change(screen.getByLabelText('再生時間'), { target: { value: '15分' } });
-    fireEvent.change(screen.getByLabelText('ジャンル'), { target: { value: 'テスト' } });
+    fireEvent.click(screen.getByLabelText('ジャンル:ホラー描写'));
     fireEvent.change(screen.getByLabelText('出演者'), { target: { value: '出演者' } });
     fireEvent.change(screen.getByLabelText('公開範囲'), { target: { value: 'member' } });
 
@@ -79,7 +79,7 @@ describe('VideoManagement', () => {
         thumbnail_detail: null,
         release_date: '2026-04-13',
         duration: '15分',
-        genre: ['テスト'],
+        genre: ['ホラー描写'],
         cast: ['出演者'],
         price: 1,
         rental_price: 1,
@@ -123,6 +123,7 @@ describe('VideoManagement', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('公開日')).toHaveValue('2024-12-06');
     });
+    expect(screen.getByLabelText('ジャンル:テスト')).toBeChecked();
 
     expect(
       screen.getByText('現在のファイル名は未連携のため取得できません。ここで選択した MP4 は既存ファイルの置き換え予定として扱われます。'),

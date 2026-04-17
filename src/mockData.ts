@@ -28,7 +28,7 @@ export const MOCK_MOVIES: Movie[] = [
   },
   {
     id: '2',
-    title: 'RE:BORN',
+    title: SAMPLEE',
     description: '石川県加賀市のコンビニで、店員をしながら少女サチと慎ましい日々を送る敏郎。\n' +
                 '彼はかつて最強の特殊傭兵部隊に属しながら、自らの手で部隊を壊滅させた過去があった。\n' +
                 'ある日、彼らがひっそり暮らす田舎町で、不可解な殺人事件が起きる。\n' +
@@ -46,7 +46,7 @@ export const MOCK_MOVIES: Movie[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     price: 1,
-    rental_price: 1
+    rental_price: 0
   },
   {
     id: '3',

@@ -63,7 +63,7 @@ describe('MoviePlayerPage', () => {
       thumbnail_detail: null,
       release_date: '2026-04-01',
       duration: '20分',
-      genre: [],
+      genre: ['ホラー描写'],
       cast: [],
       director: null,
       release_year: null,
@@ -191,6 +191,7 @@ describe('MoviePlayerPage', () => {
       expect(screen.getByTestId('react-player')).toHaveAttribute('data-url', 'https://example.com/movie.mp4');
       expect(screen.getByTestId('react-player')).toHaveAttribute('data-playing', 'true');
     });
+    expect(screen.getAllByText('ホラー描写').length).toBeGreaterThan(0);
   });
 
   it('uses the local mock movie for non-uuid ids without calling the movie api', async () => {

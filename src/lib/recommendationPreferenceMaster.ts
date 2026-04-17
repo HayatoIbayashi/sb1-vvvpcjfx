@@ -39,3 +39,26 @@ export const RECOMMENDATION_CONTENT_FILTER_MASTER: RecommendationPreferenceOptio
 
 export const RECOMMENDATION_GENRE_MASTER: RecommendationPreferenceOption[] =
   RECOMMENDATION_CONTENT_FILTER_MASTER.map((option) => ({ ...option }));
+
+const RECOMMENDATION_GENRE_LABEL_MAP = new Map(
+  RECOMMENDATION_GENRE_MASTER.map((option) => [option.id, option.label]),
+);
+
+export function getRecommendationGenreLabels(
+  genreIds: string[] | null | undefined,
+  count = 3,
+) {
+  const selectedLabels = Array.from(
+    new Set(
+      (genreIds ?? [])
+        .map((genreId) => RECOMMENDATION_GENRE_LABEL_MAP.get(genreId))
+        .filter((label): label is string => typeof label === 'string' && label.length > 0),
+    ),
+  );
+
+  const fallbackLabels = RECOMMENDATION_GENRE_MASTER
+    .map((option) => option.label)
+    .filter((label) => !selectedLabels.includes(label));
+
+  return [...selectedLabels, ...fallbackLabels].slice(0, count);
+}
