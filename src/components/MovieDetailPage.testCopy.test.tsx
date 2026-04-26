@@ -44,8 +44,8 @@ describe('MovieDetailPage test detail copy', () => {
 
     mockApi.getMovie.mockResolvedValue({
       id: 'movie-2',
-      title: '実データタイトル',
-      description: '実データ説明',
+      title: '元データタイトル',
+      description: '元データ説明',
       thumbnail: 'https://example.com/thumb.jpg',
       thumbnail_top: null,
       thumbnail_detail: null,
@@ -84,10 +84,10 @@ describe('MovieDetailPage test detail copy', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'ログイン後詳細テスト 01' })).toBeInTheDocument();
-    expect(screen.getByText('ログイン後に案内する作品の詳細画面で、説明文や導線の見え方を確認するためのテスト文言です。')).toBeInTheDocument();
-    expect(screen.getByText('この詳細画面はログイン後に案内する作品用のテスト文言に差し替えています。')).toBeInTheDocument();
+    expect(screen.getByText('ログイン後に表示する動画の詳細画面で、説明文や導線の見え方を確認するためのテスト文言です。')).toBeInTheDocument();
+    expect(screen.getByText('この詳細画面はログイン後に表示する動画用のテスト文言に差し替えています。')).toBeInTheDocument();
     expect(screen.getByText('2026-05-01')).toBeInTheDocument();
     expect(screen.getByText('00:42:00')).toBeInTheDocument();
-    expect(screen.queryByText('実データタイトル')).not.toBeInTheDocument();
+    expect(screen.queryByText('元データタイトル')).not.toBeInTheDocument();
   });
 });

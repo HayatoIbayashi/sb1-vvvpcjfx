@@ -1,46 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import {
   getHomeMemberCatalogFallbackItems,
+  getHomeMovieListTestItem,
   getHomeMovieListTestSections,
   getHomePublicCatalogFallbackItems,
-  HOME_DISPLAY_SAMPLES,
-  HOME_MEMBER_CATALOG_FALLBACK_ITEMS,
-  HOME_MOVIE_LIST_TEST_SECTIONS,
-  HOME_PUBLIC_CATALOG_FALLBACK_ITEMS,
 } from './homeDisplaySamples';
 
-describe('HOME_DISPLAY_SAMPLES', () => {
-  it('provides three fixed samples for the top page test display', () => {
-    expect(HOME_DISPLAY_SAMPLES).toHaveLength(3);
-    expect(HOME_DISPLAY_SAMPLES.map((sample) => sample.title)).toEqual([
-      'サンプル動画 01',
-      'サンプル動画 02',
-      'サンプル動画 03',
-    ]);
-  });
-
-  it('uses inline svg images for all top page samples', () => {
-    for (const sample of HOME_DISPLAY_SAMPLES) {
-      expect(sample.image.startsWith('data:image/svg+xml')).toBe(true);
-      expect(sample.description.length).toBeGreaterThan(10);
-    }
-  });
-});
-
-describe('HOME_MOVIE_LIST_TEST_SECTIONS', () => {
+describe('homeDisplaySamples', () => {
   it('provides a fixed post-login test section', () => {
-    expect(HOME_MOVIE_LIST_TEST_SECTIONS.map((section) => section.title)).toEqual([
+    const sections = getHomeMovieListTestSections();
+
+    expect(sections.map((section) => section.title)).toEqual([
       'ログイン後のおすすめ動画',
     ]);
-    expect(HOME_MOVIE_LIST_TEST_SECTIONS[0].items).toHaveLength(3);
+    expect(sections[0].items).toHaveLength(3);
   });
 
-  it('uses inline svg images for all list test samples', () => {
-    for (const section of HOME_MOVIE_LIST_TEST_SECTIONS) {
-      for (const item of section.items) {
-        expect(item.image.startsWith('data:image/svg+xml')).toBe(true);
-        expect(item.description.length).toBeGreaterThan(10);
-      }
+  it('uses inline svg images for all generated samples', () => {
+    const sections = getHomeMovieListTestSections();
+    const publicFallbackItems = getHomePublicCatalogFallbackItems();
+    const memberFallbackItems = getHomeMemberCatalogFallbackItems();
+
+    for (const item of [
+      ...sections.flatMap((section) => section.items),
+      ...publicFallbackItems,
+      ...memberFallbackItems,
+    ]) {
+      expect(item.image.startsWith('data:image/svg+xml')).toBe(true);
+      expect(item.description.length).toBeGreaterThan(10);
     }
   });
 
@@ -53,12 +40,10 @@ describe('HOME_MOVIE_LIST_TEST_SECTIONS', () => {
       '性的表現',
     ]);
   });
-});
 
-describe('catalog fallback test items', () => {
   it('provides fixed public and member fallback cards', () => {
-    expect(HOME_PUBLIC_CATALOG_FALLBACK_ITEMS).toHaveLength(3);
-    expect(HOME_MEMBER_CATALOG_FALLBACK_ITEMS).toHaveLength(3);
+    expect(getHomePublicCatalogFallbackItems()).toHaveLength(3);
+    expect(getHomeMemberCatalogFallbackItems()).toHaveLength(3);
   });
 
   it('replaces fallback subtitles with provided recommendation genre labels', () => {
@@ -75,5 +60,12 @@ describe('catalog fallback test items', () => {
       'ギャンブル',
       '性的表現',
     ]);
+  });
+
+  it('resolves detail items from all generated sample groups', () => {
+    expect(getHomeMovieListTestItem('member-test-1')?.detail.title).toBe('ログイン後詳細テスト 01');
+    expect(getHomeMovieListTestItem('public-test-1')?.detail.title).toBe('紹介動画テスト詳細 01');
+    expect(getHomeMovieListTestItem('member-catalog-test-1')?.detail.title).toBe('会員向け一覧テスト詳細 01');
+    expect(getHomeMovieListTestItem('not-found')).toBeNull();
   });
 });

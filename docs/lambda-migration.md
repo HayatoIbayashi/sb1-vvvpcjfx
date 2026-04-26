@@ -1,26 +1,27 @@
-## Lambda 接続準備と Supabase クリーンアップ
+## Lambda 移行メモ
 
-- フロントのデータアクセスを Supabase 直叩きから AWS Lambda（API Gateway 経由想定）へ移行する準備を実施。
-  - `src/lib/supabase.ts`: Supabase SDK を廃止し、Lambda 向け REST を呼び出す軽量ラッパへ差し替え
-  - `src/lib/apiClient.ts`: `VITE_API_BASE_URL` を基点にした API クライアントを追加
-  - `api/create-payment-intent.ts`, `api/webhook.ts`: Supabase 依存を除去し、`LAMBDA_*` へプロキシ化
+- フロントのデータ取得は `src/lib/apiClient.ts` 経由で API Gateway / Lambda を呼び出す構成です。
+- 認証は Cognito とアプリ内コンテキストで処理しており、旧 Supabase shim は削除済みです。
+- 決済系のフロント入口は `api/` 配下のプロキシと Lambda エンドポイントに寄せています。
 
-### 環境変数
+### 主要なフロント設定
 
-- フロントエンド（Vite）
-  - `VITE_API_BASE_URL`: 例 `/api`（未設定時は `/api`）
+- `VITE_API_BASE_URL`
+  - 通常は `/api`
+  - 直接 API Gateway を向ける場合は完全 URL を設定
 
-- ローカル API プロキシ（`api/` ディレクトリ）
-  - `LAMBDA_PAYMENTS_URL`: 支払い Intent を作成する Lambda の URL
-  - `LAMBDA_WEBHOOK_URL`: Stripe Webhook を受ける Lambda の URL
+### 主な移行済み API
 
-### 今後の移行ステップ例
+- `POST /auth/signup`
+- `POST /auth/reset-password`
+- `GET /movies`
+- `GET /movies/:id`
+- `GET /profile`
+- `PUT /profile`
+- `POST /subscriptions/checkout-session`
+- `POST /billing-portal/session`
 
-- Lambda 側で以下のエンドポイントを用意（API Gateway 経由を想定）
-  - `POST /auth/signup`: メール・パスワード登録とプロフィール初期化
-  - `POST /auth/reset-password`: パスワードリセットメール要求
-  - `POST /profiles/upsert`: プロフィールの upsert
-  - `POST /payments/create-intent`: 支払い Intent 作成（Stripe 連携）
-  - `POST /purchases/update` など必要に応じて
+### 補足
 
-必要に応じて Amplify の API カテゴリ（REST）と Cognito の認証を用いた署名付きリクエストに置き換え可能です。
+- 古い Supabase 依存コードは残さず、必要な呼び出しは API クライアントへ集約しています。
+- 追加の移行や削除を行う場合も、まず `apiClient` と Lambda の責務分離を維持してください。
