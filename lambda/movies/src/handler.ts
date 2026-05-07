@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import type { PoolClient } from 'pg';
 import { getPool } from './db.js';
 import { handleStripeWebhook } from './stripeWebhook.js';
 import {
@@ -31,6 +32,12 @@ const MOVIE_COLUMNS = [
   'updated_at',
 ];
 
+const MOVIE_RATING_COLUMNS = [
+  ...MOVIE_COLUMNS,
+  'ratings.average_rating',
+  'COALESCE(ratings.review_count, 0) AS review_count',
+];
+
 const MEMBERSHIP_PLAN_NAME = 'メンバーシップ';
 const MEMBERSHIP_MONTHLY_PRICE = 1000;
 const MEMBERSHIP_DESCRIPTION = '全作品が見放題\n視聴はメンバーシップ登録済みアカウントのみ\n請求情報は Stripe のカスタマーポータルで管理';
@@ -60,6 +67,40 @@ function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
     },
     body: JSON.stringify(body),
   };
+}
+
+async function rollbackQuietly(client: PoolClient, context: string) {
+  try {
+    await client.query('ROLLBACK');
+  } catch (rollbackError) {
+    console.error(`Rollback failed in ${context}`, rollbackError);
+  }
+}
+
+async function connectClient(context: string) {
+  try {
+    return await getPool().connect();
+  } catch (error) {
+    console.error(`Failed to acquire DB client for ${context}`, error);
+    throw error;
+  }
+}
+
+function buildPublicMovieListSql(whereClause = '') {
+  return `
+    SELECT ${MOVIE_RATING_COLUMNS.join(', ')}
+    FROM public_movies
+    LEFT JOIN (
+      SELECT
+        movie_id,
+        ROUND(AVG(rating)::numeric, 2) AS average_rating,
+        COUNT(*)::int AS review_count
+      FROM reviews
+      GROUP BY movie_id
+    ) ratings ON ratings.movie_id = public_movies.id
+    ${whereClause}
+    ORDER BY publish_at DESC NULLS LAST, created_at DESC
+  `;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -496,6 +537,64 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
+    const homeMatch = path.match(/^\/v1\/home$/);
+    if (homeMatch) {
+      if (method !== 'GET') {
+        return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+      }
+
+      const moviesSql = buildPublicMovieListSql();
+      const userId = getUserIdFromAuth(event.headers);
+
+      if (!userId) {
+        const { rows } = await getPool().query(moviesSql);
+        return response(200, {
+          movies: rows,
+          accessState: 'guest',
+          desiredGenreIds: [],
+        });
+      }
+
+      const client = await connectClient('home page data');
+      try {
+        const moviesRes = await client.query(moviesSql);
+        const profileRes = await client.query(
+          `
+            SELECT COALESCE(p.recommendation_preferences, '{}'::jsonb) AS recommendation_preferences
+            FROM users u
+            LEFT JOIN profiles p ON p.id = u.id
+            WHERE u.id = $1
+          `,
+          [userId],
+        );
+        const subscriptionRes = await client.query(
+          `
+            SELECT s.status
+            FROM subscriptions s
+            WHERE s.user_id = $1
+            ORDER BY s.created_at DESC
+            LIMIT 1
+          `,
+          [userId],
+        );
+
+        const recommendationPreferences =
+          (profileRes.rows[0]?.recommendation_preferences as { desiredGenreIds?: unknown } | undefined) ?? {};
+        const desiredGenreIds = Array.isArray(recommendationPreferences.desiredGenreIds)
+          ? recommendationPreferences.desiredGenreIds.filter((value): value is string => typeof value === 'string')
+          : [];
+        const accessState = subscriptionRes.rows[0]?.status === 'active' ? 'member' : 'registered';
+
+        return response(200, {
+          movies: moviesRes.rows,
+          accessState,
+          desiredGenreIds,
+        });
+      } finally {
+        client.release();
+      }
+    }
+
     const profileMatch = path.match(/^\/v1\/profile$/);
     if (profileMatch) {
       const userId = getUserIdFromAuth(event.headers);
@@ -550,7 +649,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           return response(400, { code: 'VALIDATION_ERROR', message: 'age must be 0..120' });
         }
 
-        const client = await getPool().connect();
+        const client = await connectClient('profile update');
         try {
           await client.query('BEGIN');
 
@@ -591,7 +690,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
           await client.query('COMMIT');
         } catch (error: unknown) {
-          await client.query('ROLLBACK');
+          await rollbackQuietly(client, 'profile update');
           if (getErrorCode(error) === '23505') {
             return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
           }
@@ -733,7 +832,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       if (method === 'POST') {
         try {
           const input = buildSubscriptionCreateInput(parseJsonBody(event));
-          const client = await getPool().connect();
+          const client = await connectClient('subscription create');
 
           try {
             await client.query('BEGIN');
@@ -822,7 +921,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
               }),
             });
           } catch (error) {
-            await client.query('ROLLBACK');
+            await rollbackQuietly(client, 'subscription create');
             throw error;
           } finally {
             client.release();
@@ -836,7 +935,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       if (method === 'DELETE') {
-        const client = await getPool().connect();
+        const client = await connectClient('subscription cancel');
         try {
           await client.query('BEGIN');
 
@@ -894,7 +993,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             }),
           });
         } catch (error) {
-          await client.query('ROLLBACK');
+          await rollbackQuietly(client, 'subscription cancel');
           throw error;
         } finally {
           client.release();
@@ -1127,7 +1226,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       if (adminUserId && method === 'PUT') {
         try {
           const input = buildAdminUserUpdateInput(parseJsonBody(event));
-          const client = await getPool().connect();
+          const client = await connectClient('admin user update');
           try {
             await client.query('BEGIN');
 
@@ -1160,7 +1259,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
             await client.query('COMMIT');
           } catch (error: unknown) {
-            await client.query('ROLLBACK');
+            await rollbackQuietly(client, 'admin user update');
             if (getErrorCode(error) === '23505') {
               return response(409, { code: 'EMAIL_CONFLICT', message: 'Email already in use' });
             }
@@ -1406,10 +1505,24 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const whereClause = q ? `WHERE ${buildMovieSearchClause(isAdmin)}` : '';
     if (q) params.push(`%${q}%`);
 
-    let sql = `SELECT ${MOVIE_COLUMNS.join(', ')} FROM ${table} ${whereClause}`;
+    let sql: string;
     if (isAdmin) {
+      sql = `SELECT ${MOVIE_COLUMNS.join(', ')} FROM ${table} ${whereClause}`;
       sql += ' ORDER BY created_at DESC';
     } else {
+      sql = `
+        SELECT ${MOVIE_RATING_COLUMNS.join(', ')}
+        FROM ${table}
+        LEFT JOIN (
+          SELECT
+            movie_id,
+            ROUND(AVG(rating)::numeric, 2) AS average_rating,
+            COUNT(*)::int AS review_count
+          FROM reviews
+          GROUP BY movie_id
+        ) ratings ON ratings.movie_id = ${table}.id
+        ${whereClause}
+      `;
       sql += ' ORDER BY publish_at DESC NULLS LAST, created_at DESC';
     }
 

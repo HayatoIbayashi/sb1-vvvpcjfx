@@ -73,14 +73,11 @@ function LoginPage() {
       const result = response.AuthenticationResult;
       if (!result) throw new Error('Authentication failed');
 
-      localStorage.setItem(
-        'cognito_tokens',
-        JSON.stringify({
-          id_token: result.IdToken,
-          access_token: result.AccessToken,
-          refresh_token: result.RefreshToken,
-        }),
-      );
+      auth.setTokens({
+        id_token: result.IdToken,
+        access_token: result.AccessToken,
+        refresh_token: result.RefreshToken,
+      });
 
       const redirectTo = state?.from?.pathname ?? '/';
       navigate(redirectTo, { replace: true });

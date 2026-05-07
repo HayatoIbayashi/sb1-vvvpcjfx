@@ -11,6 +11,7 @@ const { mockNavigate, mockSend, mockLogoutAll, mockAuth } = vi.hoisted(() => ({
     isLoading: false,
     error: null,
     user: null,
+    setTokens: vi.fn(),
   },
 }));
 
@@ -45,6 +46,7 @@ describe('LoginPage', () => {
     mockNavigate.mockReset();
     mockSend.mockReset();
     mockLogoutAll.mockReset();
+    mockAuth.setTokens.mockReset();
     localStorage.clear();
   });
 

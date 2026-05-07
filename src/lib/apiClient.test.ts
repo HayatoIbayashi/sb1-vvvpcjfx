@@ -54,6 +54,21 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds home page data request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ movies: [], accessState: 'guest', desiredGenreIds: [] }),
+    );
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getHomePageData();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/home',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('builds admin movie detail request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'movie-2' }));
     globalThis.fetch = fetchMock as typeof globalThis.fetch;

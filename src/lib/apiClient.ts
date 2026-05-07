@@ -3,6 +3,10 @@ import type { Database } from './types';
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export type Movie = Database['public']['Tables']['movies']['Row'];
+export type MovieListItem = Movie & {
+  average_rating: number | null;
+  review_count: number;
+};
 
 export type SignUpPayload = {
   email: string;
@@ -16,6 +20,12 @@ export type SignUpPayload = {
 export type RecommendationPreferences = {
   hiddenCategoryIds: string[];
   warningCategoryIds: string[];
+  desiredGenreIds: string[];
+};
+
+export type HomePageData = {
+  movies: MovieListItem[];
+  accessState: 'guest' | 'registered' | 'member';
   desiredGenreIds: string[];
 };
 
@@ -221,7 +231,10 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
       if (query?.limit != null) qs.set('limit', String(query.limit));
       if (query?.offset != null) qs.set('offset', String(query.offset));
       const suffix = qs.toString();
-      return request<{ items: Movie[] }>(`/movies${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+      return request<{ items: MovieListItem[] }>(`/movies${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
+    },
+    getHomePageData() {
+      return request<HomePageData>('/home', { method: 'GET' });
     },
     getMovie(id: string) {
       return request<Movie>(`/movies/${encodeURIComponent(id)}`, { method: 'GET' });
