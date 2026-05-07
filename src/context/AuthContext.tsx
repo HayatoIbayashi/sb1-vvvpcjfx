@@ -1,18 +1,24 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext } from 'react';
-
-type StoredTokens = {
-  id_token?: string;
-  access_token?: string;
-  refresh_token?: string;
-};
-
-type AuthProfile = {
-  email?: string;
-  name?: string;
-  sub?: string;
-  [key: string]: unknown;
-};
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import type { ReactNode } from 'react';
+import {
+  AUTH_STORAGE_KEY,
+  clearOidcArtifacts,
+  clearStoredTokens,
+  decodeJwtPayload,
+  hasExpiredTokens,
+  readStoredTokens,
+  writeStoredTokens,
+  type AuthProfile,
+  type StoredTokens,
+} from '../lib/authStorage';
 
 type AuthUser = {
   access_token?: string;
@@ -29,96 +35,109 @@ interface AuthContextType {
   signinRedirect: () => Promise<void>;
   signoutRedirect: () => Promise<void>;
   removeUser: () => Promise<void>;
+  setTokens: (tokens: StoredTokens | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function getStoredTokens(): StoredTokens | null {
-  try {
-    const raw = localStorage.getItem('cognito_tokens');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredTokens;
-  } catch {
+function buildUser(tokens: StoredTokens | null): AuthUser | null {
+  if (!tokens?.id_token && !tokens?.access_token) {
     return null;
   }
-}
-
-function clearStoredTokens() {
-  try {
-    localStorage.removeItem('cognito_tokens');
-  } catch {
-    return;
-  }
-}
-
-function clearOidcArtifacts() {
-  try {
-    const keysToRemove: string[] = [];
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index);
-      if (!key) continue;
-      if (key.startsWith('oidc.user:') || key.startsWith('oidc.')) {
-        keysToRemove.push(key);
-      }
-    }
-    for (const key of keysToRemove) {
-      localStorage.removeItem(key);
-    }
-  } catch {
-    return;
-  }
-}
-
-function decodeJwtPayload(token?: string): AuthProfile {
-  if (!token) return {};
-
-  try {
-    const [, payload] = token.split('.');
-    if (!payload) return {};
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const decoded = window.atob(normalized);
-    return JSON.parse(decoded) as AuthProfile;
-  } catch {
-    return {};
-  }
-}
-
-function buildAuthValue(): AuthContextType {
-  const tokens = getStoredTokens();
-  const profile = decodeJwtPayload(tokens?.id_token);
-  const user = tokens?.id_token || tokens?.access_token
-    ? {
-        access_token: tokens?.access_token,
-        id_token: tokens?.id_token,
-        refresh_token: tokens?.refresh_token,
-        profile,
-      }
-    : null;
 
   return {
-    user,
-    isAuthenticated: !!user,
-    isLoading: false,
-    error: null,
-    signinRedirect: async () => {
-      window.location.assign('/login');
-    },
-    signoutRedirect: async () => {
-      clearStoredTokens();
-      clearOidcArtifacts();
-      window.location.assign('/');
-    },
-    removeUser: async () => {
-      clearStoredTokens();
-      clearOidcArtifacts();
-    },
+    access_token: tokens.access_token,
+    id_token: tokens.id_token,
+    refresh_token: tokens.refresh_token,
+    profile: decodeJwtPayload(tokens.id_token ?? tokens.access_token),
   };
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function readActiveTokens(): StoredTokens | null {
+  const tokens = readStoredTokens();
+  if (!tokens) return null;
+
+  if (hasExpiredTokens(tokens)) {
+    clearStoredTokens();
+    clearOidcArtifacts();
+    return null;
+  }
+
+  return tokens;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [tokens, setTokensState] = useState<StoredTokens | null>(() => readActiveTokens());
+
+  const syncFromStorage = useCallback(() => {
+    setTokensState(readActiveTokens());
+  }, []);
+
+  const setTokens = useCallback((nextTokens: StoredTokens | null) => {
+    if (nextTokens?.id_token || nextTokens?.access_token || nextTokens?.refresh_token) {
+      writeStoredTokens(nextTokens);
+      setTokensState(readActiveTokens());
+      return;
+    }
+
+    clearStoredTokens();
+    clearOidcArtifacts();
+    setTokensState(null);
+  }, []);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== AUTH_STORAGE_KEY) {
+        return;
+      }
+      syncFromStorage();
+    };
+
+    const handleFocus = () => {
+      syncFromStorage();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [syncFromStorage]);
+
+  const removeUser = useCallback(async () => {
+    setTokens(null);
+  }, [setTokens]);
+
+  const signoutRedirect = useCallback(async () => {
+    setTokens(null);
+    window.location.assign('/');
+  }, [setTokens]);
+
+  const signinRedirect = useCallback(async () => {
+    window.location.assign('/login');
+  }, []);
+
+  const value = useMemo<AuthContextType>(() => {
+    const user = buildUser(tokens);
+
+    return {
+      user,
+      isAuthenticated: !!user,
+      isLoading: false,
+      error: null,
+      signinRedirect,
+      signoutRedirect,
+      removeUser,
+      setTokens,
+    };
+  }, [removeUser, setTokens, signinRedirect, signoutRedirect, tokens]);
+
   return (
-    <AuthContext.Provider value={buildAuthValue()}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -126,8 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context) {
-    return context;
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return buildAuthValue();
+  return context;
 }
