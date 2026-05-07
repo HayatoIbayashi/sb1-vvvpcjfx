@@ -4,7 +4,7 @@ import { LogIn, LogOut, Search } from 'lucide-react';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
-import * as mockReviews from '../lib/mockReviews';
+import type { HomePageData, MovieListItem } from '../lib/apiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
@@ -21,11 +21,20 @@ import {
   getMovieAccessTier,
   partitionMoviesByAccess,
 } from '../lib/movieAccess';
-import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import { MEMBERSHIP_MONTHLY_PRICE, type MembershipAccessState } from '../lib/useMembershipStatus';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type DisplayMovie = Movie | MovieListItem;
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
+
+function toMovieListItem(movie: Movie): MovieListItem {
+  return {
+    ...movie,
+    average_rating: null,
+    review_count: 0,
+  };
+}
 
 function getStoredDesiredGenreIds() {
   try {
@@ -40,8 +49,8 @@ function getStoredDesiredGenreIds() {
   }
 }
 
-function pickRecommendationMovies(movies: Movie[], limit = 3) {
-  const selected: Movie[] = [];
+function pickRecommendationMovies<T extends DisplayMovie>(movies: T[], limit = 3) {
+  const selected: T[] = [];
   const usedGenres = new Set<string>();
 
   for (const movie of movies) {
@@ -65,7 +74,7 @@ function pickRecommendationMovies(movies: Movie[], limit = 3) {
   return selected;
 }
 
-function getMovieByLoopIndex(movies: Movie[], index: number) {
+function getMovieByLoopIndex<T extends DisplayMovie>(movies: T[], index: number) {
   if (!movies.length) {
     return null;
   }
@@ -76,14 +85,15 @@ function getMovieByLoopIndex(movies: Movie[], index: number) {
 export default function MovieListPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [movies, setMovies] = useState<Movie[]>([]);
+  const { isAuthenticated, logoutAll } = useAuthStatus();
+  const [movies, setMovies] = useState<MovieListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [topRated, setTopRated] = useState<Movie[]>([]);
   const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
     getRecommendationGenreLabels(getStoredDesiredGenreIds()),
   );
-  const { isAuthenticated, logoutAll } = useAuthStatus();
-  const { accessState } = useMembershipStatus();
+  const [accessState, setAccessState] = useState<MembershipAccessState>(
+    isAuthenticated ? 'registered' : 'guest',
+  );
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
@@ -98,110 +108,71 @@ export default function MovieListPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadMovies = async () => {
-      if (useMockMovies) {
-        if (!cancelled) setMovies(MOCK_MOVIES);
-        return;
-      }
-
-      try {
-        const result = await api.getMovies();
-        if (!cancelled) setMovies(result.items);
-      } catch (error) {
-        console.error('Error fetching movies:', error);
-        if (!cancelled) setMovies(MOCK_MOVIES);
-      }
-    };
-
-    void loadMovies();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, useMockMovies]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setSampleGenreLabels(getRecommendationGenreLabels(getStoredDesiredGenreIds()));
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadDesiredGenres = async () => {
-      const storedLabels = getRecommendationGenreLabels(getStoredDesiredGenreIds());
+    const applyStoredRecommendations = () => {
       if (!cancelled) {
-        setSampleGenreLabels(storedLabels);
-      }
-
-      try {
-        const result = await api.getProfile();
-        if (cancelled) return;
-
-        setSampleGenreLabels(
-          getRecommendationGenreLabels(result.recommendation_preferences?.desiredGenreIds),
-        );
-      } catch (error) {
-        console.error('Error fetching recommendation genres:', error);
+        setSampleGenreLabels(getRecommendationGenreLabels(getStoredDesiredGenreIds()));
       }
     };
 
-    void loadDesiredGenres();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, isAuthenticated]);
+    const applyHomeData = (result: HomePageData) => {
+      if (cancelled) return;
+      setMovies(result.movies);
+      setAccessState(result.accessState);
 
-  useEffect(() => {
-    let cancelled = false;
-    const useMockReviews = import.meta.env.VITE_USE_MOCK_REVIEWS === 'true';
-
-    const loadRatings = async () => {
-      if (!movies.length) {
-        if (!cancelled) setTopRated([]);
+      if (isAuthenticated) {
+        setSampleGenreLabels(getRecommendationGenreLabels(result.desiredGenreIds));
         return;
       }
 
+      applyStoredRecommendations();
+    };
+
+    const loadHomeData = async () => {
+      if (useMockMovies) {
+        if (!cancelled) {
+          setMovies(MOCK_MOVIES.map(toMovieListItem));
+          setAccessState(isAuthenticated ? 'registered' : 'guest');
+        }
+        applyStoredRecommendations();
+        return;
+      }
+
+      applyStoredRecommendations();
+
       try {
-        const ratings = await Promise.all(
-          movies.map(async (movie) => {
-            try {
-              const items = useMockReviews
-                ? await mockReviews.getReviews(movie.id)
-                : (await api.getReviews(movie.id)).items;
-              const average =
-                items.length > 0
-                  ? items.reduce((sum, review) => sum + review.rating, 0) / items.length
-                  : 0;
-
-              return [movie.id, average] as const;
-            } catch {
-              return [movie.id, 0] as const;
-            }
-          }),
-        );
-
-        if (cancelled) return;
-
-        const ratingMap = Object.fromEntries(ratings);
-        const sortedMovies = movies
-          .slice()
-          .sort((left, right) => (ratingMap[right.id] ?? 0) - (ratingMap[left.id] ?? 0))
-          .filter((movie) => (ratingMap[movie.id] ?? 0) > 0)
-          .slice(0, 10);
-
-        setTopRated(sortedMovies);
-      } catch {
-        if (!cancelled) setTopRated([]);
+        const result = await api.getHomePageData();
+        applyHomeData(result);
+      } catch (error) {
+        console.error('Error fetching home page data:', error);
+        if (!cancelled) {
+          setMovies(MOCK_MOVIES.map(toMovieListItem));
+          setAccessState(isAuthenticated ? 'registered' : 'guest');
+        }
       }
     };
 
-    void loadRatings();
+    void loadHomeData();
     return () => {
       cancelled = true;
     };
-  }, [api, movies]);
+  }, [api, isAuthenticated, useMockMovies]);
 
   const { publicMovies, memberMovies } = partitionMoviesByAccess(movies);
+  const topRated = useMemo(
+    () =>
+      movies
+        .filter((movie) => movie.average_rating != null && movie.review_count > 0)
+        .slice()
+        .sort((left, right) => {
+          const averageDiff = (right.average_rating ?? 0) - (left.average_rating ?? 0);
+          if (averageDiff !== 0) return averageDiff;
+          const reviewCountDiff = right.review_count - left.review_count;
+          if (reviewCountDiff !== 0) return reviewCountDiff;
+          return left.title.localeCompare(right.title, 'ja');
+        })
+        .slice(0, 10),
+    [movies],
+  );
   const availableNowMovies = movies.filter((movie) => canAccessMovie(accessState, movie));
   const heroMovie = availableNowMovies[0] ?? publicMovies[0] ?? memberMovies[0] ?? movies[0] ?? null;
   const memberTestTargetMovies = memberMovies.length
@@ -229,14 +200,14 @@ export default function MovieListPage() {
   const memberSectionTitle = memberMovies.length
     ? getPrimaryMovieGenre(memberMovies[0], fallbackMemberSectionTitle)
     : fallbackMemberSectionTitle;
-  const publicFallbackTargetMovies = publicMovies.length
+  const publicFallbackTargetMovies: DisplayMovie[] = publicMovies.length
     ? publicMovies
     : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'public');
-  const memberFallbackTargetMovies = memberMovies.length
+  const memberFallbackTargetMovies: DisplayMovie[] = memberMovies.length
     ? memberMovies
     : memberTestTargetMovies;
 
-  const renderMovieCard = (movie: Movie) => {
+  const renderMovieCard = (movie: DisplayMovie) => {
     const accessTier = getMovieAccessTier(movie);
 
     return (
@@ -266,7 +237,7 @@ export default function MovieListPage() {
     );
   };
 
-  const renderMovieSection = (title: string, description: string, sectionMovies: Movie[]) => {
+  const renderMovieSection = (title: string, description: string, sectionMovies: DisplayMovie[]) => {
     if (!sectionMovies.length) return null;
 
     return (
@@ -286,7 +257,7 @@ export default function MovieListPage() {
     title: string,
     description: string,
     items: ReturnType<typeof getHomeMovieListTestSections>[number]['items'],
-    targetMovies: Movie[],
+    targetMovies: DisplayMovie[],
   ) => {
     if (!items.length) return null;
 

@@ -1,15 +1,11 @@
 import { Pool, type PoolConfig } from 'pg';
 
-const {
-  DATABASE_URL,
-  DB_HOST,
-  DB_PORT,
-  DB_NAME,
-  DB_USER,
-  DB_PASSWORD,
-} = process.env;
-
 let pool: Pool | null = null;
+let poolListenersAttached = false;
+
+const DEFAULT_POOL_MAX = 2;
+const DEFAULT_IDLE_TIMEOUT_MS = 10_000;
+const DEFAULT_CONNECTION_TIMEOUT_MS = 2_000;
 
 export function normalizeConnectionString(connectionString: string) {
   try {
@@ -44,36 +40,58 @@ export function shouldUseSsl(env: NodeJS.ProcessEnv = process.env) {
   }
 }
 
-function buildPoolConfig(): PoolConfig {
+function parsePositiveInt(value: string | undefined, fallback: number) {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function buildPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig {
+  const max = parsePositiveInt(env.DB_POOL_MAX, DEFAULT_POOL_MAX);
+  const idleTimeoutMillis = parsePositiveInt(env.DB_IDLE_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS);
+  const connectionTimeoutMillis = parsePositiveInt(
+    env.DB_CONNECTION_TIMEOUT_MS,
+    DEFAULT_CONNECTION_TIMEOUT_MS,
+  );
+  const ssl = shouldUseSsl(env) ? { rejectUnauthorized: false } : undefined;
+
   // Prefer DATABASE_URL, fallback to DB_* parts.
-  if (DATABASE_URL) {
+  if (env.DATABASE_URL) {
     return {
-      connectionString: normalizeConnectionString(DATABASE_URL),
-      max: 5,
-      idleTimeoutMillis: 30_000,
-      ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
+      connectionString: normalizeConnectionString(env.DATABASE_URL),
+      max,
+      idleTimeoutMillis,
+      connectionTimeoutMillis,
+      ssl,
     };
   }
 
-  if (!DB_HOST || !DB_NAME || !DB_USER) {
+  if (!env.DB_HOST || !env.DB_NAME || !env.DB_USER) {
     throw new Error('Missing env: set DATABASE_URL or DB_HOST/DB_NAME/DB_USER');
   }
 
   return {
-    host: DB_HOST,
-    port: Number(DB_PORT || 5432),
-    database: DB_NAME,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    max: 5,
-    idleTimeoutMillis: 30_000,
-    ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
+    host: env.DB_HOST,
+    port: Number(env.DB_PORT || 5432),
+    database: env.DB_NAME,
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    max,
+    idleTimeoutMillis,
+    connectionTimeoutMillis,
+    ssl,
   };
 }
 
 export function getPool() {
   if (!pool) {
     pool = new Pool(buildPoolConfig());
+  }
+  if (!poolListenersAttached) {
+    pool.on('error', (error) => {
+      console.error('movies db pool error', error);
+    });
+    poolListenersAttached = true;
   }
   return pool;
 }

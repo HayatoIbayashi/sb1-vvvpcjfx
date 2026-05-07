@@ -74,6 +74,9 @@ functions:
           path: /v1/movies/{id}
           method: GET
       - httpApi:
+          path: /v1/home
+          method: GET
+      - httpApi:
           path: /v1/admin/movies
           method: GET
       - httpApi:

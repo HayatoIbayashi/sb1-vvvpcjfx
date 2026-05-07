@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildPoolConfig,
   normalizeConnectionString as normalizeMoviesConnectionString,
   shouldUseSsl as shouldUseMoviesSsl,
 } from '../../lambda/movies/src/db';
@@ -38,5 +39,29 @@ describe('lambda db ssl config', () => {
     expect(
       shouldUseAuthSsl({ DATABASE_URL: CONNECTION_STRING, DB_SSL: 'false' } as NodeJS.ProcessEnv),
     ).toBe(false);
+  });
+
+  it('uses conservative default pool settings for movies lambda', () => {
+    expect(buildPoolConfig({ DATABASE_URL: CONNECTION_STRING } as NodeJS.ProcessEnv)).toMatchObject({
+      connectionString: 'postgres://user:pass@example.com:5432/app',
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 2_000,
+    });
+  });
+
+  it('allows movies lambda pool settings to be overridden by env', () => {
+    expect(
+      buildPoolConfig({
+        DATABASE_URL: CONNECTION_STRING,
+        DB_POOL_MAX: '3',
+        DB_IDLE_TIMEOUT_MS: '15000',
+        DB_CONNECTION_TIMEOUT_MS: '4000',
+      } as NodeJS.ProcessEnv),
+    ).toMatchObject({
+      max: 3,
+      idleTimeoutMillis: 15_000,
+      connectionTimeoutMillis: 4_000,
+    });
   });
 });
