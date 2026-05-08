@@ -103,6 +103,38 @@ function buildPublicMovieListSql(whereClause = '') {
   `;
 }
 
+function buildPublicMovieListFallbackSql(whereClause = '') {
+  return `
+    SELECT
+      ${MOVIE_COLUMNS.join(', ')},
+      NULL::numeric AS average_rating,
+      0::int AS review_count
+    FROM public_movies
+    ${whereClause}
+    ORDER BY publish_at DESC NULLS LAST, created_at DESC
+  `;
+}
+
+type Queryable = Pick<PoolClient, 'query'>;
+
+async function queryPublicMovieList(
+  queryable: Queryable,
+  params: Array<string | number> = [],
+  whereClause = '',
+  suffix = '',
+) {
+  try {
+    return await queryable.query(`${buildPublicMovieListSql(whereClause)}${suffix}`, params);
+  } catch (error) {
+    if (getErrorCode(error) !== '42P01') {
+      throw error;
+    }
+
+    console.warn('reviews table is missing; returning movies without rating aggregates');
+    return queryable.query(`${buildPublicMovieListFallbackSql(whereClause)}${suffix}`, params);
+  }
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'object' && error && 'message' in error) {
@@ -543,11 +575,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
       }
 
-      const moviesSql = buildPublicMovieListSql();
       const userId = getUserIdFromAuth(event.headers);
 
       if (!userId) {
-        const { rows } = await getPool().query(moviesSql);
+        const { rows } = await queryPublicMovieList(getPool());
         return response(200, {
           movies: rows,
           accessState: 'guest',
@@ -557,7 +588,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
       const client = await connectClient('home page data');
       try {
-        const moviesRes = await client.query(moviesSql);
+        const moviesRes = await queryPublicMovieList(client);
         const profileRes = await client.query(
           `
             SELECT COALESCE(p.recommendation_preferences, '{}'::jsonb) AS recommendation_preferences
@@ -1510,20 +1541,18 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       sql = `SELECT ${MOVIE_COLUMNS.join(', ')} FROM ${table} ${whereClause}`;
       sql += ' ORDER BY created_at DESC';
     } else {
-      sql = `
-        SELECT ${MOVIE_RATING_COLUMNS.join(', ')}
-        FROM ${table}
-        LEFT JOIN (
-          SELECT
-            movie_id,
-            ROUND(AVG(rating)::numeric, 2) AS average_rating,
-            COUNT(*)::int AS review_count
-          FROM reviews
-          GROUP BY movie_id
-        ) ratings ON ratings.movie_id = ${table}.id
-        ${whereClause}
-      `;
-      sql += ' ORDER BY publish_at DESC NULLS LAST, created_at DESC';
+      let suffix = '';
+      if (limit != null) {
+        params.push(limit);
+        suffix += ` LIMIT $${params.length}`;
+      }
+      if (offset != null) {
+        params.push(offset);
+        suffix += ` OFFSET $${params.length}`;
+      }
+
+      const { rows } = await queryPublicMovieList(getPool(), params, whereClause, suffix);
+      return response(200, { items: rows });
     }
 
     if (limit != null) {
