@@ -59,13 +59,16 @@ function normalizeSubscriptionRow<T extends Record<string, unknown>>(row: T) {
   };
 }
 
-function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
+function response(statusCode: number, body?: unknown): APIGatewayProxyResultV2 {
   return {
     statusCode,
     headers: {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     },
-    body: JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   };
 }
 
@@ -437,12 +440,98 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   try {
     const method = event.requestContext.http.method;
     const path = event.rawPath || '';
+    if (method === 'OPTIONS') {
+      return response(204);
+    }
     const stripeWebhookMatch = path.match(/^\/v1\/stripe\/webhook$/);
     if (stripeWebhookMatch) {
       if (method !== 'POST') {
         return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
       }
       return await handleStripeWebhook(event);
+    }
+
+    const reviewsMatch = path.match(/^\/v1\/reviews$/);
+    if (reviewsMatch) {
+      if (method === 'GET') {
+        const movieId = normalizeString(event.queryStringParameters?.movieId);
+        if (!movieId) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'movieId is required' });
+        }
+
+        const sql = `
+          SELECT
+            r.id,
+            r.movie_id AS "movieId",
+            r.user_id AS "userId",
+            p.display_name AS "displayName",
+            r.rating,
+            r.comment,
+            r.created_at AS "createdAt"
+          FROM reviews r
+          LEFT JOIN profiles p ON p.id = r.user_id
+          WHERE r.movie_id = $1
+          ORDER BY r.created_at DESC
+        `;
+
+        try {
+          const { rows } = await getPool().query(sql, [movieId]);
+          return response(200, { items: rows });
+        } catch (error) {
+          if (getErrorCode(error) === '42P01') {
+            console.warn('reviews table is missing; returning empty review list');
+            return response(200, { items: [] });
+          }
+          throw error;
+        }
+      }
+
+      if (method === 'POST') {
+        const userId = getUserIdFromAuth(event.headers);
+        if (!userId) {
+          return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+        }
+
+        const body = parseJsonBody(event);
+        const movieId = normalizeString(body?.movieId);
+        const comment = normalizeString(body?.comment);
+        const ratingValue = typeof body?.rating === 'number'
+          ? body.rating
+          : typeof body?.rating === 'string'
+            ? Number.parseInt(body.rating, 10)
+            : NaN;
+
+        if (!movieId) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'movieId is required' });
+        }
+        if (!Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'rating must be an integer between 1 and 5' });
+        }
+        if (!comment) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'comment is required' });
+        }
+
+        const exists = await getPool().query('SELECT 1 FROM public_movies WHERE id = $1', [movieId]);
+        if (!exists.rowCount) {
+          return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+        }
+
+        try {
+          await getPool().query(
+            `INSERT INTO reviews (movie_id, user_id, rating, comment, created_at)
+             VALUES ($1, $2, $3, $4, now())`,
+            [movieId, userId, ratingValue, comment],
+          );
+          return response(200, { ok: true });
+        } catch (error) {
+          if (getErrorCode(error) === '42P01') {
+            return response(503, { code: 'REVIEWS_UNAVAILABLE', message: 'Review feature is currently unavailable' });
+          }
+          throw error;
+        }
+      }
+
+      return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
     const watchlistMatch = path.match(/^\/v1\/watchlist(?:\/([^/]+))?$/);
