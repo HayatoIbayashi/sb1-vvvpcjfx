@@ -454,7 +454,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
       const movieId = watchlistMatch[1] ? decodeURIComponent(watchlistMatch[1]) : null;
       if (method === 'GET' && !movieId) {
-        const sql = `SELECT ${MOVIE_COLUMNS.join(', ')}
+        const watchlistMovieColumns = MOVIE_COLUMNS.map((column) => `m.${column} AS ${column}`).join(', ');
+        const sql = `SELECT ${watchlistMovieColumns}
           FROM watchlist w
           JOIN public_movies m ON m.id = w.movie_id
           WHERE w.user_id = $1
