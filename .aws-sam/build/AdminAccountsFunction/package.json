@@ -1,0 +1,20 @@
+{
+  "name": "admin-accounts-lambda",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "dist/handler.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "package": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.423.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5"
+  }
+}
