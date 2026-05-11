@@ -288,6 +288,19 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/profile
             Method: PUT
+        ReviewsGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/reviews
+            Method: GET
+
+        ReviewsPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/reviews
+            Method: POST
 
   AdminAccountsFunction:
     Type: AWS::Serverless::Function

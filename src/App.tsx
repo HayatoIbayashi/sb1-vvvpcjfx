@@ -13,10 +13,12 @@ import SubscriptionCompletionPage from './components/SubscriptionCompletionPage'
 import AccountSettingsPage from './components/AccountSettingsPage';
 import SearchResultsPage from './components/SearchResultsPage';
 import WatchlistPage from './components/WatchlistPage';
+import { ScrollToTop } from './components/common/ScrollToTop';
 
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<MovieListPage />} />
         <Route path="/login" element={<LoginPage />} />

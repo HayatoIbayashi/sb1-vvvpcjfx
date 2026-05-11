@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: "Auth Signup (Hosted UI\u8A98\u5C0E) - SAM Template"
+Description: Auth Signup Hosted UI - SAM Template
 Globals:
   Function:
     Runtime: nodejs20.x
@@ -26,6 +26,28 @@ Parameters:
     Default: ''
     Description: (Optional) Use existing Hosted UI App Client Id (set this when reusing
       an existing User Pool)
+  ExistingCognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: (Optional) Use existing User Pool Id for admin account operations
+  StripeSecretKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: (Optional) Stripe secret key for billing portal session creation
+  AppBaseUrl:
+    Type: String
+    Default: ''
+    Description: (Optional) Base URL used when billing portal returnUrl is omitted
+  StripeBillingPortalConfigurationId:
+    Type: String
+    Default: ''
+    Description: (Optional) Existing Stripe billing portal configuration id
+  StripeWebhookSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: (Optional) Stripe webhook signing secret
 Conditions:
   HasRdsSg:
     Fn::Not:
@@ -91,7 +113,10 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowMethods:
+        - GET
         - POST
+        - PUT
+        - DELETE
         - OPTIONS
         AllowHeaders:
         - Authorization
@@ -103,12 +128,16 @@ Resources:
     Properties:
       FunctionName: auth-signup
       CodeUri: AuthSignupFunction
-      Handler: handler.handler
-      VpcConfig:
-        SecurityGroupIds:
-        - Ref: LambdaSecurityGroup
-        SubnetIds:
-          Ref: SubnetIds
+      Handler: dist/handler.handler
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource:
+          - Fn::GetAtt:
+            - AuthSignupDbFunction
+            - Arn
       Environment:
         Variables:
           COGNITO_REGION:
@@ -118,8 +147,8 @@ Resources:
             - UseExistingCognito
             - Ref: ExistingCognitoClientId
             - Ref: UserPoolClient
-          DATABASE_URL:
-            Ref: DatabaseUrl
+          DB_UPSERT_LAMBDA_NAME:
+            Ref: AuthSignupDbFunction
       Events:
         Signup:
           Type: HttpApi
@@ -130,6 +159,310 @@ Resources:
             Method: POST
     Metadata:
       SamResourceId: AuthSignupFunction
+  AuthSignupDbFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: auth-signup-db
+      CodeUri: AuthSignupDbFunction
+      Handler: dist/dbHandler.handler
+      VpcConfig:
+        SecurityGroupIds:
+        - Ref: LambdaSecurityGroup
+        SubnetIds:
+          Ref: SubnetIds
+      Environment:
+        Variables:
+          DATABASE_URL:
+            Ref: DatabaseUrl
+    Metadata:
+      SamResourceId: AuthSignupDbFunction
+  MoviesListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: movies-list
+      CodeUri: MoviesListFunction
+      Handler: dist/handler.handler
+      VpcConfig:
+        SecurityGroupIds:
+        - Ref: LambdaSecurityGroup
+        SubnetIds:
+          Ref: SubnetIds
+      Environment:
+        Variables:
+          DATABASE_URL:
+            Ref: DatabaseUrl
+          STRIPE_WEBHOOK_SECRET:
+            Ref: StripeWebhookSecret
+      Events:
+        PublicMovies:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/movies
+            Method: GET
+        PublicMovieDetail:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/movies/{id}
+            Method: GET
+        HomePageData:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/home
+            Method: GET
+        AdminMovies:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/movies
+            Method: GET
+        AdminMoviesCreate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/movies
+            Method: POST
+        AdminMovieDetail:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: GET
+        AdminMovieUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: PUT
+        AdminMovieDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: DELETE
+        AdminUsers:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/users
+            Method: GET
+        AdminUserUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/users/{id}
+            Method: PUT
+        AdminUserDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/users/{id}
+            Method: DELETE
+        WatchlistGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist
+            Method: GET
+        WatchlistPost:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist
+            Method: POST
+        WatchlistDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watchlist/{movieId}
+            Method: DELETE
+        WatchHistoryGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watch-history
+            Method: GET
+        WatchHistoryPost:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/watch-history
+            Method: POST
+        SubscriptionCurrentGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/subscriptions/current
+            Method: GET
+        SubscriptionPlansGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/subscription-plans
+            Method: GET
+        StripeWebhookPost:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/stripe/webhook
+            Method: POST
+        ProfileGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/profile
+            Method: GET
+        ProfilePut:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/profile
+            Method: PUT
+        ReviewsGet:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/reviews
+            Method: GET
+        ReviewsPost:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/reviews
+            Method: POST
+    Metadata:
+      SamResourceId: MoviesListFunction
+  AdminAccountsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: admin-accounts
+      CodeUri: AdminAccountsFunction
+      Handler: dist/handler.handler
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - cognito-idp:AdminAddUserToGroup
+          - cognito-idp:AdminCreateUser
+          - cognito-idp:AdminDeleteUser
+          - cognito-idp:AdminDeleteUserAttributes
+          - cognito-idp:AdminGetUser
+          - cognito-idp:AdminListGroupsForUser
+          - cognito-idp:AdminRemoveUserFromGroup
+          - cognito-idp:AdminSetUserPassword
+          - cognito-idp:AdminUpdateUserAttributes
+          - cognito-idp:CreateGroup
+          - cognito-idp:ListUsersInGroup
+          Resource:
+          - Fn::If:
+            - CreateCognito
+            - Fn::GetAtt:
+              - UserPool
+              - Arn
+            - Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
+      Environment:
+        Variables:
+          COGNITO_REGION:
+            Ref: AWS::Region
+          COGNITO_USER_POOL_ID:
+            Fn::If:
+            - CreateCognito
+            - Ref: UserPool
+            - Ref: ExistingCognitoUserPoolId
+      Events:
+        AdminAccountList:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/admin-users
+            Method: GET
+        AdminAccountCreate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/admin-users
+            Method: POST
+        AdminAccountUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/admin-users/{id}
+            Method: PUT
+        AdminAccountDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/admin/admin-users/{id}
+            Method: DELETE
+    Metadata:
+      SamResourceId: AdminAccountsFunction
+  BillingPortalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: billing-portal
+      CodeUri: BillingPortalFunction
+      Handler: dist/handler.handler
+      Environment:
+        Variables:
+          STRIPE_SECRET_KEY:
+            Ref: StripeSecretKey
+          APP_BASE_URL:
+            Ref: AppBaseUrl
+          STRIPE_BILLING_PORTAL_CONFIGURATION_ID:
+            Ref: StripeBillingPortalConfigurationId
+      Events:
+        BillingPortalSessionCreate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/billing-portal/session
+            Method: POST
+        SubscriptionCheckoutSessionCreate:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/subscriptions/checkout-session
+            Method: POST
+        SubscriptionCurrentDelete:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /v1/subscriptions/current
+            Method: DELETE
+    Metadata:
+      SamResourceId: BillingPortalFunction
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -159,7 +492,7 @@ Outputs:
       Fn::If:
       - CreateCognito
       - Ref: UserPool
-      - ''
+      - Ref: ExistingCognitoUserPoolId
   UserPoolClientId:
     Value:
       Fn::If:
