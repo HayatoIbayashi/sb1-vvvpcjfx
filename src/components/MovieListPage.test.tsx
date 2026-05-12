@@ -117,6 +117,7 @@ describe('MovieListPage', () => {
 
     expect(screen.getByText('Documentary')).toBeInTheDocument();
     expect(screen.getByText('Member Movie')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '購入済み一覧' })).toHaveAttribute('href', '/library');
   });
 
   it('opens the movie detail page when a recommendation card is clicked', async () => {
