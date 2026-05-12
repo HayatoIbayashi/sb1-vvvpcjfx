@@ -406,6 +406,11 @@ export default function MovieListPage() {
                 <Link to="/" className="text-white hover:text-gray-300">
                   ホーム
                 </Link>
+                {isAuthenticated && (
+                  <Link to="/library" className="text-gray-300 hover:text-white">
+                    購入済み一覧
+                  </Link>
+                )}
               </nav>
               <Link
                 to={subscriptionPath}

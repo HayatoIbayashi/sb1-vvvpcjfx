@@ -13,6 +13,7 @@ import SubscriptionCompletionPage from './components/SubscriptionCompletionPage'
 import AccountSettingsPage from './components/AccountSettingsPage';
 import SearchResultsPage from './components/SearchResultsPage';
 import WatchlistPage from './components/WatchlistPage';
+import LibraryPage from './components/LibraryPage';
 import { ScrollToTop } from './components/common/ScrollToTop';
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
         <Route path="/subscription" element={<SubscriptionPage />} />
         <Route path="/account" element={<AccountSettingsPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
+        <Route path="/library" element={<LibraryPage />} />
       </Routes>
     </Router>
   );

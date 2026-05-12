@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Crown, Heart, Play } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Heart, Play } from 'lucide-react';
 import type { Database } from '../lib/types';
 import { Header } from './common/Header';
 import { MOCK_MOVIES } from '../mockData';
 import { getLocalMockMovie } from '../lib/mockMovieResolver';
 import { useAuthStatus } from '../lib/authBridge';
-import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
-import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
 import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
 import {
   canAccessMovie,
   getMovieAccessBadgeClass,
   getMovieAccessLabel,
+  getMovieBuyPrice,
+  getMovieCurrency,
   getMovieAccessSummary,
   getMovieAccessTier,
 } from '../lib/movieAccess';
@@ -31,10 +32,6 @@ function MovieDetailPage() {
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
-  const subscriptionPath = useMemo(
-    () => buildSubscriptionPath(getReturnToFromLocation(location)),
-    [location],
-  );
   const testDetailId = useMemo(
     () => new URLSearchParams(location.search).get('testDetailId'),
     [location.search],
@@ -52,6 +49,8 @@ function MovieDetailPage() {
   const [movie, setMovie] = useState<Movie | null>(null);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
+  const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
+  const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +113,55 @@ function MovieDetailPage() {
     };
   }, [api, isAuthenticated, movieId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPurchaseStatus = async () => {
+      if (!isAuthenticated || !movie?.id) {
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+          setIsPurchaseLoading(false);
+        }
+        return;
+      }
+
+      const accessTier = getMovieAccessTier(movie);
+      const requiresPurchaseCheck = accessTier === 'purchase' || accessTier === 'subscription_or_purchase';
+      if (!requiresPurchaseCheck) {
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+          setIsPurchaseLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setIsPurchaseLoading(true);
+      }
+
+      try {
+        const result = await api.getPurchases({ movieId: movie.id, status: 'completed', limit: 1 });
+        if (!cancelled) {
+          setHasPurchasedMovie(result.items.length > 0);
+        }
+      } catch (error) {
+        console.error('Error fetching purchase status:', error);
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsPurchaseLoading(false);
+        }
+      }
+    };
+
+    void loadPurchaseStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movie]);
+
   const handleToggleWatchlist = async () => {
     if (!movieId) return;
     if (!isAuthenticated) {
@@ -139,7 +187,9 @@ function MovieDetailPage() {
   };
 
   const movieAccessTier = movie ? getMovieAccessTier(movie) : 'member';
-  const canWatchMovie = movie ? canAccessMovie(accessState, movie) : false;
+  const canWatchMovie = movie ? canAccessMovie(accessState, movie, { hasPurchased: hasPurchasedMovie }) : false;
+  const buyPrice = movie ? getMovieBuyPrice(movie) : 0;
+  const currency = movie ? getMovieCurrency(movie) : 'JPY';
   const displayTitle = testDetailItem?.detail.title ?? movie?.title ?? '';
   const displayDescription = testDetailItem?.detail.description ?? movie?.description ?? '';
   const displayReleaseDate = testDetailItem?.detail.releaseDate ?? movie?.release_date ?? '-';
@@ -147,7 +197,7 @@ function MovieDetailPage() {
   const displayGenreSummary = getMovieGenreSummary(movie);
   const displayPrimaryGenre = getPrimaryMovieGenre(movie);
   const testDetailNote = testDetailItem?.detail.note ?? null;
-  const isAccessStatePending = isAuthenticated && isMembershipLoading;
+  const isAccessStatePending = isAuthenticated && (isMembershipLoading || isPurchaseLoading);
 
   const renderPrimaryActions = () => {
     if (isAccessStatePending) {
@@ -168,13 +218,16 @@ function MovieDetailPage() {
 
     if (isAuthenticated) {
       return (
-        <Link
-          to={subscriptionPath}
-          className="flex min-w-[240px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg transition hover:opacity-95"
+        <div
+          className="flex min-w-[240px] flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg"
         >
-          <Crown className="h-5 w-5" />
-          月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録
-        </Link>
+          <span>この動画は購入が必要です</span>
+          {buyPrice > 0 && (
+            <span className="text-sm font-medium text-white/90">
+              {currency === 'JPY' ? `¥${buyPrice.toLocaleString()}` : `${buyPrice.toLocaleString()} ${currency}`}
+            </span>
+          )}
+        </div>
       );
     }
 
@@ -205,8 +258,8 @@ function MovieDetailPage() {
   const accessDescription = canWatchMovie
     ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
     : accessState === 'guest'
-      ? 'この作品はログイン後にご案内しています。ログイン後、メンバーシップ登録で視聴できます。'
-      : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`;
+      ? 'この作品はログイン後、購入済みの場合に視聴できます。'
+      : 'この作品は購入済みの場合に視聴できます。';
 
   return (
     <div className="min-h-screen bg-gray-900">

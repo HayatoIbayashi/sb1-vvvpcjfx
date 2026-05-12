@@ -5,7 +5,13 @@ import useApiClient from '../../lib/useApiClient';
 import { MOCK_MOVIES } from '../../mockData';
 import type { Database } from '../../lib/types';
 import { getTestMovieThumbnail } from '../../lib/testMovieThumbnails';
-import { buildMoviePayload, createEmptyFormData, splitCsv } from './movieManagementForm';
+import {
+  buildMoviePayload,
+  createEmptyFormData,
+  createMovieFormData,
+  splitCsv,
+  type MovieFormData,
+} from './movieManagementForm';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -20,7 +26,7 @@ export default function MovieManagementPage() {
   const [query, setQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-  const [formData, setFormData] = useState<Partial<Movie>>(createEmptyFormData());
+  const [formData, setFormData] = useState<MovieFormData>(createEmptyFormData());
 
   useEffect(() => {
     let cancelled = false;
@@ -85,17 +91,7 @@ export default function MovieManagementPage() {
   const openEditModal = (movie: Movie) => {
     setError(null);
     setSelectedMovie(movie);
-    setFormData({
-      title: movie.title,
-      description: movie.description || '',
-      thumbnail: movie.thumbnail || '',
-      thumbnail_top: movie.thumbnail_top || '',
-      thumbnail_detail: movie.thumbnail_detail || '',
-      release_date: movie.release_date || '',
-      duration: movie.duration || '',
-      genre: movie.genre || [],
-      cast: movie.cast || [],
-    });
+    setFormData(createMovieFormData(movie));
     setIsModalOpen(true);
   };
 
@@ -127,6 +123,10 @@ export default function MovieManagementPage() {
         release_year: null,
         price: 0,
         rental_price: 0,
+        access_mode: 'public',
+        buy_price: 0,
+        currency: 'JPY',
+        stripe_price_id_one_time: null,
         genre: formData.genre || [],
         cast: formData.cast || [],
         created_at: new Date().toISOString(),
@@ -375,6 +375,33 @@ export default function MovieManagementPage() {
                 </div>
                 <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
                   作品はメンバーシップ見放題として公開されます。
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-2">販売方式</label>
+                  <select
+                    value={formData.accessTier || 'public'}
+                    onChange={(e) => setFormData({ ...formData, accessTier: e.target.value as typeof formData.accessTier })}
+                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                  >
+                    <option value="public">無料公開</option>
+                    <option value="purchase">単品購入</option>
+                    <option value="subscription">サブスク用</option>
+                    <option value="subscription_or_purchase">サブスク/単品</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-2">単品価格</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.buyPrice || formData.buy_price || 0}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      buyPrice: Number(e.target.value || 0),
+                      buy_price: Number(e.target.value || 0),
+                    })}
+                    className="w-full px-4 py-2 bg-dark-light text-white rounded"
+                  />
                 </div>
               </div>
             </div>

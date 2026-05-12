@@ -59,6 +59,10 @@ export interface Database {
           updated_at: string
           price: number
           rental_price: number
+          access_mode: 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase'
+          buy_price: number
+          currency: string
+          stripe_price_id_one_time: string | null
         }
         Insert: {
           id?: string
@@ -77,6 +81,10 @@ export interface Database {
           updated_at?: string
           price: number
           rental_price: number
+          access_mode?: 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase'
+          buy_price?: number
+          currency?: string
+          stripe_price_id_one_time?: string | null
         }
         Update: {
           id?: string
@@ -95,6 +103,10 @@ export interface Database {
           updated_at?: string
           price?: number
           rental_price?: number
+          access_mode?: 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase'
+          buy_price?: number
+          currency?: string
+          stripe_price_id_one_time?: string | null
         }
       }
       purchases: {
@@ -102,25 +114,43 @@ export interface Database {
           id: string
           user_id: string
           movie_id: string
+          status: 'pending' | 'completed' | 'failed' | 'canceled'
+          amount_total: number
+          currency: string
+          payment_method: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          purchased_at: string | null
           created_at: string
-          payment_intent_id: string
-          status: 'pending' | 'completed' | 'failed'
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           movie_id: string
+          status?: 'pending' | 'completed' | 'failed' | 'canceled'
+          amount_total?: number
+          currency?: string
+          payment_method?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          purchased_at?: string | null
           created_at?: string
-          payment_intent_id: string
-          status?: 'pending' | 'completed' | 'failed'
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           movie_id?: string
+          status?: 'pending' | 'completed' | 'failed' | 'canceled'
+          amount_total?: number
+          currency?: string
+          payment_method?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          purchased_at?: string | null
           created_at?: string
-          payment_intent_id?: string
-          status?: 'pending' | 'completed' | 'failed'
+          updated_at?: string
         }
       }
       watchlist: {

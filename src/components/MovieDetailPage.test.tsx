@@ -10,6 +10,7 @@ const { mockApi, mockAuthStatus } = vi.hoisted(() => ({
     addToWatchlist: vi.fn(),
     removeFromWatchlist: vi.fn(),
     getSubscriptionCurrent: vi.fn(),
+    getPurchases: vi.fn(),
   },
   mockAuthStatus: {
     isAuthenticated: true,
@@ -43,6 +44,7 @@ describe('MovieDetailPage', () => {
     mockApi.addToWatchlist.mockReset();
     mockApi.removeFromWatchlist.mockReset();
     mockApi.getSubscriptionCurrent.mockReset();
+    mockApi.getPurchases.mockReset();
 
     mockApi.getMovie.mockResolvedValue({
       id: 'movie-1',
@@ -59,6 +61,10 @@ describe('MovieDetailPage', () => {
       release_year: null,
       price: 1,
       rental_price: 1,
+      access_mode: 'purchase_only',
+      buy_price: 1000,
+      currency: 'JPY',
+      stripe_price_id_one_time: null,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -70,6 +76,7 @@ describe('MovieDetailPage', () => {
       active: false,
       subscription: null,
     });
+    mockApi.getPurchases.mockResolvedValue({ items: [] });
   });
 
   it('adds the movie to watchlist', async () => {
@@ -95,26 +102,9 @@ describe('MovieDetailPage', () => {
     expect(await screen.findByRole('button', { name: 'マイリストから外す' })).toBeInTheDocument();
   });
 
-  it('shows the watch button for active members on member-only movies', async () => {
+  it('shows the watch button for purchased movies', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
-    mockApi.getSubscriptionCurrent.mockResolvedValue({
-      active: true,
-      subscription: {
-        id: 'subscription-1',
-        user_id: 'user-1',
-        plan_id: 'plan-membership',
-        status: 'active',
-        started_at: '2026-04-01T00:00:00.000Z',
-        renews_at: '2026-05-01T00:00:00.000Z',
-        canceled_at: null,
-        ended_at: null,
-        created_at: '2026-04-01T00:00:00.000Z',
-        updated_at: '2026-04-01T00:00:00.000Z',
-        plan_name: 'メンバーシップ',
-        price_monthly: 1000,
-        plan_is_active: true,
-      },
-    });
+    mockApi.getPurchases.mockResolvedValue({ items: [{ id: 'purchase-1', movie_id: 'movie-1', status: 'completed' }] });
 
     render(
       <MemoryRouter initialEntries={['/movies/movie-1']}>
@@ -127,7 +117,7 @@ describe('MovieDetailPage', () => {
     expect(await screen.findByRole('button', { name: '今すぐ視聴する' })).toBeInTheDocument();
   });
 
-  it('shows the membership link for logged-in users on membership videos', async () => {
+  it('shows the purchase guidance for logged-in users on unpurchased videos', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
     mockApi.getMovie.mockResolvedValue({
       id: 'movie-1',
@@ -144,6 +134,10 @@ describe('MovieDetailPage', () => {
       release_year: null,
       price: 1,
       rental_price: 1,
+      access_mode: 'purchase_only',
+      buy_price: 1000,
+      currency: 'JPY',
+      stripe_price_id_one_time: null,
       is_published: true,
       publish_at: '2026-04-01T00:00:00.000Z',
       unpublish_at: null,
@@ -160,10 +154,10 @@ describe('MovieDetailPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('link', { name: /月額 1,000 円で登録/ })).toBeInTheDocument();
+    expect(await screen.findByText('この動画は購入が必要です')).toBeInTheDocument();
   });
 
-  it('preserves the current movie detail path when linking to subscription', async () => {
+  it('does not show the watch button for unpurchased purchase-only movies', async () => {
     mockApi.getWatchlist.mockResolvedValue({ items: [] });
 
     render(
@@ -174,11 +168,8 @@ describe('MovieDetailPage', () => {
       </MemoryRouter>,
     );
 
-    const subscriptionLink = await screen.findByRole('link', { name: /月額 1,000 円で登録/ });
-    expect(subscriptionLink).toHaveAttribute(
-      'href',
-      '/subscription?returnTo=%2Fmovies%2Fmovie-1',
-    );
+    expect(await screen.findByText('この動画は購入が必要です')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '今すぐ視聴する' })).not.toBeInTheDocument();
   });
 
   it('shows the genre on the detail header and hides the membership checking copy while loading', async () => {

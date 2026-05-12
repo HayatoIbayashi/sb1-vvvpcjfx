@@ -243,6 +243,19 @@ describe('apiClient movies', () => {
     );
   });
 
+  it('builds purchases request with filters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [] }));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const client = createApiClient({ baseUrl: '/api' });
+    await client.getPurchases({ movieId: 'movie-1', status: 'completed', limit: 1 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/purchases?movieId=movie-1&status=completed&limit=1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('builds billing portal session request with auth override', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ url: 'https://billing.stripe.com/session/test' }));
     globalThis.fetch = fetchMock as typeof globalThis.fetch;

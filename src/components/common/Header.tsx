@@ -1,17 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Search, LogOut, LogIn } from 'lucide-react';
+import { LogIn, LogOut, Search } from 'lucide-react';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../../lib/subscriptionNavigation';
 
-/**
- * アプリケーションのヘッダーコンポーネント
- * 
- * @param isAuthenticated - ユーザーが認証済みかどうか
- * @param onLogin - ログインボタンクリック時のハンドラ
- * @param onLogout - ログアウトボタンクリック時のハンドラ
- * @param searchQuery - 検索クエリの現在の値
- * @param onSearchChange - 検索クエリ変更時のハンドラ
- * @param hideMembershipLink - メンバーシップリンクを非表示にするかどうか
- */
 interface HeaderProps {
   isAuthenticated: boolean;
   onLogin: () => void;
@@ -27,55 +17,59 @@ export function Header({
   onLogout,
   searchQuery,
   onSearchChange,
-  hideMembershipLink = false
+  hideMembershipLink = false,
 }: HeaderProps) {
-  // ナビゲーション用フック
   const location = useLocation();
   const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
   return (
-    <header className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm z-50 border-b border-gray-800">
+    <header className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center">
-          {/* 左側: ロゴとナビゲーションリンク */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
-            {/* ロゴ (クリックでホームに戻る) */}
-            <nav className="hidden md:flex space-x-6">
+            <nav className="hidden space-x-6 md:flex">
               <Link to="/" className="text-white hover:text-gray-300">
                 ホーム
               </Link>
+              {isAuthenticated && (
+                <Link to="/library" className="text-gray-300 hover:text-white">
+                  購入済み一覧
+                </Link>
+              )}
             </nav>
             {!hideMembershipLink && (
               <Link
                 to={subscriptionPath}
-                className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition hidden md:block"
+                className="hidden rounded-lg bg-primary px-4 py-2 font-semibold text-white transition hover:bg-primary/90 md:block"
               >
                 メンバーシップ
               </Link>
             )}
           </div>
 
-          {/* 右側: 検索と認証ボタン */}
           <div className="flex items-center space-x-8">
-            {/* 検索バー (デスクトップのみ表示) */}
             <div className="relative hidden md:block">
               <input
                 type="text"
                 placeholder="作品を検索..."
                 value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="w-80 md:w-96 px-4 py-2 pl-10 bg-gray-800 text-white rounded-full border border-gray-700 focus:outline-none focus:border-gray-500"
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
               />
-              <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
-            {/* 認証ボタン (ログイン/ログアウト) */}
             {isAuthenticated ? (
               <div className="flex items-center gap-4">
-                <Link to="/account" className="text-gray-300 hover:text-white px-3 py-1.5 rounded-md hover:bg-gray-800/60">設定</Link>
+                <Link
+                  to="/account"
+                  className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
+                >
+                  アカウント
+                </Link>
                 <button
                   onClick={onLogout}
-                  className="text-gray-300 hover:text-white flex items-center px-3 py-1.5 rounded-md hover:bg-gray-800/60"
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
                 >
                   <LogOut className="h-5 w-5" />
                   <span>ログアウト</span>
@@ -84,7 +78,7 @@ export function Header({
             ) : (
               <button
                 onClick={onLogin}
-                className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-gray-800/60"
+                className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
               >
                 <LogIn className="h-5 w-5" />
                 <span>ログイン</span>

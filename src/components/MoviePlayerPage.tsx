@@ -8,10 +8,9 @@ import useApiClient from '../lib/useApiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { MOCK_MOVIES } from '../mockData';
 import { getLocalMockMovie } from '../lib/mockMovieResolver';
-import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
-import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
-import { canAccessMovie } from '../lib/movieAccess';
+import { canAccessMovie, getMovieAccessTier, getMovieBuyPrice, getMovieCurrency } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -24,7 +23,6 @@ export default function MoviePlayerPage() {
   const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
-  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
   const shouldAutoplay = useMemo(
     () => new URLSearchParams(location.search).get('autoplay') === '1',
     [location.search],
@@ -48,9 +46,11 @@ export default function MoviePlayerPage() {
   const [showControls, setShowControls] = useState(true);
   const [controlsTimeout, setControlsTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [duration, setDuration] = useState(0);
+  const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
+  const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
   const hasRecordedWatchHistoryRef = useRef(false);
 
-  const canWatchMovie = movie ? canAccessMovie(accessState, movie) : false;
+  const canWatchMovie = movie ? canAccessMovie(accessState, movie, { hasPurchased: hasPurchasedMovie }) : false;
   const videoUrls = {
     '1080p': storageUrl,
     '720p': storageUrl,
@@ -143,6 +143,55 @@ export default function MoviePlayerPage() {
     void fetchMovie();
     void fetchStorageUrl();
   }, [fetchMovie, fetchStorageUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPurchaseStatus = async () => {
+      if (!isAuthenticated || !movie?.id) {
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+          setIsPurchaseLoading(false);
+        }
+        return;
+      }
+
+      const accessTier = getMovieAccessTier(movie);
+      const requiresPurchaseCheck = accessTier === 'purchase' || accessTier === 'subscription_or_purchase';
+      if (!requiresPurchaseCheck) {
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+          setIsPurchaseLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setIsPurchaseLoading(true);
+      }
+
+      try {
+        const result = await api.getPurchases({ movieId: movie.id, status: 'completed', limit: 1 });
+        if (!cancelled) {
+          setHasPurchasedMovie(result.items.length > 0);
+        }
+      } catch (purchaseError) {
+        console.error('Error fetching purchase status:', purchaseError);
+        if (!cancelled) {
+          setHasPurchasedMovie(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsPurchaseLoading(false);
+        }
+      }
+    };
+
+    void loadPurchaseStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movie]);
 
   useEffect(() => {
     hasRecordedWatchHistoryRef.current = false;
@@ -267,7 +316,7 @@ export default function MoviePlayerPage() {
 
   const isPlayerPreparing = !!movie && canWatchMovie && !storageUrl && !error;
 
-  if (loading || (isAuthenticated && isMembershipLoading) || isPlayerPreparing) {
+  if (loading || (isAuthenticated && (isMembershipLoading || isPurchaseLoading)) || isPlayerPreparing) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900">
         <div className="text-center text-white">
@@ -313,6 +362,8 @@ export default function MoviePlayerPage() {
 
   if (!canWatchMovie) {
     const title = movie.title ? `「${movie.title}」の視聴には` : '視聴には';
+    const buyPrice = getMovieBuyPrice(movie);
+    const currency = getMovieCurrency(movie);
 
     return (
       <div className="min-h-screen bg-gray-900 text-white">
@@ -331,8 +382,8 @@ export default function MoviePlayerPage() {
             <h2 className="mt-4 text-3xl font-bold text-white">{title}条件があります</h2>
             <p className="mt-4 text-base leading-7 text-amber-50/90">
               {accessState === 'guest'
-                ? 'この作品はログイン後にご案内しています。まずログインしてください。'
-                : `この作品はメンバーシップ登録後に視聴できます。月額 ${MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録するとそのまま再生できます。`}
+                ? 'この作品はログイン後、購入済みの場合に視聴できます。まずログインしてください。'
+                : 'この作品は購入済みの場合に視聴できます。'}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -352,12 +403,16 @@ export default function MoviePlayerPage() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => navigate(subscriptionPath)}
-                  className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-3 font-semibold text-white transition hover:opacity-95"
+                <div
+                  className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-3 font-semibold text-white"
                 >
-                  月額 {MEMBERSHIP_MONTHLY_PRICE.toLocaleString()} 円で登録
-                </button>
+                  <span>この動画は購入が必要です</span>
+                  {buyPrice > 0 && (
+                    <span className="ml-3 text-sm font-medium text-white/90">
+                      {currency === 'JPY' ? `¥${buyPrice.toLocaleString()}` : `${buyPrice.toLocaleString()} ${currency}`}
+                    </span>
+                  )}
+                </div>
               )}
               <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-gray-200">
                 {getPrimaryMovieGenre(movie)}

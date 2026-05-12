@@ -5,6 +5,7 @@ import { getMovieAccessTier, type MovieAccessTier, toMovieAccessPayload } from '
 type Movie = Database['public']['Tables']['movies']['Row'];
 export type MovieFormData = Partial<Movie> & {
   accessTier: MovieAccessTier;
+  buyPrice: number;
   videoFile: File | null;
 };
 
@@ -44,6 +45,7 @@ export function createEmptyFormData(): MovieFormData {
     genre: [],
     cast: [],
     accessTier: 'public',
+    buyPrice: 0,
     videoFile: null,
   };
 }
@@ -60,6 +62,7 @@ export function createMovieFormData(movie: Movie): MovieFormData {
     genre: movie.genre || [],
     cast: movie.cast || [],
     accessTier: getMovieAccessTier(movie),
+    buyPrice: Number(movie.buy_price || movie.price || 0),
     videoFile: null,
   };
 }
@@ -82,6 +85,6 @@ export function buildMoviePayload(formData: MovieFormData): AdminMovieWritePaylo
     duration: normalizeNullableText(formData.duration),
     genre: formData.genre ?? [],
     cast: formData.cast ?? [],
-    ...toMovieAccessPayload(formData.accessTier),
+    ...toMovieAccessPayload(formData.accessTier, Number(formData.buyPrice || formData.buy_price || 0)),
   };
 }

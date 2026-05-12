@@ -8,6 +8,7 @@ const { mockApi, mockAuthStatus, mockLinkToStorageFile, mockReactPlayer } = vi.h
     getMovie: vi.fn(),
     addWatchHistory: vi.fn(),
     getSubscriptionCurrent: vi.fn(),
+    getPurchases: vi.fn(),
   },
   mockAuthStatus: {
     isAuthenticated: true,
@@ -51,6 +52,7 @@ describe('MoviePlayerPage', () => {
     mockApi.getMovie.mockReset();
     mockApi.addWatchHistory.mockReset();
     mockApi.getSubscriptionCurrent.mockReset();
+    mockApi.getPurchases.mockReset();
     mockLinkToStorageFile.mockReset();
     mockReactPlayer.mockReset();
 
@@ -104,6 +106,7 @@ describe('MoviePlayerPage', () => {
         plan_is_active: true,
       },
     });
+    mockApi.getPurchases.mockResolvedValue({ items: [] });
     mockLinkToStorageFile.mockResolvedValue('https://example.com/movie.mp4');
   });
 
@@ -213,7 +216,7 @@ describe('MoviePlayerPage', () => {
     });
   });
 
-  it('shows membership CTA for registered users on member-only movies', async () => {
+  it('shows purchase guidance for registered users on unpurchased movies', async () => {
     mockApi.getSubscriptionCurrent.mockResolvedValue({
       active: false,
       subscription: null,
@@ -227,8 +230,6 @@ describe('MoviePlayerPage', () => {
       </MemoryRouter>,
     );
 
-    expect(
-      await screen.findByRole('button', { name: '月額 1,000 円で登録' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('この動画は購入が必要です')).toBeInTheDocument();
   });
 });
