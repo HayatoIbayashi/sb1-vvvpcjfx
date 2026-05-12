@@ -27,6 +27,10 @@ const MOVIE_COLUMNS = [
   'release_year',
   'price',
   'rental_price',
+  'access_mode',
+  'buy_price',
+  'currency',
+  'stripe_price_id_one_time',
   'view_window_days',
   'created_at',
   'updated_at',
@@ -211,6 +215,10 @@ type AdminMovieWriteInput = {
   release_year: number | null;
   price: number;
   rental_price: number;
+  access_mode: 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase';
+  buy_price: number;
+  currency: string;
+  stripe_price_id_one_time: string | null;
   is_published: boolean;
   publish_at: string | null;
   unpublish_at: string | null;
@@ -311,6 +319,19 @@ function parseStringArray(value: unknown) {
   throw new ValidationError('genre/cast must be string arrays');
 }
 
+function parseAccessMode(value: unknown): AdminMovieWriteInput['access_mode'] {
+  const normalized = normalizeString(value) ?? 'public';
+  if (
+    normalized === 'public' ||
+    normalized === 'purchase_only' ||
+    normalized === 'subscription_only' ||
+    normalized === 'subscription_or_purchase'
+  ) {
+    return normalized;
+  }
+  throw new ValidationError('access_mode is invalid');
+}
+
 function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminMovieWriteInput {
   if (!body) throw new ValidationError('Invalid JSON body');
 
@@ -330,6 +351,10 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     release_year: null,
     price: parseNonNegativeInteger(body.price, 'price', 0),
     rental_price: parseNonNegativeInteger(body.rental_price, 'rental_price', 0),
+    access_mode: parseAccessMode(body.access_mode),
+    buy_price: parseNonNegativeInteger(body.buy_price, 'buy_price', 0),
+    currency: normalizeString(body.currency) ?? 'JPY',
+    stripe_price_id_one_time: normalizeString(body.stripe_price_id_one_time),
     is_published: typeof body.is_published === 'boolean' ? body.is_published : false,
     publish_at: normalizeString(body.publish_at),
     unpublish_at: normalizeString(body.unpublish_at),
@@ -859,13 +884,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           SELECT
             p.id,
             p.movie_id,
-            p.payment_method,
-            p.amount_total,
-            p.amount_cash,
-            p.amount_points,
             p.status,
-            p.expires_at,
+            p.amount_total,
+            p.currency,
+            p.payment_method,
+            p.stripe_checkout_session_id,
+            p.stripe_payment_intent_id,
+            p.purchased_at,
             p.created_at,
+            p.updated_at,
             m.title
           FROM purchases p
           JOIN movies m ON m.id = p.movie_id
@@ -879,6 +906,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       const status = event.queryStringParameters?.status?.trim();
+      const movieId = event.queryStringParameters?.movieId?.trim();
       const limit = parseLimit(event.queryStringParameters?.limit);
       const offset = parseOffset(event.queryStringParameters?.offset);
       const params: Array<string | number> = [userId];
@@ -888,18 +916,24 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         params.push(status);
         whereParts.push(`p.status = $${params.length}`);
       }
+      if (movieId) {
+        params.push(movieId);
+        whereParts.push(`p.movie_id = $${params.length}`);
+      }
 
       let sql = `
         SELECT
           p.id,
           p.movie_id,
-          p.payment_method,
-          p.amount_total,
-          p.amount_cash,
-          p.amount_points,
           p.status,
-          p.expires_at,
+          p.amount_total,
+          p.currency,
+          p.payment_method,
+          p.stripe_checkout_session_id,
+          p.stripe_payment_intent_id,
+          p.purchased_at,
           p.created_at,
+          p.updated_at,
           m.title
         FROM purchases p
         JOIN movies m ON m.id = p.movie_id
@@ -1500,12 +1534,16 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
               release_year,
               price,
               rental_price,
+              access_mode,
+              buy_price,
+              currency,
+              stripe_price_id_one_time,
               is_published,
               publish_at,
               unpublish_at,
               view_window_days
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
             )
             RETURNING ${MOVIE_COLUMNS.join(', ')}
           `;
@@ -1523,6 +1561,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.release_year,
             input.price,
             input.rental_price,
+            input.access_mode,
+            input.buy_price,
+            input.currency,
+            input.stripe_price_id_one_time,
             input.is_published,
             input.publish_at,
             input.unpublish_at,
@@ -1556,10 +1598,14 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
               release_year = $12,
               price = $13,
               rental_price = $14,
-              is_published = $15,
-              publish_at = $16,
-              unpublish_at = $17,
-              view_window_days = $18,
+              access_mode = $15,
+              buy_price = $16,
+              currency = $17,
+              stripe_price_id_one_time = $18,
+              is_published = $19,
+              publish_at = $20,
+              unpublish_at = $21,
+              view_window_days = $22,
               updated_at = now()
             WHERE id = $1
             RETURNING ${MOVIE_COLUMNS.join(', ')}
@@ -1579,6 +1625,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.release_year,
             input.price,
             input.rental_price,
+            input.access_mode,
+            input.buy_price,
+            input.currency,
+            input.stripe_price_id_one_time,
             input.is_published,
             input.publish_at,
             input.unpublish_at,

@@ -150,14 +150,14 @@ export function VideoManagement() {
       }
 
       if (selectedVideo) {
-        const { accessTier, videoFile, ...nextFields } = formData;
+        const { accessTier, videoFile, buyPrice, ...nextFields } = formData;
         void videoFile;
         setVideos((current) => current.map((video) => (
           video.id === selectedVideo.id
             ? {
                 ...video,
                 ...nextFields,
-                ...toMovieAccessPayload(accessTier),
+                ...toMovieAccessPayload(accessTier, buyPrice),
                 updated_at: new Date().toISOString(),
               }
             : video
@@ -174,7 +174,7 @@ export function VideoManagement() {
           duration: formData.duration || null,
           director: null,
           release_year: null,
-          ...toMovieAccessPayload(formData.accessTier),
+          ...toMovieAccessPayload(formData.accessTier, formData.buyPrice),
           genre: formData.genre || [],
           cast: formData.cast || [],
           created_at: new Date().toISOString(),
@@ -387,7 +387,24 @@ export function VideoManagement() {
                   >
                     <option value="public">一般公開</option>
                     <option value="member">メンバーシップ登録で視聴</option>
+                    <option value="purchase">単品購入</option>
+                    <option value="subscription">サブスク用</option>
+                    <option value="subscription_or_purchase">サブスク/単品</option>
                   </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-gray-300">単品価格</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.buyPrice || formData.buy_price || 0}
+                    onChange={(event) => updateFormData({
+                      buyPrice: Number(event.target.value || 0),
+                      buy_price: Number(event.target.value || 0),
+                    })}
+                    aria-label="単品価格"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
                 </div>
               </div>
 

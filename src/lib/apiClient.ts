@@ -72,6 +72,11 @@ export type SubscriptionCheckoutSessionResponse = {
   sessionId: string;
 };
 
+export type Purchase = Database['public']['Tables']['purchases']['Row'] & {
+  title?: string | null;
+  thumbnail?: string | null;
+};
+
 export type WatchHistoryItem = {
   id: string;
   movie_id: string;
@@ -100,6 +105,10 @@ export type AdminMovieWritePayload = {
   cast?: string[] | null;
   price?: number;
   rental_price?: number;
+  access_mode?: Movie['access_mode'];
+  buy_price?: number;
+  currency?: string;
+  stripe_price_id_one_time?: string | null;
   is_published?: boolean;
   publish_at?: string | null;
   unpublish_at?: string | null;
@@ -340,6 +349,15 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
         '/watch-history',
         { method: 'POST', body: JSON.stringify({ movieId }) },
       );
+    },
+    getPurchases(query?: { movieId?: string; status?: string; limit?: number; offset?: number }) {
+      const qs = new URLSearchParams();
+      if (query?.movieId) qs.set('movieId', query.movieId);
+      if (query?.status) qs.set('status', query.status);
+      if (query?.limit != null) qs.set('limit', String(query.limit));
+      if (query?.offset != null) qs.set('offset', String(query.offset));
+      const suffix = qs.toString();
+      return request<{ items: Purchase[] }>(`/purchases${suffix ? `?${suffix}` : ''}`, { method: 'GET' });
     },
     async createBillingPortalSession(
       payload: BillingPortalSessionPayload,

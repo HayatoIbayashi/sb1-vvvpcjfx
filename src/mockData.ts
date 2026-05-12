@@ -24,7 +24,11 @@ export const MOCK_MOVIES: Movie[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     price: 0,
-    rental_price: 0
+    rental_price: 0,
+    access_mode: 'public',
+    buy_price: 0,
+    currency: 'JPY',
+    stripe_price_id_one_time: null,
   },
   {
     id: '2',
@@ -46,7 +50,11 @@ export const MOCK_MOVIES: Movie[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     price: 1,
-    rental_price: 0
+    rental_price: 0,
+    access_mode: 'purchase_only',
+    buy_price: 1000,
+    currency: 'JPY',
+    stripe_price_id_one_time: null,
   },
   {
     id: '3',
@@ -69,6 +77,10 @@ export const MOCK_MOVIES: Movie[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     price: 1,
-    rental_price: 1
+    rental_price: 1,
+    access_mode: 'purchase_only',
+    buy_price: 1000,
+    currency: 'JPY',
+    stripe_price_id_one_time: null,
   }
 ];
