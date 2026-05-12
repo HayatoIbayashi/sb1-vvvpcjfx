@@ -1,6 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
+import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { LogIn, LogOut, Search } from 'lucide-react';
-import { buildSubscriptionPath, getReturnToFromLocation } from '../../lib/subscriptionNavigation';
 
 interface HeaderProps {
   isAuthenticated: boolean;
@@ -8,7 +8,7 @@ interface HeaderProps {
   onLogout: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  hideMembershipLink?: boolean;
+  onSearchSubmit?: () => void;
 }
 
 export function Header({
@@ -17,10 +17,12 @@ export function Header({
   onLogout,
   searchQuery,
   onSearchChange,
-  hideMembershipLink = false,
+  onSearchSubmit,
 }: HeaderProps) {
-  const location = useLocation();
-  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSearchSubmit?.();
+  };
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
@@ -31,41 +33,40 @@ export function Header({
               <Link to="/" className="text-white hover:text-gray-300">
                 ホーム
               </Link>
-              {isAuthenticated && (
-                <Link to="/library" className="text-gray-300 hover:text-white">
-                  購入済み一覧
-                </Link>
-              )}
             </nav>
-            {!hideMembershipLink && (
-              <Link
-                to={subscriptionPath}
-                className="hidden rounded-lg bg-primary px-4 py-2 font-semibold text-white transition hover:bg-primary/90 md:block"
-              >
-                メンバーシップ
-              </Link>
-            )}
           </div>
 
           <div className="flex items-center space-x-8">
-            <div className="relative hidden md:block">
+            <form className="relative hidden md:block" onSubmit={handleSubmit}>
               <input
                 type="text"
-                placeholder="作品を検索..."
+                placeholder="動画を検索..."
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
                 className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
               />
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            </div>
+              <button
+                type="submit"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                aria-label="検索"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </form>
 
             {isAuthenticated ? (
               <div className="flex items-center gap-4">
                 <Link
+                  to="/library"
+                  className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
+                >
+                  マイライブラリ
+                </Link>
+                <Link
                   to="/account"
                   className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
                 >
-                  アカウント
+                  アカウント設定
                 </Link>
                 <button
                   onClick={onLogout}

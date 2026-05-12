@@ -173,7 +173,6 @@ export default function SubscriptionPage() {
         onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}
-        hideMembershipLink={true}
       />
 
       <main className="container mx-auto px-4 py-8 pt-24">

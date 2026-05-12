@@ -118,7 +118,7 @@ describe('LibraryPage', () => {
 
     await screen.findByText('RE:BORN');
 
-    fireEvent.change(screen.getByPlaceholderText('作品を検索...'), {
+    fireEvent.change(screen.getByPlaceholderText('動画を検索...'), {
       target: { value: 'versus' },
     });
 

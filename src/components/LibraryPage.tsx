@@ -99,7 +99,7 @@ export default function LibraryPage() {
         />
         <main className="container mx-auto px-4 pb-12 pt-24">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
-            <h1 className="mb-4 text-2xl font-bold">購入済み一覧</h1>
+            <h1 className="mb-4 text-2xl font-bold">マイライブラリ</h1>
             <p className="mb-6 text-gray-300">購入済み作品を見るにはログインが必要です。</p>
             <button
               onClick={() => navigate('/login')}
@@ -126,7 +126,7 @@ export default function LibraryPage() {
       <main className="container mx-auto px-4 pb-12 pt-24">
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">購入済み一覧</h1>
+            <h1 className="text-2xl font-bold text-white">マイライブラリ</h1>
             <p className="mt-1 text-sm text-gray-400">
               購入済み作品を確認できます。表示中 {filteredPurchases.length} 件です。
             </p>

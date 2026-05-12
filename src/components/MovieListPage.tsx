@@ -1,12 +1,10 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
 import type { HomePageData, MovieListItem } from '../lib/apiClient';
 import { useAuthStatus } from '../lib/authBridge';
-import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import {
   getHomeMemberCatalogFallbackItems,
@@ -22,6 +20,7 @@ import {
   partitionMoviesByAccess,
 } from '../lib/movieAccess';
 import { MEMBERSHIP_MONTHLY_PRICE, type MembershipAccessState } from '../lib/useMembershipStatus';
+import { Header } from './common/Header';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 type DisplayMovie = Movie | MovieListItem;
@@ -83,7 +82,6 @@ function getMovieByLoopIndex<T extends DisplayMovie>(movies: T[], index: number)
 }
 
 export default function MovieListPage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const [movies, setMovies] = useState<MovieListItem[]>([]);
@@ -96,10 +94,8 @@ export default function MovieListPage() {
   );
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
-  const subscriptionPath = buildSubscriptionPath(getReturnToFromLocation(location));
 
-  const handleSearchSubmit = (event: FormEvent) => {
-    event.preventDefault();
+  const handleSearchSubmit = () => {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
     navigate(`/search?q=${encodeURIComponent(trimmed)}`);
@@ -398,75 +394,14 @@ export default function MovieListPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <header className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-8">
-              <nav className="hidden space-x-6 md:flex">
-                <Link to="/" className="text-white hover:text-gray-300">
-                  ホーム
-                </Link>
-                {isAuthenticated && (
-                  <Link to="/library" className="text-gray-300 hover:text-white">
-                    購入済み一覧
-                  </Link>
-                )}
-              </nav>
-              <Link
-                to={subscriptionPath}
-                className="hidden rounded-lg bg-primary px-4 py-2 font-semibold text-white transition hover:bg-primary/90 md:block"
-              >
-                メンバーシップ
-              </Link>
-            </div>
-
-            <div className="flex items-center space-x-8">
-              <form className="relative hidden md:block" onSubmit={handleSearchSubmit}>
-                <input
-                  type="text"
-                  placeholder="動画を検索..."
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
-                />
-                <button
-                  type="submit"
-                  className="absolute left-3 top-1/2 -translate-y-1/2 transform text-gray-400 hover:text-gray-200"
-                  aria-label="検索"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
-              </form>
-
-              {isAuthenticated ? (
-                <div className="flex items-center gap-4">
-                  <Link
-                    to="/account"
-                    className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
-                  >
-                    アカウント設定
-                  </Link>
-                  <button
-                    onClick={logoutAll}
-                    className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
-                  >
-                    <LogOut className="h-5 w-5" />
-                    <span>ログアウト</span>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => navigate('/login')}
-                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
-                >
-                  <LogIn className="h-5 w-5" />
-                  <span>ログイン</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header
+        isAuthenticated={isAuthenticated}
+        onLogin={() => navigate('/login')}
+        onLogout={logoutAll}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onSearchSubmit={handleSearchSubmit}
+      />
 
       <main className="container mx-auto px-4 pb-12 pt-24">
         {heroMovie && (
