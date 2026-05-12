@@ -258,6 +258,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/watch-history
             Method: POST
+        PurchasesGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/purchases
+            Method: GET
         SubscriptionCurrentGet:
           Type: HttpApi
           Properties:
