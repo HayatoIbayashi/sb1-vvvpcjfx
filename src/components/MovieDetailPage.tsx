@@ -11,7 +11,7 @@ import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
 import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
-import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import { getMovieGenreSummary } from '../lib/movieGenres';
 import {
   canAccessMovie,
   getMovieAccessLabel,
@@ -193,7 +193,9 @@ function MovieDetailPage() {
   const displayReleaseDate = testDetailItem?.detail.releaseDate ?? movie?.release_date ?? '-';
   const displayDuration = testDetailItem?.detail.duration ?? movie?.duration ?? '-';
   const displayGenreSummary = getMovieGenreSummary(movie);
-  const displayPrimaryGenre = getPrimaryMovieGenre(movie);
+  const displayCast = movie?.cast?.filter(Boolean).join('、') || '-';
+  const displayDirector = movie?.director?.trim() || '-';
+  const displayReleaseYear = movie?.release_year != null ? String(movie.release_year) : '-';
   const testDetailNote = testDetailItem?.detail.note ?? null;
   const isAccessStatePending = isAuthenticated && (isMembershipLoading || isPurchaseLoading);
   const requiresPurchase = movieAccessTier === 'purchase' || movieAccessTier === 'subscription_or_purchase';
@@ -295,11 +297,8 @@ function MovieDetailPage() {
               </div>
             </div>
             <div className="md:w-2/3">
-              <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="mb-4">
                 <h1 className="text-3xl font-bold text-white">{displayTitle}</h1>
-                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-1 text-sm font-semibold text-cyan-100">
-                  {displayPrimaryGenre}
-                </span>
               </div>
               <p className="mb-6 text-gray-300">{displayDescription}</p>
 
@@ -321,6 +320,18 @@ function MovieDetailPage() {
                 <div>
                   <h3 className="font-semibold text-gray-400">ジャンル</h3>
                   <p className="text-white">{displayGenreSummary}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">キャスト</h3>
+                  <p className="text-white">{displayCast}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">監督</h3>
+                  <p className="text-white">{displayDirector}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">制作年</h3>
+                  <p className="text-white">{displayReleaseYear}</p>
                 </div>
               </div>
 
