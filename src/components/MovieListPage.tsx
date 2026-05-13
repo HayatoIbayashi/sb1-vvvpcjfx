@@ -509,13 +509,15 @@ export default function MovieListPage() {
 
         {renderRecommendationSection()}
 
-        {desiredGenreSections.map((section) =>
-          renderRecommendationStyleSection(
+        {desiredGenreSections.map((section) => (
+          <div key={section.id}>
+            {renderRecommendationStyleSection(
             section.title,
             `${section.title}に設定した作品を表示しています。`,
             section.movies,
-          ),
-        )}
+            )}
+          </div>
+        ))}
 
         {accessState !== 'guest' &&
           homeMovieListTestSections.map((section) => (

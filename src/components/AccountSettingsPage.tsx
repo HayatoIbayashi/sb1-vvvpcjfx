@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Header } from './common/Header';
@@ -23,6 +23,7 @@ type Profile = {
 
 type RecommendationPreferences = RecommendationPreferencesPayload;
 type RecommendationPreferencesResponse = Partial<RecommendationPreferences> | null | undefined;
+type SaveTarget = 'profile' | 'preferences';
 
 type Watch = {
   id: string;
@@ -263,13 +264,21 @@ export default function AccountSettingsPage() {
       loadJSON<Partial<RecommendationPreferences> | null>(LS_RECOMMENDATION_PREFERENCES, null),
     ),
   );
-  const [saved, setSaved] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [savedTarget, setSavedTarget] = useState<SaveTarget | null>(null);
   const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean>(LS_MEMBER, false));
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionCurrent['subscription'] | null>(null);
   const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
   const [isBillingPortalLoading, setIsBillingPortalLoading] = useState(false);
   const [isSubscriptionActionLoading, setIsSubscriptionActionLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const saveFeedbackTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (saveFeedbackTimeoutRef.current != null) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -398,7 +407,10 @@ export default function AccountSettingsPage() {
     );
   }
 
-  const handleSave = async () => {
+  const handleSave = async (saveTarget: SaveTarget) => {
+    setSaveError('');
+    setSavedTarget(null);
+
     let nextProfile = profile;
 
     if (!useMockProfile) {
@@ -426,16 +438,28 @@ export default function AccountSettingsPage() {
         );
       } catch (error) {
         console.error('Error updating profile:', error);
-        setSaved('保存に失敗しました。');
-        setTimeout(() => setSaved(''), 2500);
+        setSaveError('保存に失敗しました。');
+        if (saveFeedbackTimeoutRef.current != null) {
+          window.clearTimeout(saveFeedbackTimeoutRef.current);
+        }
+        saveFeedbackTimeoutRef.current = window.setTimeout(() => {
+          setSaveError('');
+          saveFeedbackTimeoutRef.current = null;
+        }, 2500);
         return;
       }
     }
 
     saveJSON(LS_PROFILE, nextProfile);
     saveJSON(LS_RECOMMENDATION_PREFERENCES, recommendationPreferences);
-    setSaved('保存しました。');
-    setTimeout(() => setSaved(''), 2000);
+    setSavedTarget(saveTarget);
+    if (saveFeedbackTimeoutRef.current != null) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+    saveFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setSavedTarget(null);
+      saveFeedbackTimeoutRef.current = null;
+    }, 2000);
   };
 
   const handleOpenBillingPortal = async () => {
@@ -617,12 +641,14 @@ export default function AccountSettingsPage() {
           </div>
           <div className="mt-4 flex items-center justify-end gap-4">
             <button
-              onClick={handleSave}
+              onClick={() => {
+                void handleSave('profile');
+              }}
               className="rounded bg-blue-600 px-8 py-2 font-semibold hover:bg-blue-700"
             >
-              保存
+              {savedTarget === 'profile' ? '保存しました' : '保存'}
             </button>
-            {saved && <span className="text-sm text-green-400">{saved}</span>}
+            {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
         </div>
 
@@ -675,12 +701,14 @@ export default function AccountSettingsPage() {
 
           <div className="mt-4 flex items-center justify-end gap-4">
             <button
-              onClick={handleSave}
+              onClick={() => {
+                void handleSave('preferences');
+              }}
               className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
             >
-              視聴設定を保存
+              {savedTarget === 'preferences' ? '保存しました' : '視聴設定を保存'}
             </button>
-            {saved && <span className="text-sm text-green-400">{saved}</span>}
+            {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
         </div>
 
