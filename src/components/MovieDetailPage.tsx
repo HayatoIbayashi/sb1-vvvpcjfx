@@ -278,18 +278,20 @@ function MovieDetailPage() {
               </div>
               <div className="mt-4 flex gap-4">
                 {renderPrimaryActions()}
-                <button
-                  onClick={() => void handleToggleWatchlist()}
-                  disabled={isWatchlistBusy}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Heart className={`h-5 w-5 ${isInWatchlist ? 'fill-current text-pink-400' : ''}`} />
-                  {isWatchlistBusy
-                    ? '更新中...'
-                    : isInWatchlist
-                      ? 'マイリストから外す'
-                      : 'マイリストに追加'}
-                </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={() => void handleToggleWatchlist()}
+                    disabled={isWatchlistBusy}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Heart className={`h-5 w-5 ${isInWatchlist ? 'fill-current text-pink-400' : ''}`} />
+                    {isWatchlistBusy
+                      ? '更新中...'
+                      : isInWatchlist
+                        ? 'マイリストから外す'
+                        : 'マイリストに追加'}
+                  </button>
+                )}
               </div>
             </div>
             <div className="md:w-2/3">
