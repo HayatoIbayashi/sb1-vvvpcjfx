@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MovieListPage from './MovieListPage';
@@ -43,6 +43,21 @@ const baseMovies = [
     rental_price: 1,
     average_rating: 4.2,
     review_count: 8,
+  },
+];
+
+const preferenceSectionMovies = [
+  {
+    ...baseMovies[0],
+    id: 'movie-gambling',
+    title: 'Gambling Movie',
+    genre: ['ギャンブル'],
+  },
+  {
+    ...baseMovies[0],
+    id: 'movie-horror',
+    title: 'Horror Movie',
+    genre: ['ホラー描写'],
   },
 ];
 
@@ -118,6 +133,57 @@ describe('MovieListPage', () => {
     expect(screen.getByText('Documentary')).toBeInTheDocument();
     expect(screen.getByText('Member Movie')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute('href', '/library');
+  });
+
+  it('adds a desired genre section for configured preferences', async () => {
+    mockAuthStatus.isAuthenticated = true;
+    mockApi.getHomePageData.mockResolvedValue({
+      movies: [...baseMovies, preferenceSectionMovies[0]],
+      accessState: 'registered',
+      desiredGenreIds: ['gambling'],
+    });
+
+    render(
+      <MemoryRouter>
+        <MovieListPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.getHomePageData).toHaveBeenCalledTimes(1);
+    });
+
+    const gamblingSection = screen.getByRole('heading', { name: 'ギャンブル' }).closest('section');
+    expect(gamblingSection).not.toBeNull();
+    expect(within(gamblingSection as HTMLElement).getByText('Gambling Movie')).toBeInTheDocument();
+  });
+
+  it('renders multiple desired genre sections and skips empty ones', async () => {
+    mockAuthStatus.isAuthenticated = true;
+    mockApi.getHomePageData.mockResolvedValue({
+      movies: [...baseMovies, ...preferenceSectionMovies],
+      accessState: 'registered',
+      desiredGenreIds: ['gambling', 'horror', 'disturbing-themes'],
+    });
+
+    render(
+      <MemoryRouter>
+        <MovieListPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.getHomePageData).toHaveBeenCalledTimes(1);
+    });
+
+    const gamblingSection = screen.getByRole('heading', { name: 'ギャンブル' }).closest('section');
+    const horrorSection = screen.getByRole('heading', { name: 'ホラー描写' }).closest('section');
+
+    expect(gamblingSection).not.toBeNull();
+    expect(horrorSection).not.toBeNull();
+    expect(within(gamblingSection as HTMLElement).getByText('Gambling Movie')).toBeInTheDocument();
+    expect(within(horrorSection as HTMLElement).getByText('Horror Movie')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '不穏なテーマ' })).not.toBeInTheDocument();
   });
 
   it('opens the movie detail page when a recommendation card is clicked', async () => {

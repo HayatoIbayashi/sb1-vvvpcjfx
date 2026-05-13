@@ -12,7 +12,11 @@ import {
   getHomePublicCatalogFallbackItems,
 } from './homeDisplaySamples';
 import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
-import { getRecommendationGenreLabels } from '../lib/recommendationPreferenceMaster';
+import {
+  getRecommendationGenreLabels,
+  getRecommendationGenreSectionTitle,
+  matchesRecommendationGenre,
+} from '../lib/recommendationPreferenceMaster';
 import {
   canAccessMovie,
   getMovieAccessBadgeClass,
@@ -90,6 +94,7 @@ export default function MovieListPage() {
   const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
     getRecommendationGenreLabels(getStoredDesiredGenreIds()),
   );
+  const [desiredGenreIds, setDesiredGenreIds] = useState<string[]>(() => getStoredDesiredGenreIds());
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
   );
@@ -106,8 +111,10 @@ export default function MovieListPage() {
     let cancelled = false;
 
     const applyStoredRecommendations = () => {
+      const storedDesiredGenreIds = getStoredDesiredGenreIds();
       if (!cancelled) {
-        setSampleGenreLabels(getRecommendationGenreLabels(getStoredDesiredGenreIds()));
+        setDesiredGenreIds(storedDesiredGenreIds);
+        setSampleGenreLabels(getRecommendationGenreLabels(storedDesiredGenreIds));
       }
     };
 
@@ -115,6 +122,7 @@ export default function MovieListPage() {
       if (cancelled) return;
       setMovies(result.movies);
       setAccessState(result.accessState);
+      setDesiredGenreIds(result.desiredGenreIds);
 
       if (isAuthenticated) {
         setSampleGenreLabels(getRecommendationGenreLabels(result.desiredGenreIds));
@@ -193,6 +201,20 @@ export default function MovieListPage() {
       ? publicMovies
       : movies;
   const recommendationMovies = pickRecommendationMovies(recommendationSourceMovies);
+  const desiredGenreSections = useMemo(
+    () =>
+      Array.from(new Set(desiredGenreIds))
+        .map((genreId) => ({
+          id: genreId,
+          title: getRecommendationGenreSectionTitle(genreId),
+          movies: movies.filter((movie) => matchesRecommendationGenre(genreId, movie.genre)),
+        }))
+        .filter(
+          (section): section is { id: string; title: string; movies: MovieListItem[] } =>
+            typeof section.title === 'string' && section.title.length > 0 && section.movies.length > 0,
+        ),
+    [desiredGenreIds, movies],
+  );
   const fallbackMemberSectionTitle = sampleGenreLabels[0] ?? 'おすすめ';
   const memberSectionTitle = memberMovies.length
     ? getPrimaryMovieGenre(memberMovies[0], fallbackMemberSectionTitle)
@@ -436,6 +458,14 @@ export default function MovieListPage() {
         )}
 
         {renderRecommendationSection()}
+
+        {desiredGenreSections.map((section) =>
+          renderMovieSection(
+            section.title,
+            `${section.title}に設定した作品を表示しています。`,
+            section.movies,
+          ),
+        )}
 
         {accessState !== 'guest' &&
           homeMovieListTestSections.map((section) => (
