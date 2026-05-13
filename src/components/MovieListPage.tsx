@@ -20,6 +20,7 @@ import {
   partitionMoviesByAccess,
 } from '../lib/movieAccess';
 import { MEMBERSHIP_MONTHLY_PRICE, type MembershipAccessState } from '../lib/useMembershipStatus';
+import useHeaderGenres from '../lib/useHeaderGenres';
 import { Header } from './common/Header';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -53,7 +54,7 @@ function pickRecommendationMovies<T extends DisplayMovie>(movies: T[], limit = 3
   const usedGenres = new Set<string>();
 
   for (const movie of movies) {
-    const primaryGenre = movie.genre.find((genre) => typeof genre === 'string' && genre.trim());
+    const primaryGenre = (movie.genre ?? []).find((genre) => typeof genre === 'string' && genre.trim());
     if (!primaryGenre || usedGenres.has(primaryGenre)) continue;
 
     selected.push(movie);
@@ -202,6 +203,7 @@ export default function MovieListPage() {
   const memberFallbackTargetMovies: DisplayMovie[] = memberMovies.length
     ? memberMovies
     : memberTestTargetMovies;
+  const genreOptions = useHeaderGenres();
 
   const renderMovieCard = (movie: DisplayMovie) => {
     const accessTier = getMovieAccessTier(movie);
@@ -401,6 +403,7 @@ export default function MovieListPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSearchSubmit={handleSearchSubmit}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pb-12 pt-24">

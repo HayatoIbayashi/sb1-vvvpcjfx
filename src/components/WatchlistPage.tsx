@@ -5,6 +5,7 @@ import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
 import type { Movie } from '../lib/apiClient';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 function matchesQuery(movie: Movie, query: string) {
   const normalized = query.trim().toLowerCase();
@@ -25,6 +26,7 @@ export default function WatchlistPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingMovieId, setRemovingMovieId] = useState<string | null>(null);
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +90,7 @@ export default function WatchlistPage() {
           onLogout={logoutAll}
           searchQuery=""
           onSearchChange={() => {}}
+          genreOptions={genreOptions}
         />
         <main className="container mx-auto px-4 pt-24 pb-12">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
@@ -113,6 +116,7 @@ export default function WatchlistPage() {
         onLogout={logoutAll}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pt-24 pb-12">

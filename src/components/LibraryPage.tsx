@@ -4,6 +4,7 @@ import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
 import type { Purchase } from '../lib/apiClient';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 function matchesQuery(purchase: Purchase, query: string) {
   const normalized = query.trim().toLowerCase();
@@ -46,6 +47,7 @@ export default function LibraryPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +98,7 @@ export default function LibraryPage() {
           onLogout={logoutAll}
           searchQuery=""
           onSearchChange={() => {}}
+          genreOptions={genreOptions}
         />
         <main className="container mx-auto px-4 pb-12 pt-24">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
@@ -121,6 +124,7 @@ export default function LibraryPage() {
         onLogout={logoutAll}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pb-12 pt-24">

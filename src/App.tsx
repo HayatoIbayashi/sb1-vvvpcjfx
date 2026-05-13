@@ -14,6 +14,7 @@ import AccountSettingsPage from './components/AccountSettingsPage';
 import SearchResultsPage from './components/SearchResultsPage';
 import WatchlistPage from './components/WatchlistPage';
 import LibraryPage from './components/LibraryPage';
+import GenreResultsPage from './components/GenreResultsPage';
 import { ScrollToTop } from './components/common/ScrollToTop';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
         <Route path="/movies/:id" element={<MovieDetailPage />} />
         <Route path="/watch/:id" element={<MoviePlayerPage />} />
         <Route path="/search" element={<SearchResultsPage />} />
+        <Route path="/genres/:genreName" element={<GenreResultsPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
         <Route path="/subscription/complete" element={<SubscriptionCompletionPage />} />

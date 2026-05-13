@@ -12,6 +12,7 @@ import ReviewSection from './ReviewSection';
 import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
 import { getMovieGenreSummary } from '../lib/movieGenres';
+import useHeaderGenres from '../lib/useHeaderGenres';
 import {
   canAccessMovie,
   getMovieAccessLabel,
@@ -200,6 +201,7 @@ function MovieDetailPage() {
   const isAccessStatePending = isAuthenticated && (isMembershipLoading || isPurchaseLoading);
   const requiresPurchase = movieAccessTier === 'purchase' || movieAccessTier === 'subscription_or_purchase';
   const shouldShowAccessNotice = !isAccessStatePending && !(requiresPurchase && hasPurchasedMovie);
+  const genreOptions = useHeaderGenres();
 
   const renderPrimaryActions = () => {
     if (isAccessStatePending) {
@@ -266,6 +268,7 @@ function MovieDetailPage() {
         onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}
+        genreOptions={genreOptions}
       />
       {movie && (
         <div className="container mx-auto px-4 pb-8 pt-24">

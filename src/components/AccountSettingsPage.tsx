@@ -11,6 +11,7 @@ import {
 } from '../lib/recommendationPreferenceMaster';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import useApiClient from '../lib/useApiClient';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 type Profile = {
   displayName: string;
@@ -205,6 +206,7 @@ export default function AccountSettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
+  const genreOptions = useHeaderGenres();
   const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
   const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
@@ -369,6 +371,7 @@ export default function AccountSettingsPage() {
           onLogout={logoutAll}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          genreOptions={genreOptions}
         />
         <div className="flex min-h-screen items-center justify-center px-4 pt-24">
           <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
@@ -532,6 +535,7 @@ export default function AccountSettingsPage() {
         onLogout={logoutAll}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        genreOptions={genreOptions}
       />
       <div className="container mx-auto max-w-4xl px-4 pb-12 pt-24">
         <h1 className="mb-6 text-3xl font-bold">アカウント設定</h1>

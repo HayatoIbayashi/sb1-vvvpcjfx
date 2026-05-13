@@ -65,4 +65,4 @@ describe('ScrollToTop', () => {
 
     expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
   });
-}
+});

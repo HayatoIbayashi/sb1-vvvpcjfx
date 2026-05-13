@@ -9,6 +9,7 @@ interface HeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onSearchSubmit?: () => void;
+  genreOptions: string[];
 }
 
 export function Header({
@@ -18,6 +19,7 @@ export function Header({
   searchQuery,
   onSearchChange,
   onSearchSubmit,
+  genreOptions,
 }: HeaderProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,7 +42,7 @@ export function Header({
             <form className="relative hidden md:block" onSubmit={handleSubmit}>
               <input
                 type="text"
-                placeholder="動画を検索..."
+                placeholder="作品を検索..."
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
                 className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
@@ -56,6 +58,26 @@ export function Header({
 
             {isAuthenticated ? (
               <div className="flex items-center gap-4">
+                <div className="group relative hidden md:block">
+                  <span className="cursor-default rounded-md px-3 py-1.5 text-gray-300 transition hover:bg-gray-800/60 hover:text-white">
+                    ジャンル
+                  </span>
+                  <div className="invisible absolute left-0 top-full z-50 mt-2 w-56 rounded-xl border border-gray-800 bg-gray-900/95 p-2 opacity-0 shadow-2xl transition duration-150 group-hover:visible group-hover:opacity-100">
+                    {genreOptions.length > 0 ? (
+                      genreOptions.map((genre) => (
+                        <Link
+                          key={genre}
+                          to={`/genres/${encodeURIComponent(genre)}`}
+                          className="block rounded-lg px-3 py-2 text-sm text-gray-200 transition hover:bg-gray-800 hover:text-white"
+                        >
+                          {genre}
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-gray-500">ジャンル未設定</div>
+                    )}
+                  </div>
+                </div>
                 <Link
                   to="/library"
                   className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"

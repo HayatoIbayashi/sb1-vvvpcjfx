@@ -7,6 +7,7 @@ import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import { matchesMovieSearchQuery } from '../lib/movieSearch';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -21,6 +22,7 @@ export default function SearchResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const { isAuthenticated, logoutAll } = useAuthStatus();
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     setSearchQuery(query);
@@ -82,6 +84,7 @@ export default function SearchResultsPage() {
         onLogout={logoutAll}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pt-24 pb-12">
