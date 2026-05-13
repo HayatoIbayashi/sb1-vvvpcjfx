@@ -62,7 +62,7 @@ export function Header({
                   <span className="cursor-default rounded-md px-3 py-1.5 text-gray-300 transition hover:bg-gray-800/60 hover:text-white">
                     ジャンル
                   </span>
-                  <div className="invisible absolute left-0 top-full z-50 mt-2 w-56 rounded-xl border border-gray-800 bg-gray-900/95 p-2 opacity-0 shadow-2xl transition duration-150 group-hover:visible group-hover:opacity-100">
+                  <div className="invisible absolute left-0 top-full z-50 w-56 rounded-xl border border-gray-800 bg-gray-900/95 p-2 opacity-0 shadow-2xl transition duration-150 group-hover:visible group-hover:opacity-100">
                     {genreOptions.length > 0 ? (
                       genreOptions.map((genre) => (
                         <Link
