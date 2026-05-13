@@ -22,8 +22,11 @@ import {
 } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type MovieDetailPageProps = {
+  initialMovie?: Movie | null;
+};
 
-function MovieDetailPage() {
+function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { id: movieId } = useParams<{ id: string }>();
@@ -45,7 +48,9 @@ function MovieDetailPage() {
     [localMockMovie, useMockMovies],
   );
 
-  const [movie, setMovie] = useState<Movie | null>(null);
+  const [movie, setMovie] = useState<Movie | null>(() =>
+    initialMovie && initialMovie.id === movieId ? initialMovie : null,
+  );
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
@@ -56,6 +61,13 @@ function MovieDetailPage() {
 
     const loadMovie = async () => {
       if (!movieId) return;
+
+      if (initialMovie && initialMovie.id === movieId) {
+        if (!cancelled) {
+          setMovie(initialMovie);
+        }
+        return;
+      }
 
       if (useMockMovies || shouldUseLocalMockMovie) {
         const foundMovie = localMockMovie ?? MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
@@ -83,7 +95,7 @@ function MovieDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [api, localMockMovie, movieId, shouldUseLocalMockMovie, useMockMovies]);
+  }, [api, initialMovie, localMockMovie, movieId, shouldUseLocalMockMovie, useMockMovies]);
 
   useEffect(() => {
     let cancelled = false;

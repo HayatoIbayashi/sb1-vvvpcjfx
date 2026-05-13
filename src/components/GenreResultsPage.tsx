@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
@@ -16,6 +16,7 @@ function matchesGenre(movie: Movie, genreName: string) {
 }
 
 export default function GenreResultsPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { genreName = '' } = useParams<{ genreName: string }>();
   const api = useApiClient();
@@ -79,7 +80,7 @@ export default function GenreResultsPage() {
   }, [api, decodedGenreName, useMockMovies]);
 
   const handleMovieClick = (movieId: string) => {
-    navigate(`/movies/${movieId}`);
+    navigate(`/movies/${movieId}`, { state: { from: location } });
   };
 
   return (

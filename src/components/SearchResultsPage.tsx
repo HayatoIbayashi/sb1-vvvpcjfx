@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
@@ -12,6 +12,7 @@ import useHeaderGenres from '../lib/useHeaderGenres';
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 export default function SearchResultsPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -73,7 +74,7 @@ export default function SearchResultsPage() {
   };
 
   const handleMovieClick = (movieId: string) => {
-    navigate(`/movies/${movieId}`);
+    navigate(`/movies/${movieId}`, { state: { from: location } });
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
@@ -18,6 +18,7 @@ function matchesQuery(movie: Movie, query: string) {
 }
 
 export default function WatchlistPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const { isAuthenticated, logoutAll } = useAuthStatus();
@@ -156,7 +157,7 @@ export default function WatchlistPage() {
             {filteredMovies.map((movie) => (
               <div key={movie.id} className="overflow-hidden rounded-xl bg-gray-800 shadow-lg">
                 <button
-                  onClick={() => navigate(`/movies/${movie.id}`)}
+                  onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
                   className="block w-full text-left"
                 >
                   <img
@@ -172,7 +173,7 @@ export default function WatchlistPage() {
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => navigate(`/movies/${movie.id}`)}
+                      onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
                       className="flex-1 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100"
                     >
                       詳細を見る

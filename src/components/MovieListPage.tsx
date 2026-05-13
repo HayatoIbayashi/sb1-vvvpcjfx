@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
@@ -87,6 +87,7 @@ function getMovieByLoopIndex<T extends DisplayMovie>(movies: T[], index: number)
 }
 
 export default function MovieListPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const [movies, setMovies] = useState<MovieListItem[]>([]);
@@ -234,7 +235,7 @@ export default function MovieListPage() {
       <div
         key={movie.id}
         className="group relative cursor-pointer overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
-        onClick={() => navigate(`/movies/${movie.id}`)}
+        onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
       >
         <img
           src={getTestMovieThumbnail(movie, 'card')}
@@ -323,6 +324,7 @@ export default function MovieListPage() {
                 <Link
                   key={item.id}
                   to={`/movies/${targetMovie.id}?testDetailId=${encodeURIComponent(item.id)}`}
+                  state={{ from: location }}
                   aria-label={`動画:${item.title}`}
                   className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 >
@@ -369,6 +371,7 @@ export default function MovieListPage() {
               <Link
                 key={movie.id}
                 to={`/movies/${movie.id}`}
+                state={{ from: location }}
                 aria-label={`おすすめ動画:${movie.title}`}
                 className={`overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${
                   index === 0 ? 'lg:row-span-2' : ''
@@ -419,6 +422,7 @@ export default function MovieListPage() {
               <Link
                 key={movie.id}
                 to={`/movies/${movie.id}`}
+                state={{ from: location }}
                 aria-label={`${title}:${movie.title}`}
                 className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
               >
@@ -492,7 +496,7 @@ export default function MovieListPage() {
                   </div>
                   <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
                   <button
-                    onClick={() => navigate(`/movies/${heroMovie.id}`)}
+                    onClick={() => navigate(`/movies/${heroMovie.id}`, { state: { from: location } })}
                     className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
                   >
                     詳細を見る

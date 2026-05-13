@@ -783,7 +783,7 @@ export default function AccountSettingsPage() {
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/movies/${item.id}`)}
+                    onClick={() => navigate(`/movies/${item.id}`, { state: { from: location } })}
                     className="flex w-full justify-between gap-4 rounded-md px-2 py-1 text-left text-sm text-gray-200 transition hover:bg-gray-700/60"
                   >
                     <span>{item.title}</span>

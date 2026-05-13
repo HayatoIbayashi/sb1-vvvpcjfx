@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
@@ -40,6 +40,7 @@ function formatAmount(amount: number, currency: string) {
 }
 
 export default function LibraryPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const { isAuthenticated, logoutAll } = useAuthStatus();
@@ -168,7 +169,7 @@ export default function LibraryPage() {
               >
                 {purchase.thumbnail ? (
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="block w-full text-left"
                   >
                     <img
@@ -179,7 +180,7 @@ export default function LibraryPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 text-sm font-semibold text-gray-300"
                   >
                     購入済み作品
@@ -211,7 +212,7 @@ export default function LibraryPage() {
                   </dl>
 
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="w-full rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100"
                   >
                     作品詳細を見る
