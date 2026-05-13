@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Header } from './common/Header';
 import type { RecommendationPreferences as RecommendationPreferencesPayload, SubscriptionCurrent } from '../lib/apiClient';
 import { getBillingToken, useAuthStatus } from '../lib/authBridge';
 import {
@@ -201,7 +202,7 @@ function PreferenceButtonGroup({
 }
 
 export default function AccountSettingsPage() {
-  const { isAuthenticated } = useAuthStatus();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
   const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -268,6 +269,7 @@ export default function AccountSettingsPage() {
   const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
   const [isBillingPortalLoading, setIsBillingPortalLoading] = useState(false);
   const [isSubscriptionActionLoading, setIsSubscriptionActionLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -362,8 +364,16 @@ export default function AccountSettingsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900">
-        <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
+      <div className="min-h-screen bg-gray-900 text-white">
+        <Header
+          isAuthenticated={false}
+          onLogin={() => navigate('/login')}
+          onLogout={logoutAll}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+        <div className="flex min-h-screen items-center justify-center px-4 pt-24">
+          <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
           <p className="mb-6">
             アカウント設定を利用するにはログインが必要です。会員登録がまだの場合は、無料会員として登録してください。
           </p>
@@ -380,6 +390,7 @@ export default function AccountSettingsPage() {
             >
               会員登録する
             </button>
+          </div>
           </div>
         </div>
       </div>
@@ -522,6 +533,13 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      <Header
+        isAuthenticated={isAuthenticated}
+        onLogin={() => navigate('/login')}
+        onLogout={logoutAll}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
       <div className="container mx-auto max-w-4xl px-4 pb-12 pt-24">
         <h1 className="mb-6 text-3xl font-bold">アカウント設定</h1>
 
