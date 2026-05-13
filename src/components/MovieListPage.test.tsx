@@ -110,6 +110,8 @@ describe('MovieListPage', () => {
 
     expect(mockApi.getReviews).not.toHaveBeenCalled();
     expect(screen.getByText('Public Movie')).toBeInTheDocument();
+    expect(screen.queryByText('\u516c\u958b\u65e5')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-04-01')).not.toBeInTheDocument();
   });
 
   it('shows logged-in sections from the home page payload', async () => {

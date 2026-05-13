@@ -83,6 +83,8 @@ describe('GenreResultsPage', () => {
 
     expect(await screen.findByText('Action Movie')).toBeInTheDocument();
     expect(screen.queryByText('Drama Movie')).not.toBeInTheDocument();
+    expect(screen.queryByText('\u516c\u958b\u65e5')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-04-01')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByAltText('Action Movie'));
     expect(await screen.findByText('detail page')).toBeInTheDocument();

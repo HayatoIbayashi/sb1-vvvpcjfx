@@ -6,7 +6,8 @@ import useApiClient from '../lib/useApiClient';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
-import { getMovieGenreOptions, getMovieGenres } from '../lib/movieGenres';
+import { getMovieAccessBadgeClass, getMovieAccessTier } from '../lib/movieAccess';
+import { getMovieGenreOptions, getMovieGenreSummary, getMovieGenres } from '../lib/movieGenres';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
@@ -119,24 +120,28 @@ export default function GenreResultsPage() {
         )}
 
         {decodedGenreName && !isLoading && !error && movies.length > 0 && (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {movies.map((movie) => (
               <div
                 key={movie.id}
-                className="group relative cursor-pointer overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
+                className="cursor-pointer overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 onClick={() => handleMovieClick(movie.id)}
               >
                 <img
                   src={getTestMovieThumbnail(movie, 'card')}
                   alt={movie.title}
-                  className="w-full aspect-[2/3] object-cover"
+                  className="h-52 w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <h3 className="mb-1 font-semibold text-white">{movie.title}</h3>
-                    <p className="text-sm text-gray-300">{movie.release_date}</p>
-                    <p className="mt-2 line-clamp-2 text-sm text-gray-400">{movie.description}</p>
+                <div className="space-y-3 p-5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
+                    >
+                      {getMovieGenreSummary(movie)}
+                    </span>
                   </div>
+                  <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                  <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
               </div>
             ))}

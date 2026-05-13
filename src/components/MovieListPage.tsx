@@ -380,15 +380,13 @@ export default function MovieListPage() {
                   className={`w-full object-cover ${index === 0 ? 'h-[320px] lg:h-full' : 'h-52'}`}
                 />
                 <div className="space-y-3 p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">公開日</p>
+                  <div className="flex flex-wrap items-center gap-3">
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                     >
                       {getMovieGenreSummary(movie)}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400">{movie.release_date || '-'}</p>
                   <h3 className="text-xl font-bold text-white">{movie.title}</h3>
                   <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
@@ -430,15 +428,13 @@ export default function MovieListPage() {
                   className="h-52 w-full object-cover"
                 />
                 <div className="space-y-3 p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">公開日</p>
+                  <div className="flex flex-wrap items-center gap-3">
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                     >
                       {getMovieGenreSummary(movie)}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400">{movie.release_date || '-'}</p>
                   <h3 className="text-xl font-bold text-white">{movie.title}</h3>
                   <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
