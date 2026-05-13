@@ -115,8 +115,8 @@ export default function WatchlistPage() {
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate('/login')}
         onLogout={logoutAll}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        searchQuery=""
+        onSearchChange={() => { }}
         genreOptions={genreOptions}
       />
 
