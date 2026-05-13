@@ -86,6 +86,17 @@ function getMovieByLoopIndex<T extends DisplayMovie>(movies: T[], index: number)
   return movies[index % movies.length] ?? null;
 }
 
+function renderReleaseDate(releaseDate?: string | null) {
+  if (!releaseDate) return null;
+
+  return (
+    <p className="text-xs font-medium text-gray-400">
+      <span>{'\u516c\u958b\u65e5\uff1a'}</span>
+      {releaseDate}
+    </p>
+  );
+}
+
 export default function MovieListPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -250,7 +261,7 @@ export default function MovieListPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <div className="absolute bottom-0 left-0 p-4">
             <h3 className="mb-1 font-semibold text-white">{movie.title}</h3>
-            <p className="text-sm text-gray-300">{movie.release_date}</p>
+            {renderReleaseDate(movie.release_date)}
             <p className="mt-2 line-clamp-2 text-sm text-gray-400">{movie.description}</p>
           </div>
         </div>
@@ -314,6 +325,7 @@ export default function MovieListPage() {
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-white">{item.title}</h3>
+                  {renderReleaseDate(item.detail.releaseDate)}
                   <p className="text-sm leading-6 text-gray-300">{item.description}</p>
                 </div>
               </>
@@ -391,6 +403,7 @@ export default function MovieListPage() {
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                  {renderReleaseDate(movie.release_date)}
                   <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
               </Link>
@@ -440,6 +453,7 @@ export default function MovieListPage() {
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                  {renderReleaseDate(movie.release_date)}
                   <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
               </Link>
