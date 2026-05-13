@@ -134,7 +134,7 @@ describe('MovieListPage', () => {
 
     expect(screen.getByText('Documentary')).toBeInTheDocument();
     expect(screen.getByText('Member Movie')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute('href', '/library');
+    expect(screen.getByRole('link', { name: '購入した動画' })).toHaveAttribute('href', '/library');
   });
 
   it('adds a desired genre section for configured preferences', async () => {

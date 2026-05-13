@@ -89,13 +89,13 @@ export default function WatchlistPage() {
           onLogin={() => navigate('/login')}
           onLogout={logoutAll}
           searchQuery=""
-          onSearchChange={() => {}}
+          onSearchChange={() => { }}
           genreOptions={genreOptions}
         />
         <main className="container mx-auto px-4 pt-24 pb-12">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
-            <h1 className="mb-4 text-2xl font-bold">ブックマーク</h1>
-            <p className="mb-6 text-gray-300">ブックマークを利用するにはログインが必要です。</p>
+            <h1 className="mb-4 text-2xl font-bold">マイリスト</h1>
+            <p className="mb-6 text-gray-300">マイリストを利用するにはログインが必要です。</p>
             <button
               onClick={() => navigate('/login')}
               className="rounded bg-blue-600 px-6 py-2 font-semibold hover:bg-blue-700"
@@ -122,7 +122,7 @@ export default function WatchlistPage() {
       <main className="container mx-auto px-4 pt-24 pb-12">
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">ブックマーク</h1>
+            <h1 className="text-2xl font-bold text-white">マイリスト</h1>
             <p className="mt-1 text-sm text-gray-400">
               あとで見たい作品を保存できます。現在 {filteredMovies.length} 件です。
             </p>
@@ -148,7 +148,7 @@ export default function WatchlistPage() {
         ) : filteredMovies.length === 0 ? (
           <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
             {movies.length === 0
-              ? 'ブックマークに登録された作品はありません。'
+              ? 'マイリストに登録された作品はありません。'
               : '検索条件に一致する作品はありません。'}
           </div>
         ) : (

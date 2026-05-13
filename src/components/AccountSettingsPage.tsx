@@ -185,8 +185,8 @@ function PreferenceButtonGroup({
               aria-label={`${title}:${option.label}`}
               onClick={() => onToggle(option.id)}
               className={`rounded-lg border px-4 py-3 text-left transition ${isSelected
-                  ? selectedClassMap[selectedTone]
-                  : 'border-gray-600 bg-gray-800/80 text-gray-200 hover:border-gray-500 hover:bg-gray-800'
+                ? selectedClassMap[selectedTone]
+                : 'border-gray-600 bg-gray-800/80 text-gray-200 hover:border-gray-500 hover:bg-gray-800'
                 }`}
             >
               <div className="font-medium">{option.label}</div>
@@ -795,7 +795,7 @@ export default function AccountSettingsPage() {
           </div>
 
           <div className="order-2 rounded-lg bg-gray-800 p-6">
-            <h2 className="mb-4 text-xl font-semibold">ブックマーク</h2>
+            <h2 className="mb-4 text-xl font-semibold">マイリスト</h2>
             <p className="text-sm text-gray-300">
               あとで見たい作品を一覧で管理できます。
             </p>
@@ -803,11 +803,11 @@ export default function AccountSettingsPage() {
               onClick={() => navigate('/watchlist')}
               className="mt-6 ml-auto block rounded bg-gray-700 px-8 py-2 font-semibold hover:bg-gray-600"
             >
-              ブックマークを開く
+              マイリストを開く
             </button>
           </div>
           <div className="order-1 rounded-lg bg-gray-800 p-6">
-            <h2 className="mb-4 text-xl font-semibold">マイライブラリ</h2>
+            <h2 className="mb-4 text-xl font-semibold">購入した動画</h2>
             <p className="text-sm text-gray-300">
               購入済みの作品を一覧で確認できます。
             </p>
@@ -815,7 +815,7 @@ export default function AccountSettingsPage() {
               onClick={() => navigate('/library')}
               className="mt-6 ml-auto block rounded bg-gray-700 px-8 py-2 font-semibold hover:bg-gray-600"
             >
-              マイライブラリを開く
+              購入した動画を開く
             </button>
           </div>
         </div>
