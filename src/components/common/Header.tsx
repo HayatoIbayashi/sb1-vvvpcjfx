@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, LogOut, Search } from 'lucide-react';
 
 interface HeaderProps {
@@ -21,9 +21,30 @@ export function Header({
   onSearchSubmit,
   genreOptions,
 }: HeaderProps) {
+  const navigate = useNavigate();
+  const [inputValue, setInputValue] = useState(searchQuery);
+
+  useEffect(() => {
+    setInputValue(searchQuery);
+  }, [searchQuery]);
+
+  const handleSearchChange = (value: string) => {
+    setInputValue(value);
+    onSearchChange(value);
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSearchSubmit?.();
+
+    if (onSearchSubmit) {
+      onSearchSubmit();
+      return;
+    }
+
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
   return (
@@ -43,8 +64,8 @@ export function Header({
               <input
                 type="text"
                 placeholder="作品を検索..."
-                value={searchQuery}
-                onChange={(event) => onSearchChange(event.target.value)}
+                value={inputValue}
+                onChange={(event) => handleSearchChange(event.target.value)}
                 className="w-80 rounded-full border border-gray-700 bg-gray-800 px-4 py-2 pl-10 text-white focus:border-gray-500 focus:outline-none md:w-96"
               />
               <button
