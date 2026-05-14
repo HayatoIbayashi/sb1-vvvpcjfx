@@ -778,30 +778,30 @@ export default function MovieListPage() {
             {sectionMovies.map((movie) => (
               <div
                 key={movie.id}
-                className="w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
+                className="min-w-0 w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
               >
                 <Link
                   to={`/movies/${movie.id}`}
                   state={{ from: location }}
                   aria-label={`${title}:${movie.title}`}
-                  className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
+                  className="block min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 >
                   <img
                     src={getTestMovieThumbnail(movie, 'hero')}
                     alt={movie.title}
                     className="h-52 w-full object-cover"
                   />
-                  <div className="space-y-3 p-5">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 space-y-3 p-5">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
+                        className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
                       >
                         {getMovieGenreSummary(movie)}
                       </span>
                     </div>
-                    <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                    <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
                     {renderReleaseDate(movie.release_date)}
-                    <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
+                    <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
                   </div>
                 </Link>
               </div>
@@ -892,30 +892,30 @@ export default function MovieListPage() {
               return (
                 <div
                   key={movie.id}
-                  className="w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
+                  className="min-w-0 w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
                 >
                   <Link
                     to={`/movies/${movie.id}`}
                     state={{ from: location }}
                     aria-label={`${title}:${movie.title}`}
-                    className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
+                    className="block min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                   >
                     <img
                       src={getTestMovieThumbnail(movie, 'hero')}
                       alt={movie.title}
                       className="h-52 w-full object-cover"
                     />
-                    <div className="space-y-3 p-5">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <div className="min-w-0 space-y-3 p-5">
+                      <div className="flex min-w-0 items-center gap-2">
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
+                          className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                         >
                           {getMovieGenreSummary(movie)}
                         </span>
                       </div>
-                      <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                      <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
                       {renderReleaseDate(movie.release_date)}
-                      <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
+                      <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
                     </div>
                   </Link>
                 </div>
@@ -997,15 +997,15 @@ export default function MovieListPage() {
                   alt={item.title}
                   className="aspect-[16/9] w-full object-cover"
                 />
-                <div className="space-y-2 p-5">
+                <div className="min-w-0 space-y-2 p-5">
                   <div className="flex justify-end">
-                    <span className="rounded-full border border-gray-600 px-2.5 py-1 text-xs font-semibold text-gray-200">
+                    <span className="inline-block max-w-full truncate rounded-full border border-gray-600 px-2.5 py-1 text-xs font-semibold text-gray-200">
                       {item.subtitle}
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold text-white">{item.title}</h3>
+                  <h3 className="truncate text-xl font-bold text-white">{item.title}</h3>
                   {renderReleaseDate(item.detail.releaseDate)}
-                  <p className="text-sm leading-6 text-gray-300">{item.description}</p>
+                  <p className="truncate text-sm leading-6 text-gray-300">{item.description}</p>
                 </div>
               </>
             );
@@ -1071,7 +1071,7 @@ export default function MovieListPage() {
                 to={`/movies/${movie.id}`}
                 state={{ from: location }}
                 aria-label={`おすすめ動画:${movie.title}`}
-                className={`overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${index === 0 ? 'lg:row-span-2' : ''
+                className={`min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${index === 0 ? 'lg:row-span-2' : ''
                   }`}
               >
                 <img
@@ -1079,17 +1079,17 @@ export default function MovieListPage() {
                   alt={movie.title}
                   className={`w-full object-cover ${index === 0 ? 'h-[320px] lg:h-full' : 'h-52'}`}
                 />
-                <div className="space-y-3 p-5">
-                  <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 space-y-3 p-5">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
+                      className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                     >
                       {getMovieGenreSummary(movie)}
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                  <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
                   {renderReleaseDate(movie.release_date)}
-                  <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
+                  <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
               </Link>
             );
@@ -1131,24 +1131,24 @@ export default function MovieListPage() {
                 to={`/movies/${movie.id}`}
                 state={{ from: location }}
                 aria-label={`${title}:${movie.title}`}
-                className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
+                className="min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
               >
                 <img
                   src={getTestMovieThumbnail(movie, 'card')}
                   alt={movie.title}
                   className="h-52 w-full object-cover"
                 />
-                <div className="space-y-3 p-5">
-                  <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 space-y-3 p-5">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
+                      className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
                     >
                       {getMovieGenreSummary(movie)}
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                  <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
                   {renderReleaseDate(movie.release_date)}
-                  <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
+                  <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
                 </div>
               </Link>
             );

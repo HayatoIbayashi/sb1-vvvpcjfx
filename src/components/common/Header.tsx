@@ -106,6 +106,12 @@ export function Header({
                   購入した動画
                 </Link>
                 <Link
+                  to="/watchlist"
+                  className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
+                >
+                  マイリスト
+                </Link>
+                <Link
                   to="/account"
                   className="rounded-md px-3 py-1.5 text-gray-300 hover:bg-gray-800/60 hover:text-white"
                 >
