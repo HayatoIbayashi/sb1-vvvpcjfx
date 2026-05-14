@@ -33,7 +33,7 @@ type GenreCard = {
   representativeMovie: DisplayMovie;
   movieCount: number;
 };
-type HomeCarouselSectionId = 'new-arrivals' | 'purchased' | 'watchlist';
+type HomeCarouselSectionId = 'featured' | 'new-arrivals' | 'purchased' | 'watchlist';
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
 
@@ -82,29 +82,25 @@ function getStoredDesiredGenreIds() {
   }
 }
 
-function pickRecommendationMovies<T extends DisplayMovie>(movies: T[], limit = 3) {
-  const selected: T[] = [];
-  const usedGenres = new Set<string>();
+function getHomeFeaturedOrder(movie: DisplayMovie) {
+  return typeof movie.home_featured_order === 'number'
+    ? movie.home_featured_order
+    : Number.POSITIVE_INFINITY;
+}
 
-  for (const movie of movies) {
-    const primaryGenre = (movie.genre ?? []).find((genre) => typeof genre === 'string' && genre.trim());
-    if (!primaryGenre || usedGenres.has(primaryGenre)) continue;
+function pickFeaturedMovies<T extends DisplayMovie>(movies: T[]) {
+  return movies
+    .filter((movie) => movie.is_home_featured)
+    .slice()
+    .sort((left, right) => {
+      const featuredOrderDiff = getHomeFeaturedOrder(left) - getHomeFeaturedOrder(right);
+      if (featuredOrderDiff !== 0) return featuredOrderDiff;
 
-    selected.push(movie);
-    usedGenres.add(primaryGenre);
+      const publishDiff = toSortableTimestamp(getPublishAt(right)) - toSortableTimestamp(getPublishAt(left));
+      if (publishDiff !== 0) return publishDiff;
 
-    if (selected.length >= limit) {
-      return selected;
-    }
-  }
-
-  for (const movie of movies) {
-    if (selected.some((item) => item.id === movie.id)) continue;
-    selected.push(movie);
-    if (selected.length >= limit) break;
-  }
-
-  return selected;
+      return toSortableTimestamp(right.created_at) - toSortableTimestamp(left.created_at);
+    });
 }
 
 function getMovieByLoopIndex<T extends DisplayMovie>(movies: T[], index: number) {
@@ -154,6 +150,8 @@ function toCarouselMovieFromPurchase(
     buy_price: purchase.amount_total,
     currency: purchase.currency,
     stripe_price_id_one_time: null,
+    is_home_featured: false,
+    home_featured_order: null,
     average_rating: null,
     review_count: 0,
   };
@@ -175,6 +173,7 @@ export default function MovieListPage() {
   const [purchasedMovies, setPurchasedMovies] = useState<MovieListItem[]>([]);
   const [watchlistMovies, setWatchlistMovies] = useState<MovieListItem[]>([]);
   const [activeHomeCarouselPages, setActiveHomeCarouselPages] = useState<Record<HomeCarouselSectionId, number>>({
+    featured: 0,
     'new-arrivals': 0,
     purchased: 0,
     watchlist: 0,
@@ -190,6 +189,7 @@ export default function MovieListPage() {
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const homeCarouselRefs = useRef<Record<HomeCarouselSectionId, HTMLDivElement | null>>({
+    featured: null,
     'new-arrivals': null,
     purchased: null,
     watchlist: null,
@@ -345,12 +345,7 @@ export default function MovieListPage() {
     () => getHomeMemberCatalogFallbackItems(sampleGenreLabels),
     [sampleGenreLabels],
   );
-  const recommendationSourceMovies = availableNowMovies.length
-    ? availableNowMovies
-    : publicMovies.length
-      ? publicMovies
-      : movies;
-  const recommendationMovies = pickRecommendationMovies(recommendationSourceMovies);
+  const featuredMovies = useMemo(() => pickFeaturedMovies(movies), [movies]);
   const desiredGenreSections = useMemo(
     () =>
       Array.from(new Set(desiredGenreIds))
@@ -393,12 +388,14 @@ export default function MovieListPage() {
     [genreOptions, movies],
   );
   const genrePageCount = Math.max(1, Math.ceil(genreCards.length / genreItemsPerPage));
+  const featuredPageCount = Math.max(1, Math.ceil(featuredMovies.length / newArrivalItemsPerPage));
   const newArrivalPageCount = Math.max(1, Math.ceil(newArrivalMovies.length / newArrivalItemsPerPage));
   const showGenreCarouselControls = genreCards.length > 5;
 
   useEffect(() => {
     setActiveHomeCarouselPages((current) => ({
       ...current,
+      featured: Math.min(current.featured ?? 0, featuredPageCount - 1),
       'new-arrivals': Math.min(current['new-arrivals'] ?? 0, newArrivalPageCount - 1),
       purchased: Math.min(
         current.purchased ?? 0,
@@ -409,7 +406,13 @@ export default function MovieListPage() {
         Math.max(1, Math.ceil(watchlistMovies.length / newArrivalItemsPerPage)) - 1,
       ),
     }));
-  }, [newArrivalItemsPerPage, newArrivalPageCount, purchasedMovies.length, watchlistMovies.length]);
+  }, [
+    featuredPageCount,
+    newArrivalItemsPerPage,
+    newArrivalPageCount,
+    purchasedMovies.length,
+    watchlistMovies.length,
+  ]);
 
   useEffect(() => {
     setActiveDesiredGenrePages((current) => {
@@ -720,7 +723,8 @@ export default function MovieListPage() {
     maybeListPath?: string,
   ) => {
     const isKnownSectionId =
-      sectionIdOrTitle === 'new-arrivals'
+      sectionIdOrTitle === 'featured'
+      || sectionIdOrTitle === 'new-arrivals'
       || sectionIdOrTitle === 'purchased'
       || sectionIdOrTitle === 'watchlist';
     const isLegacySignature = !isKnownSectionId && Array.isArray(descriptionOrMovies);
@@ -1034,7 +1038,14 @@ export default function MovieListPage() {
     );
   };
 
+/*
   const renderRecommendationSection = () => {
+    return renderMovieCarouselSection(
+      'featured',
+      'おすすめ動画',
+      'ホームに掲載中のおすすめ作品を表示しています。',
+      featuredMovies,
+    );
     if (!recommendationMovies.length) return null;
 
     return (
@@ -1087,6 +1098,15 @@ export default function MovieListPage() {
       </section>
     );
   };
+*/
+
+  const renderRecommendationSection = () =>
+    renderMovieCarouselSection(
+      'featured',
+      '\u304a\u3059\u3059\u3081\u52d5\u753b',
+      '\u30db\u30fc\u30e0\u306b\u63b2\u8f09\u4e2d\u306e\u304a\u3059\u3059\u3081\u4f5c\u54c1\u3092\u8868\u793a\u3057\u3066\u3044\u307e\u3059\u3002',
+      featuredMovies,
+    );
 
   const renderRecommendationStyleSection = (
     title: string,

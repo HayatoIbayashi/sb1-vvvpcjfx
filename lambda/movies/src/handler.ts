@@ -31,6 +31,8 @@ const MOVIE_COLUMNS = [
   'buy_price',
   'currency',
   'stripe_price_id_one_time',
+  'is_home_featured',
+  'home_featured_order',
   'view_window_days',
   'created_at',
   'updated_at',
