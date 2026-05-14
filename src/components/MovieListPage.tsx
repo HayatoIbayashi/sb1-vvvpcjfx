@@ -437,6 +437,20 @@ export default function MovieListPage() {
     setActiveGenrePage((current) => Math.min(current, genrePageCount - 1));
   }, [genrePageCount]);
 
+  useEffect(() => {
+    if (heroFeaturedMovies.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      const currentPage = activeHomeCarouselPages['hero-featured'] ?? 0;
+      const nextPage = (currentPage + 1) % heroFeaturedPageCount;
+      scrollHomeCarouselToPage('hero-featured', nextPage);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeHomeCarouselPages, heroFeaturedMovies.length, heroFeaturedPageCount]);
+
   const scrollHomeCarouselToPage = (sectionId: HomeCarouselSectionId, pageIndex: number) => {
     const container = homeCarouselRefs.current[sectionId];
     if (!container) return;
@@ -1131,29 +1145,33 @@ export default function MovieListPage() {
                   key={movie.id}
                   className="w-full shrink-0 snap-start"
                 >
-                  <div className="relative h-[60vh] overflow-hidden rounded-xl">
-                    <img
-                      src={getTestMovieThumbnail(movie, 'hero')}
-                      alt={movie.title}
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
-                      <div className="absolute bottom-0 left-0 p-8">
-                        <div
-                          className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
-                        >
-                          {getMovieGenreSummary(movie)}
+                  <Link
+                    to={`/movies/${movie.id}`}
+                    state={{ from: location }}
+                    aria-label={`メイン表示:${movie.title}`}
+                    className="group block"
+                  >
+                    <div className="relative h-[60vh] overflow-hidden rounded-xl">
+                      <img
+                        src={getTestMovieThumbnail(movie, 'hero')}
+                        alt={movie.title}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.01]"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
+                        <div className="absolute bottom-0 left-0 p-8">
+                          <div
+                            className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
+                          >
+                            {getMovieGenreSummary(movie)}
+                          </div>
+                          <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{movie.title}</h2>
+                          <span className="inline-flex rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition group-hover:bg-gray-100">
+                            詳細を見る
+                          </span>
                         </div>
-                        <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{movie.title}</h2>
-                        <button
-                          onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
-                          className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
-                        >
-                          詳細を見る
-                        </button>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 </div>
               ))}
             </div>
@@ -1204,29 +1222,33 @@ export default function MovieListPage() {
 
     return (
       <section className="mb-12">
-        <div className="relative h-[60vh] overflow-hidden rounded-xl">
-          <img
-            src={getTestMovieThumbnail(heroMovie, 'hero')}
-            alt={heroMovie.title}
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
-            <div className="absolute bottom-0 left-0 p-8">
-              <div
-                className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}
-              >
-                {getMovieGenreSummary(heroMovie)}
+        <Link
+          to={`/movies/${heroMovie.id}`}
+          state={{ from: location }}
+          aria-label={`メイン表示:${heroMovie.title}`}
+          className="group block"
+        >
+          <div className="relative h-[60vh] overflow-hidden rounded-xl">
+            <img
+              src={getTestMovieThumbnail(heroMovie, 'hero')}
+              alt={heroMovie.title}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.01]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
+              <div className="absolute bottom-0 left-0 p-8">
+                <div
+                  className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}
+                >
+                  {getMovieGenreSummary(heroMovie)}
+                </div>
+                <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
+                <span className="inline-flex rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition group-hover:bg-gray-100">
+                  詳細を見る
+                </span>
               </div>
-              <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
-              <button
-                onClick={() => navigate(`/movies/${heroMovie.id}`, { state: { from: location } })}
-                className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
-              >
-                詳細を見る
-              </button>
             </div>
           </div>
-        </div>
+        </Link>
       </section>
     );
   };
