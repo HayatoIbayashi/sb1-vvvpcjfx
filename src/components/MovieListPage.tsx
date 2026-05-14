@@ -116,7 +116,7 @@ function renderReleaseDate(releaseDate?: string | null) {
 
   return (
     <p className="text-xs font-medium text-gray-400">
-      <span>{'\u516c\u958b\u65e5\uff1a'}</span>
+      <span>公開日：</span>
       {releaseDate}
     </p>
   );
@@ -131,7 +131,7 @@ function toCarouselMovieFromPurchase(
 
   return {
     id: purchase.movie_id,
-    title: purchase.title ?? '\u8cfc\u5165\u3057\u305f\u52d5\u753b',
+    title: purchase.title ?? '購入した動画',
     description: '',
     thumbnail: purchase.thumbnail ?? null,
     thumbnail_top: purchase.thumbnail ?? null,
@@ -610,7 +610,7 @@ export default function MovieListPage() {
               key={genre.name}
               to={`/genres/${encodeURIComponent(genre.name)}`}
               state={{ from: location }}
-              aria-label={`繧ｸ繝｣繝ｳ繝ｫ荳隕ｧ:${genre.name}`}
+              aria-label={`ジャンル一覧:${genre.name}`}
               className="group relative block overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
             >
               <img
@@ -619,12 +619,12 @@ export default function MovieListPage() {
                 className="aspect-[2/3] w-full object-cover"
               />
               <span className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/25 px-2 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
-                繧ｸ繝｣繝ｳ繝ｫ
+                ジャンル
               </span>
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent">
                 <div className="absolute bottom-0 left-0 p-4">
                   <h3 className="mb-1 text-2xl font-bold text-white">{genre.name}</h3>
-                  <p className="text-sm text-gray-300">菴懷刀謨ｰ: {genre.movieCount}</p>
+                  <p className="text-sm text-gray-300">作品数: {genre.movieCount}</p>
                 </div>
               </div>
             </Link>
@@ -709,9 +709,8 @@ export default function MovieListPage() {
                   type="button"
                   aria-label={`${index + 1}ページ目へ移動`}
                   onClick={() => scrollGenreCarouselToPage(index)}
-                  className={`rounded-full transition ${
-                    isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
-                  }`}
+                  className={`rounded-full transition ${isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
+                    }`}
                 />
               );
             })}
@@ -761,14 +760,14 @@ export default function MovieListPage() {
               state={{ from: location }}
               aria-label={
                 sectionId === 'purchased'
-                  ? '\u96c9\uff7c\u8737\uff65\u7e3a\u52b1\u25c6\u870d\u6155\u5224'
+                  ? '購入した動画一覧'
                   : sectionId === 'watchlist'
-                    ? '\u7e5d\u69ed\u3046\u7e5d\uff6a\u7e67\uff79\u7e5d\u30fb'
+                    ? 'マイリスト一覧'
                     : undefined
               }
               className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 underline decoration-cyan-300/70 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-200"
             >
-              <span>{'\u4e00\u89a7\u306f\u3053\u3061\u3089'}</span>
+              <span>一覧はこちら</span>
               <span aria-hidden="true">›</span>
             </Link>
           )}
@@ -844,9 +843,8 @@ export default function MovieListPage() {
                   type="button"
                   aria-label={`${title}の${index + 1}ページ目へ移動`}
                   onClick={() => scrollHomeCarouselToPage(sectionId, index)}
-                  className={`rounded-full transition ${
-                    isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
-                  }`}
+                  className={`rounded-full transition ${isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
+                    }`}
                 />
               );
             })}
@@ -959,9 +957,8 @@ export default function MovieListPage() {
                   type="button"
                   aria-label={`${title}の${index + 1}ページ目へ移動`}
                   onClick={() => scrollDesiredGenreCarouselToPage(sectionId, index)}
-                  className={`rounded-full transition ${
-                    isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
-                  }`}
+                  className={`rounded-full transition ${isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
+                    }`}
                 />
               );
             })}
@@ -1022,7 +1019,7 @@ export default function MovieListPage() {
                   key={item.id}
                   to={`/movies/${targetMovie.id}?testDetailId=${encodeURIComponent(item.id)}`}
                   state={{ from: location }}
-                  aria-label={`蜍慕判:${item.title}`}
+                  aria-label={`詳細:${item.title}`}
                   className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 >
                   {cardContent}
@@ -1109,8 +1106,8 @@ export default function MovieListPage() {
   const renderRecommendationSection = () =>
     renderMovieCarouselSection(
       'featured',
-      '\u304a\u3059\u3059\u3081\u52d5\u753b',
-      '\u30db\u30fc\u30e0\u306b\u63b2\u8f09\u4e2d\u306e\u304a\u3059\u3059\u3081\u4f5c\u54c1\u3092\u8868\u793a\u3057\u3066\u3044\u307e\u3059\u3002',
+      'おすすめ動画',
+      'ホームに掲載中のおすすめ作品を表示しています。',
       featuredMovies,
     );
 
@@ -1332,15 +1329,15 @@ export default function MovieListPage() {
         {renderMovieCarouselSection('新着一覧', '新着の作品を紹介します。', newArrivalMovies)}
         {isAuthenticated && renderMovieCarouselSection(
           'purchased',
-          '\u8cfc\u5165\u3057\u305f\u52d5\u753b',
-          '\u8cfc\u5165\u6e08\u307f\u306e\u52d5\u753b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+          '購入した動画',
+          '購入済みの動画を表示します。',
           purchasedMovies,
           '/library',
         )}
         {isAuthenticated && renderMovieCarouselSection(
           'watchlist',
-          '\u30de\u30a4\u30ea\u30b9\u30c8',
-          '\u30de\u30a4\u30ea\u30b9\u30c8\u306b\u767b\u9332\u3057\u3066\u3044\u308b\u52d5\u753b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+          'マイリスト',
+          'マイリストに登録している動画を表示します。',
           watchlistMovies,
           '/watchlist',
         )}
