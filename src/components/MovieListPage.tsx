@@ -8,15 +8,10 @@ import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import {
   getHomeMemberCatalogFallbackItems,
-  getHomeMovieListTestSections,
   getHomePublicCatalogFallbackItems,
 } from './homeDisplaySamples';
-import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
-import {
-  getRecommendationGenreLabels,
-  getRecommendationGenreSectionTitle,
-  matchesRecommendationGenre,
-} from '../lib/recommendationPreferenceMaster';
+import { getMovieGenres, getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import { getRecommendationGenreLabels } from '../lib/recommendationPreferenceMaster';
 import {
   canAccessMovie,
   getMovieAccessBadgeClass,
@@ -29,6 +24,11 @@ import { Header } from './common/Header';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 type DisplayMovie = Movie | MovieListItem;
+type GenreCard = {
+  name: string;
+  representativeMovie: DisplayMovie;
+  movieCount: number;
+};
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
 
@@ -106,7 +106,6 @@ export default function MovieListPage() {
   const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
     getRecommendationGenreLabels(getStoredDesiredGenreIds()),
   );
-  const [desiredGenreIds, setDesiredGenreIds] = useState<string[]>(() => getStoredDesiredGenreIds());
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
   );
@@ -125,7 +124,6 @@ export default function MovieListPage() {
     const applyStoredRecommendations = () => {
       const storedDesiredGenreIds = getStoredDesiredGenreIds();
       if (!cancelled) {
-        setDesiredGenreIds(storedDesiredGenreIds);
         setSampleGenreLabels(getRecommendationGenreLabels(storedDesiredGenreIds));
       }
     };
@@ -134,7 +132,6 @@ export default function MovieListPage() {
       if (cancelled) return;
       setMovies(result.movies);
       setAccessState(result.accessState);
-      setDesiredGenreIds(result.desiredGenreIds);
 
       if (isAuthenticated) {
         setSampleGenreLabels(getRecommendationGenreLabels(result.desiredGenreIds));
@@ -192,13 +189,6 @@ export default function MovieListPage() {
   );
   const availableNowMovies = movies.filter((movie) => canAccessMovie(accessState, movie));
   const heroMovie = availableNowMovies[0] ?? publicMovies[0] ?? memberMovies[0] ?? movies[0] ?? null;
-  const memberTestTargetMovies = memberMovies.length
-    ? memberMovies
-    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'member');
-  const homeMovieListTestSections = useMemo(
-    () => getHomeMovieListTestSections(sampleGenreLabels),
-    [sampleGenreLabels],
-  );
   const publicCatalogFallbackItems = useMemo(
     () => getHomePublicCatalogFallbackItems(sampleGenreLabels),
     [sampleGenreLabels],
@@ -209,35 +199,38 @@ export default function MovieListPage() {
   );
   const recommendationSourceMovies = availableNowMovies.length
     ? availableNowMovies
-      : publicMovies.length
+    : publicMovies.length
       ? publicMovies
       : movies;
   const recommendationMovies = pickRecommendationMovies(recommendationSourceMovies);
-  const desiredGenreSections = useMemo(
-    () =>
-      Array.from(new Set(desiredGenreIds))
-        .map((genreId) => ({
-          id: genreId,
-          title: getRecommendationGenreSectionTitle(genreId),
-          movies: movies.filter((movie) => matchesRecommendationGenre(genreId, movie.genre)),
-        }))
-        .filter(
-          (section): section is { id: string; title: string; movies: MovieListItem[] } =>
-            typeof section.title === 'string' && section.title.length > 0 && section.movies.length > 0,
-        ),
-    [desiredGenreIds, movies],
-  );
   const fallbackMemberSectionTitle = sampleGenreLabels[0] ?? 'おすすめ';
   const memberSectionTitle = memberMovies.length
     ? getPrimaryMovieGenre(memberMovies[0], fallbackMemberSectionTitle)
     : fallbackMemberSectionTitle;
+  const showMemberSection = false;
   const publicFallbackTargetMovies: DisplayMovie[] = publicMovies.length
     ? publicMovies
     : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'public');
   const memberFallbackTargetMovies: DisplayMovie[] = memberMovies.length
     ? memberMovies
-    : memberTestTargetMovies;
+    : MOCK_MOVIES.filter((movie) => getMovieAccessTier(movie) === 'member');
   const genreOptions = useHeaderGenres();
+  const genreCards = useMemo(
+    () =>
+      genreOptions.flatMap((genreName) => {
+        const genreMovies = movies.filter((movie) => getMovieGenres(movie).includes(genreName));
+        const representativeMovie = genreMovies[0];
+        if (!representativeMovie) return [];
+
+        return [{
+          name: genreName,
+          representativeMovie,
+          movieCount: genreMovies.length,
+        }];
+      }),
+    [genreOptions, movies],
+  );
+
 
   const renderMovieCard = (movie: DisplayMovie) => {
     const accessTier = getMovieAccessTier(movie);
@@ -285,10 +278,48 @@ export default function MovieListPage() {
     );
   };
 
+  const renderGenreCardSection = (title: string, sectionGenres: GenreCard[]) => {
+    if (!sectionGenres.length) return null;
+
+    return (
+      <section className="mb-12">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {sectionGenres.map((genre) => (
+            <Link
+              key={genre.name}
+              to={`/genres/${encodeURIComponent(genre.name)}`}
+              state={{ from: location }}
+              aria-label={`ジャンル一覧:${genre.name}`}
+              className="group relative block overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
+            >
+              <img
+                src={getTestMovieThumbnail(genre.representativeMovie, 'card')}
+                alt={genre.name}
+                className="aspect-[2/3] w-full object-cover"
+              />
+              <span className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/25 px-2 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
+                ジャンル
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent">
+                <div className="absolute bottom-0 left-0 p-4">
+                  <h3 className="mb-1 text-2xl font-bold text-white">{genre.name}</h3>
+                  <p className="text-sm text-gray-300">作品数: {genre.movieCount}</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
   const renderHomeTestSection = (
     title: string,
     description: string,
-    items: ReturnType<typeof getHomeMovieListTestSections>[number]['items'],
+    items: ReturnType<typeof getHomeMemberCatalogFallbackItems>,
     targetMovies: DisplayMovie[],
   ) => {
     if (!items.length) return null;
@@ -308,7 +339,6 @@ export default function MovieListPage() {
           {items.map((item, index) => {
             const targetMovie =
               getMovieByLoopIndex(targetMovies, index) ??
-              getMovieByLoopIndex(memberMovies, index) ??
               getMovieByLoopIndex(movies, index) ??
               getMovieByLoopIndex(MOCK_MOVIES, index);
             const cardContent = (
@@ -385,9 +415,8 @@ export default function MovieListPage() {
                 to={`/movies/${movie.id}`}
                 state={{ from: location }}
                 aria-label={`おすすめ動画:${movie.title}`}
-                className={`overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${
-                  index === 0 ? 'lg:row-span-2' : ''
-                }`}
+                className={`overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${index === 0 ? 'lg:row-span-2' : ''
+                  }`}
               >
                 <img
                   src={getTestMovieThumbnail(movie, index === 0 ? 'hero' : 'card')}
@@ -522,59 +551,42 @@ export default function MovieListPage() {
         )}
 
         {renderRecommendationSection()}
-
-        {desiredGenreSections.map((section) => (
-          <div key={section.id}>
-            {renderRecommendationStyleSection(
-            section.title,
-            `${section.title}に設定した作品を表示しています。`,
-            section.movies,
-            )}
-          </div>
-        ))}
-
-        {accessState !== 'guest' &&
-          homeMovieListTestSections.map((section) => (
-            <div key={section.id}>
-              {renderHomeTestSection(
-                section.title,
-                section.description,
-                section.items,
-                memberTestTargetMovies,
-              )}
-            </div>
-          ))}
+        {renderGenreCardSection('ジャンル一覧', genreCards)}
 
         {publicMovies.length > 0
           ? renderMovieSection(publicSectionTitle, publicSectionDescription, publicMovies)
           : renderHomeTestSection(
-              publicSectionTitle,
-              publicFallbackDescription,
-              publicCatalogFallbackItems,
-              publicFallbackTargetMovies,
-            )}
+            publicSectionTitle,
+            publicFallbackDescription,
+            publicCatalogFallbackItems,
+            publicFallbackTargetMovies,
+          )}
 
-        {accessState !== 'guest' &&
+        {showMemberSection && accessState !== 'guest' &&
           (memberMovies.length > 0
             ? renderMovieSection(memberSectionTitle, memberSectionDescription, memberMovies)
             : renderHomeTestSection(
-                memberSectionTitle,
-                'メンバー向け一覧の元データが未登録のため、暫定のテスト一覧を表示しています。',
-                memberCatalogFallbackItems,
-                memberFallbackTargetMovies,
-              ))}
+              memberSectionTitle,
+              'メンバー向け一覧の元データが未登録のため、暫定のテスト一覧を表示しています。',
+              memberCatalogFallbackItems,
+              memberFallbackTargetMovies,
+            ))}
 
         {topRated.length > 0 &&
-          renderMovieSection('高評価動画', 'レビュー評価の高い作品を表示しています。', topRated)}
+          renderRecommendationStyleSection(
+            '高評価動画',
+            'レビュー評価の高い作品を表示しています。',
+            topRated,
+          )}
 
         {publicMovies.length === 0
           && memberMovies.length === 0
           && publicFallbackTargetMovies.length === 0
           && memberFallbackTargetMovies.length === 0 && (
-          <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
-            表示できる動画がありません。
-          </div>
-        )}
+            <div className="rounded-lg bg-gray-800 p-8 text-center text-gray-300">
+              表示できる動画がありません。
+            </div>
+          )}
       </main>
 
       <footer className="border-t border-gray-800 bg-gray-900">
