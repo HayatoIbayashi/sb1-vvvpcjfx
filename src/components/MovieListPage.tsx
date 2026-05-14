@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
-import type { HomePageData, MovieListItem } from '../lib/apiClient';
+import type { HomePageData, MovieListItem, Purchase } from '../lib/apiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import {
@@ -33,6 +33,7 @@ type GenreCard = {
   representativeMovie: DisplayMovie;
   movieCount: number;
 };
+type HomeCarouselSectionId = 'new-arrivals' | 'purchased' | 'watchlist';
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
 
@@ -125,6 +126,39 @@ function renderReleaseDate(releaseDate?: string | null) {
   );
 }
 
+function toCarouselMovieFromPurchase(
+  purchase: Purchase,
+  movieMap: Map<string, MovieListItem>,
+): MovieListItem {
+  const existingMovie = movieMap.get(purchase.movie_id);
+  if (existingMovie) return existingMovie;
+
+  return {
+    id: purchase.movie_id,
+    title: purchase.title ?? '\u8cfc\u5165\u3057\u305f\u52d5\u753b',
+    description: '',
+    thumbnail: purchase.thumbnail ?? null,
+    thumbnail_top: purchase.thumbnail ?? null,
+    thumbnail_detail: purchase.thumbnail ?? null,
+    release_date: null,
+    duration: null,
+    genre: [],
+    cast: [],
+    director: null,
+    release_year: null,
+    created_at: purchase.created_at,
+    updated_at: purchase.updated_at,
+    price: purchase.amount_total,
+    rental_price: 0,
+    access_mode: 'purchase_only',
+    buy_price: purchase.amount_total,
+    currency: purchase.currency,
+    stripe_price_id_one_time: null,
+    average_rating: null,
+    review_count: 0,
+  };
+}
+
 export default function MovieListPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -138,7 +172,14 @@ export default function MovieListPage() {
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
   );
-  const [activeNewArrivalPage, setActiveNewArrivalPage] = useState(0);
+  const [purchasedMovies, setPurchasedMovies] = useState<MovieListItem[]>([]);
+  const [watchlistMovies, setWatchlistMovies] = useState<MovieListItem[]>([]);
+  const [activeHomeCarouselPages, setActiveHomeCarouselPages] = useState<Record<HomeCarouselSectionId, number>>({
+    'new-arrivals': 0,
+    purchased: 0,
+    watchlist: 0,
+  });
+  const [activeDesiredGenrePages, setActiveDesiredGenrePages] = useState<Record<string, number>>({});
   const [activeGenrePage, setActiveGenrePage] = useState(0);
   const [newArrivalItemsPerPage, setNewArrivalItemsPerPage] = useState(() =>
     typeof window === 'undefined' ? 3 : getNewArrivalItemsPerPage(window.innerWidth),
@@ -148,7 +189,12 @@ export default function MovieListPage() {
   );
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
-  const newArrivalCarouselRef = useRef<HTMLDivElement | null>(null);
+  const homeCarouselRefs = useRef<Record<HomeCarouselSectionId, HTMLDivElement | null>>({
+    'new-arrivals': null,
+    purchased: null,
+    watchlist: null,
+  });
+  const desiredGenreCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const genreCarouselRef = useRef<HTMLDivElement | null>(null);
 
   const handleSearchSubmit = () => {
@@ -187,6 +233,8 @@ export default function MovieListPage() {
         if (!cancelled) {
           setMovies(MOCK_MOVIES.map(toMovieListItem));
           setAccessState(isAuthenticated ? 'registered' : 'guest');
+          setPurchasedMovies([]);
+          setWatchlistMovies([]);
         }
         applyStoredRecommendations();
         return;
@@ -197,11 +245,45 @@ export default function MovieListPage() {
       try {
         const result = await api.getHomePageData();
         applyHomeData(result);
+
+        if (!isAuthenticated || cancelled) {
+          if (!cancelled) {
+            setPurchasedMovies([]);
+            setWatchlistMovies([]);
+          }
+          return;
+        }
+
+        const movieMap = new Map(result.movies.map((movie) => [movie.id, movie] as const));
+        const [purchasesResult, watchlistResult] = await Promise.allSettled([
+          api.getPurchases({ status: 'completed' }),
+          api.getWatchlist(),
+        ]);
+
+        if (cancelled) return;
+
+        if (purchasesResult.status === 'fulfilled') {
+          setPurchasedMovies(
+            purchasesResult.value.items.map((purchase) => toCarouselMovieFromPurchase(purchase, movieMap)),
+          );
+        } else {
+          console.error('Error fetching purchased movies for home page:', purchasesResult.reason);
+          setPurchasedMovies([]);
+        }
+
+        if (watchlistResult.status === 'fulfilled') {
+          setWatchlistMovies(watchlistResult.value.items.map(toMovieListItem));
+        } else {
+          console.error('Error fetching watchlist for home page:', watchlistResult.reason);
+          setWatchlistMovies([]);
+        }
       } catch (error) {
         console.error('Error fetching home page data:', error);
         if (!cancelled) {
           setMovies(MOCK_MOVIES.map(toMovieListItem));
           setAccessState(isAuthenticated ? 'registered' : 'guest');
+          setPurchasedMovies([]);
+          setWatchlistMovies([]);
         }
       }
     };
@@ -312,45 +394,120 @@ export default function MovieListPage() {
   );
   const genrePageCount = Math.max(1, Math.ceil(genreCards.length / genreItemsPerPage));
   const newArrivalPageCount = Math.max(1, Math.ceil(newArrivalMovies.length / newArrivalItemsPerPage));
-  const showNewArrivalCarouselControls = newArrivalMovies.length > newArrivalItemsPerPage;
   const showGenreCarouselControls = genreCards.length > 5;
 
   useEffect(() => {
-    setActiveNewArrivalPage((current) => Math.min(current, newArrivalPageCount - 1));
-  }, [newArrivalPageCount]);
+    setActiveHomeCarouselPages((current) => ({
+      ...current,
+      'new-arrivals': Math.min(current['new-arrivals'] ?? 0, newArrivalPageCount - 1),
+      purchased: Math.min(
+        current.purchased ?? 0,
+        Math.max(1, Math.ceil(purchasedMovies.length / newArrivalItemsPerPage)) - 1,
+      ),
+      watchlist: Math.min(
+        current.watchlist ?? 0,
+        Math.max(1, Math.ceil(watchlistMovies.length / newArrivalItemsPerPage)) - 1,
+      ),
+    }));
+  }, [newArrivalItemsPerPage, newArrivalPageCount, purchasedMovies.length, watchlistMovies.length]);
+
+  useEffect(() => {
+    setActiveDesiredGenrePages((current) => {
+      const next: Record<string, number> = {};
+
+      for (const section of desiredGenreSections) {
+        const pageCount = Math.max(1, Math.ceil(section.movies.length / newArrivalItemsPerPage));
+        next[section.id] = Math.min(current[section.id] ?? 0, pageCount - 1);
+      }
+
+      return next;
+    });
+  }, [desiredGenreSections, newArrivalItemsPerPage]);
 
   useEffect(() => {
     setActiveGenrePage((current) => Math.min(current, genrePageCount - 1));
   }, [genrePageCount]);
 
-  const scrollNewArrivalCarouselToPage = (pageIndex: number) => {
-    const container = newArrivalCarouselRef.current;
+  const scrollHomeCarouselToPage = (sectionId: HomeCarouselSectionId, pageIndex: number) => {
+    const container = homeCarouselRefs.current[sectionId];
     if (!container) return;
 
     container.scrollTo({
       left: container.clientWidth * pageIndex,
       behavior: 'smooth',
     });
-    setActiveNewArrivalPage(pageIndex);
+    setActiveHomeCarouselPages((current) => ({
+      ...current,
+      [sectionId]: pageIndex,
+    }));
   };
 
-  const handleNewArrivalCarouselMove = (direction: 'prev' | 'next') => {
-    if (newArrivalPageCount <= 1) return;
+  const handleHomeCarouselMove = (
+    sectionId: HomeCarouselSectionId,
+    direction: 'prev' | 'next',
+    pageCount: number,
+  ) => {
+    if (pageCount <= 1) return;
 
+    const currentPage = activeHomeCarouselPages[sectionId] ?? 0;
     const nextPage =
       direction === 'next'
-        ? (activeNewArrivalPage + 1) % newArrivalPageCount
-        : (activeNewArrivalPage - 1 + newArrivalPageCount) % newArrivalPageCount;
+        ? (currentPage + 1) % pageCount
+        : (currentPage - 1 + pageCount) % pageCount;
 
-    scrollNewArrivalCarouselToPage(nextPage);
+    scrollHomeCarouselToPage(sectionId, nextPage);
   };
 
-  const handleNewArrivalCarouselScroll = () => {
-    const container = newArrivalCarouselRef.current;
+  const handleHomeCarouselScroll = (sectionId: HomeCarouselSectionId, pageCount: number) => {
+    const container = homeCarouselRefs.current[sectionId];
     if (!container || container.clientWidth === 0) return;
 
     const nextPage = Math.round(container.scrollLeft / container.clientWidth);
-    setActiveNewArrivalPage(Math.max(0, Math.min(nextPage, newArrivalPageCount - 1)));
+    setActiveHomeCarouselPages((current) => ({
+      ...current,
+      [sectionId]: Math.max(0, Math.min(nextPage, pageCount - 1)),
+    }));
+  };
+
+  const scrollDesiredGenreCarouselToPage = (sectionId: string, pageIndex: number) => {
+    const container = desiredGenreCarouselRefs.current[sectionId];
+    if (!container) return;
+
+    container.scrollTo({
+      left: container.clientWidth * pageIndex,
+      behavior: 'smooth',
+    });
+    setActiveDesiredGenrePages((current) => ({
+      ...current,
+      [sectionId]: pageIndex,
+    }));
+  };
+
+  const handleDesiredGenreCarouselMove = (
+    sectionId: string,
+    direction: 'prev' | 'next',
+    pageCount: number,
+  ) => {
+    if (pageCount <= 1) return;
+
+    const currentPage = activeDesiredGenrePages[sectionId] ?? 0;
+    const nextPage =
+      direction === 'next'
+        ? (currentPage + 1) % pageCount
+        : (currentPage - 1 + pageCount) % pageCount;
+
+    scrollDesiredGenreCarouselToPage(sectionId, nextPage);
+  };
+
+  const handleDesiredGenreCarouselScroll = (sectionId: string, pageCount: number) => {
+    const container = desiredGenreCarouselRefs.current[sectionId];
+    if (!container || container.clientWidth === 0) return;
+
+    const nextPage = Math.round(container.scrollLeft / container.clientWidth);
+    setActiveDesiredGenrePages((current) => ({
+      ...current,
+      [sectionId]: Math.max(0, Math.min(nextPage, pageCount - 1)),
+    }));
   };
 
   const scrollGenreCarouselToPage = (pageIndex: number) => {
@@ -467,6 +624,7 @@ export default function MovieListPage() {
       </section>
     );
   };
+  void renderGenreCardSection;
 
   const renderGenreCarouselSection = (title: string, sectionGenres: GenreCard[]) => {
     if (!sectionGenres.length) return null;
@@ -554,19 +712,63 @@ export default function MovieListPage() {
     );
   };
 
-  const renderMovieCarouselSection = (title: string, description: string, sectionMovies: DisplayMovie[]) => {
+  const renderMovieCarouselSection = (
+    sectionIdOrTitle: HomeCarouselSectionId | string,
+    titleOrDescription: string,
+    descriptionOrMovies: string | DisplayMovie[],
+    sectionMoviesOrListPath?: DisplayMovie[] | string,
+    maybeListPath?: string,
+  ) => {
+    const isKnownSectionId =
+      sectionIdOrTitle === 'new-arrivals'
+      || sectionIdOrTitle === 'purchased'
+      || sectionIdOrTitle === 'watchlist';
+    const isLegacySignature = !isKnownSectionId && Array.isArray(descriptionOrMovies);
+    const sectionId = (isLegacySignature ? 'new-arrivals' : sectionIdOrTitle) as HomeCarouselSectionId;
+    const title = (isLegacySignature ? sectionIdOrTitle : titleOrDescription) as string;
+    const description = (isLegacySignature ? titleOrDescription : descriptionOrMovies) as string;
+    const sectionMovies = (
+      isLegacySignature ? descriptionOrMovies : sectionMoviesOrListPath
+    ) as DisplayMovie[];
+    const listPath = isLegacySignature ? undefined : maybeListPath;
+
     if (!sectionMovies.length) return null;
+
+    const pageCount = Math.max(1, Math.ceil(sectionMovies.length / newArrivalItemsPerPage));
+    const showControls = sectionMovies.length > newArrivalItemsPerPage;
+    const activePage = activeHomeCarouselPages[sectionId] ?? 0;
 
     return (
       <section className="mb-12">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white">{title}</h2>
-          <p className="mt-2 text-sm text-gray-400">{description}</p>
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">{title}</h2>
+            <p className="mt-2 text-sm text-gray-400">{description}</p>
+          </div>
+          {listPath && (
+            <Link
+              to={listPath}
+              state={{ from: location }}
+              aria-label={
+                sectionId === 'purchased'
+                  ? '\u96c9\uff7c\u8737\uff65\u7e3a\u52b1\u25c6\u870d\u6155\u5224'
+                  : sectionId === 'watchlist'
+                    ? '\u7e5d\u69ed\u3046\u7e5d\uff6a\u7e67\uff79\u7e5d\u30fb'
+                    : undefined
+              }
+              className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 underline decoration-cyan-300/70 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-200"
+            >
+              <span>{'\u4e00\u89a7\u306f\u3053\u3061\u3089'}</span>
+              <span aria-hidden="true">›</span>
+            </Link>
+          )}
         </div>
         <div className="relative">
           <div
-            ref={newArrivalCarouselRef}
-            onScroll={handleNewArrivalCarouselScroll}
+            ref={(node) => {
+              homeCarouselRefs.current[sectionId] = node;
+            }}
+            onScroll={() => handleHomeCarouselScroll(sectionId, pageCount)}
             className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {sectionMovies.map((movie) => (
@@ -601,20 +803,20 @@ export default function MovieListPage() {
               </div>
             ))}
           </div>
-          {showNewArrivalCarouselControls && (
+          {showControls && (
             <>
               <button
                 type="button"
-                aria-label="前の新着一覧へ"
-                onClick={() => handleNewArrivalCarouselMove('prev')}
+                aria-label={`前の${title}へ`}
+                onClick={() => handleHomeCarouselMove(sectionId, 'prev', pageCount)}
                 className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
                 ‹
               </button>
               <button
                 type="button"
-                aria-label="次の新着一覧へ"
-                onClick={() => handleNewArrivalCarouselMove('next')}
+                aria-label={`次の${title}へ`}
+                onClick={() => handleHomeCarouselMove(sectionId, 'next', pageCount)}
                 className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
                 ›
@@ -622,16 +824,131 @@ export default function MovieListPage() {
             </>
           )}
         </div>
-        {showNewArrivalCarouselControls && (
+        {showControls && (
           <div className="mt-5 flex items-center justify-center gap-2">
-            {Array.from({ length: newArrivalPageCount }, (_, index) => {
-              const isActive = index === activeNewArrivalPage;
+            {Array.from({ length: pageCount }, (_, index) => {
+              const isActive = index === activePage;
               return (
                 <button
-                  key={`new-arrival-dot-${index}`}
+                  key={`${sectionId}-dot-${index}`}
                   type="button"
-                  aria-label={`${index + 1}ページ目へ移動`}
-                  onClick={() => scrollNewArrivalCarouselToPage(index)}
+                  aria-label={`${title}の${index + 1}ページ目へ移動`}
+                  onClick={() => scrollHomeCarouselToPage(sectionId, index)}
+                  className={`rounded-full transition ${
+                    isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
+                  }`}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  const renderDesiredGenreCarouselSection = (
+    sectionId: string,
+    title: string,
+    description: string,
+    sectionMovies: DisplayMovie[],
+  ) => {
+    if (!sectionMovies.length) return null;
+
+    const pageCount = Math.max(1, Math.ceil(sectionMovies.length / newArrivalItemsPerPage));
+    const showControls = sectionMovies.length > newArrivalItemsPerPage;
+    const activePage = activeDesiredGenrePages[sectionId] ?? 0;
+
+    return (
+      <section className="mb-12">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">{title}</h2>
+            <p className="mt-2 text-gray-400">{description}</p>
+          </div>
+          <Link
+            to={`/genres/${encodeURIComponent(title)}`}
+            state={{ from: location }}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 underline decoration-cyan-300/70 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-200"
+          >
+            <span>一覧はこちら</span>
+            <span aria-hidden="true">›</span>
+          </Link>
+        </div>
+        <div className="relative">
+          <div
+            ref={(node) => {
+              desiredGenreCarouselRefs.current[sectionId] = node;
+            }}
+            onScroll={() => handleDesiredGenreCarouselScroll(sectionId, pageCount)}
+            className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {sectionMovies.map((movie) => {
+              const accessTier = getMovieAccessTier(movie);
+
+              return (
+                <div
+                  key={movie.id}
+                  className="w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
+                >
+                  <Link
+                    to={`/movies/${movie.id}`}
+                    state={{ from: location }}
+                    aria-label={`${title}:${movie.title}`}
+                    className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
+                  >
+                    <img
+                      src={getTestMovieThumbnail(movie, 'hero')}
+                      alt={movie.title}
+                      className="h-52 w-full object-cover"
+                    />
+                    <div className="space-y-3 p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
+                        >
+                          {getMovieGenreSummary(movie)}
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-bold text-white">{movie.title}</h3>
+                      {renderReleaseDate(movie.release_date)}
+                      <p className="line-clamp-3 text-sm leading-6 text-gray-300">{movie.description}</p>
+                    </div>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+          {showControls && (
+            <>
+              <button
+                type="button"
+                aria-label={`前の${title}へ`}
+                onClick={() => handleDesiredGenreCarouselMove(sectionId, 'prev', pageCount)}
+                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label={`次の${title}へ`}
+                onClick={() => handleDesiredGenreCarouselMove(sectionId, 'next', pageCount)}
+                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+              >
+                ›
+              </button>
+            </>
+          )}
+        </div>
+        {showControls && (
+          <div className="mt-5 flex items-center justify-center gap-2">
+            {Array.from({ length: pageCount }, (_, index) => {
+              const isActive = index === activePage;
+              return (
+                <button
+                  key={`${sectionId}-dot-${index}`}
+                  type="button"
+                  aria-label={`${title}の${index + 1}ページ目へ移動`}
+                  onClick={() => scrollDesiredGenreCarouselToPage(sectionId, index)}
                   className={`rounded-full transition ${
                     isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
                   }`}
@@ -881,7 +1198,8 @@ export default function MovieListPage() {
         {renderRecommendationSection()}
         {desiredGenreSections.map((section) => (
           <div key={section.id}>
-            {renderRecommendationStyleSection(
+            {renderDesiredGenreCarouselSection(
+              section.id,
               section.title,
               `${section.title}に設定した作品を表示しています。`,
               section.movies,
@@ -889,7 +1207,36 @@ export default function MovieListPage() {
           </div>
         ))}
         {renderMovieCarouselSection('新着一覧', '新着の作品を紹介します。', newArrivalMovies)}
+        {isAuthenticated && renderMovieCarouselSection(
+          'purchased',
+          '\u8cfc\u5165\u3057\u305f\u52d5\u753b',
+          '\u8cfc\u5165\u6e08\u307f\u306e\u52d5\u753b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+          purchasedMovies,
+          '/library',
+        )}
+        {isAuthenticated && renderMovieCarouselSection(
+          'watchlist',
+          '\u30de\u30a4\u30ea\u30b9\u30c8',
+          '\u30de\u30a4\u30ea\u30b9\u30c8\u306b\u767b\u9332\u3057\u3066\u3044\u308b\u52d5\u753b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+          watchlistMovies,
+          '/watchlist',
+        )}
         {renderGenreCarouselSection('ジャンル一覧', genreCards)}
+
+        {false && isAuthenticated && renderMovieCarouselSection(
+          'purchased',
+          '購入した動画',
+          '購入済みの動画を表示します。',
+          purchasedMovies,
+          '/library',
+        )}
+        {false && isAuthenticated && renderMovieCarouselSection(
+          'watchlist',
+          'マイリスト',
+          'マイリストに登録している動画を表示します。',
+          watchlistMovies,
+          '/watchlist',
+        )}
 
         {publicMovies.length > 0
           ? renderMovieSection(publicSectionTitle, publicSectionDescription, publicMovies)
