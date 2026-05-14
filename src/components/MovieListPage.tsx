@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
@@ -33,7 +33,7 @@ type GenreCard = {
   representativeMovie: DisplayMovie;
   movieCount: number;
 };
-type HomeCarouselSectionId = 'featured' | 'new-arrivals' | 'purchased' | 'watchlist';
+type HomeCarouselSectionId = 'hero-featured' | 'featured' | 'new-arrivals' | 'purchased' | 'watchlist';
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
 
@@ -90,7 +90,7 @@ function getHomeFeaturedOrder(movie: DisplayMovie) {
 
 function pickFeaturedMovies<T extends DisplayMovie>(movies: T[]) {
   return movies
-    .filter((movie) => movie.is_home_featured)
+    .filter((movie) => movie.is_home_feature)
     .slice()
     .sort((left, right) => {
       const featuredOrderDiff = getHomeFeaturedOrder(left) - getHomeFeaturedOrder(right);
@@ -150,7 +150,7 @@ function toCarouselMovieFromPurchase(
     buy_price: purchase.amount_total,
     currency: purchase.currency,
     stripe_price_id_one_time: null,
-    is_home_featured: false,
+    is_home_feature: false,
     home_featured_order: null,
     average_rating: null,
     review_count: 0,
@@ -173,6 +173,7 @@ export default function MovieListPage() {
   const [purchasedMovies, setPurchasedMovies] = useState<MovieListItem[]>([]);
   const [watchlistMovies, setWatchlistMovies] = useState<MovieListItem[]>([]);
   const [activeHomeCarouselPages, setActiveHomeCarouselPages] = useState<Record<HomeCarouselSectionId, number>>({
+    'hero-featured': 0,
     featured: 0,
     'new-arrivals': 0,
     purchased: 0,
@@ -189,6 +190,7 @@ export default function MovieListPage() {
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const homeCarouselRefs = useRef<Record<HomeCarouselSectionId, HTMLDivElement | null>>({
+    'hero-featured': null,
     featured: null,
     'new-arrivals': null,
     purchased: null,
@@ -346,6 +348,7 @@ export default function MovieListPage() {
     [sampleGenreLabels],
   );
   const featuredMovies = useMemo(() => pickFeaturedMovies(movies), [movies]);
+  const heroFeaturedMovies = useMemo(() => featuredMovies.slice(0, 5), [featuredMovies]);
   const desiredGenreSections = useMemo(
     () =>
       Array.from(new Set(desiredGenreIds))
@@ -388,6 +391,7 @@ export default function MovieListPage() {
     [genreOptions, movies],
   );
   const genrePageCount = Math.max(1, Math.ceil(genreCards.length / genreItemsPerPage));
+  const heroFeaturedPageCount = Math.max(1, heroFeaturedMovies.length);
   const featuredPageCount = Math.max(1, Math.ceil(featuredMovies.length / newArrivalItemsPerPage));
   const newArrivalPageCount = Math.max(1, Math.ceil(newArrivalMovies.length / newArrivalItemsPerPage));
   const showGenreCarouselControls = genreCards.length > 5;
@@ -395,6 +399,7 @@ export default function MovieListPage() {
   useEffect(() => {
     setActiveHomeCarouselPages((current) => ({
       ...current,
+      'hero-featured': Math.min(current['hero-featured'] ?? 0, heroFeaturedPageCount - 1),
       featured: Math.min(current.featured ?? 0, featuredPageCount - 1),
       'new-arrivals': Math.min(current['new-arrivals'] ?? 0, newArrivalPageCount - 1),
       purchased: Math.min(
@@ -407,6 +412,7 @@ export default function MovieListPage() {
       ),
     }));
   }, [
+    heroFeaturedPageCount,
     featuredPageCount,
     newArrivalItemsPerPage,
     newArrivalPageCount,
@@ -604,7 +610,7 @@ export default function MovieListPage() {
               key={genre.name}
               to={`/genres/${encodeURIComponent(genre.name)}`}
               state={{ from: location }}
-              aria-label={`ジャンル一覧:${genre.name}`}
+              aria-label={`繧ｸ繝｣繝ｳ繝ｫ荳隕ｧ:${genre.name}`}
               className="group relative block overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
             >
               <img
@@ -613,12 +619,12 @@ export default function MovieListPage() {
                 className="aspect-[2/3] w-full object-cover"
               />
               <span className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/25 px-2 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
-                ジャンル
+                繧ｸ繝｣繝ｳ繝ｫ
               </span>
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent">
                 <div className="absolute bottom-0 left-0 p-4">
                   <h3 className="mb-1 text-2xl font-bold text-white">{genre.name}</h3>
-                  <p className="text-sm text-gray-300">作品数: {genre.movieCount}</p>
+                  <p className="text-sm text-gray-300">菴懷刀謨ｰ: {genre.movieCount}</p>
                 </div>
               </div>
             </Link>
@@ -1016,7 +1022,7 @@ export default function MovieListPage() {
                   key={item.id}
                   to={`/movies/${targetMovie.id}?testDetailId=${encodeURIComponent(item.id)}`}
                   state={{ from: location }}
-                  aria-label={`動画:${item.title}`}
+                  aria-label={`蜍慕判:${item.title}`}
                   className="block overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
                 >
                   {cardContent}
@@ -1038,67 +1044,67 @@ export default function MovieListPage() {
     );
   };
 
-/*
-  const renderRecommendationSection = () => {
-    return renderMovieCarouselSection(
-      'featured',
-      'おすすめ動画',
-      'ホームに掲載中のおすすめ作品を表示しています。',
-      featuredMovies,
-    );
-    if (!recommendationMovies.length) return null;
-
-    return (
-      <section className="mb-12">
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-white">おすすめ動画</h2>
-            <p className="mt-2 text-gray-400">
-              作成済みのジャンルをもとに、いま視聴できる作品からおすすめを表示しています。
-            </p>
+  /*
+    const renderRecommendationSection = () => {
+      return renderMovieCarouselSection(
+        'featured',
+        'おすすめ動画',
+        'ホームに掲載中のおすすめ作品を表示しています。',
+        featuredMovies,
+      );
+      if (!recommendationMovies.length) return null;
+  
+      return (
+        <section className="mb-12">
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">おすすめ動画</h2>
+              <p className="mt-2 text-gray-400">
+                作成済みのジャンルをもとに、いま視聴できる作品からおすすめを表示しています。
+              </p>
+            </div>
+            <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
+              RECOMMEND
+            </span>
           </div>
-          <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
-            RECOMMEND
-          </span>
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr_1fr]">
-          {recommendationMovies.map((movie, index) => {
-            const accessTier = getMovieAccessTier(movie);
-
-            return (
-              <Link
-                key={movie.id}
-                to={`/movies/${movie.id}`}
-                state={{ from: location }}
-                aria-label={`おすすめ動画:${movie.title}`}
-                className={`min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${index === 0 ? 'lg:row-span-2' : ''
-                  }`}
-              >
-                <img
-                  src={getTestMovieThumbnail(movie, index === 0 ? 'hero' : 'card')}
-                  alt={movie.title}
-                  className={`w-full object-cover ${index === 0 ? 'h-[320px] lg:h-full' : 'h-52'}`}
-                />
-                <div className="min-w-0 space-y-3 p-5">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
-                    >
-                      {getMovieGenreSummary(movie)}
-                    </span>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr_1fr]">
+            {recommendationMovies.map((movie, index) => {
+              const accessTier = getMovieAccessTier(movie);
+  
+              return (
+                <Link
+                  key={movie.id}
+                  to={`/movies/${movie.id}`}
+                  state={{ from: location }}
+                  aria-label={`おすすめ動画:${movie.title}`}
+                  className={`min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700 ${index === 0 ? 'lg:row-span-2' : ''
+                    }`}
+                >
+                  <img
+                    src={getTestMovieThumbnail(movie, index === 0 ? 'hero' : 'card')}
+                    alt={movie.title}
+                    className={`w-full object-cover ${index === 0 ? 'h-[320px] lg:h-full' : 'h-52'}`}
+                  />
+                  <div className="min-w-0 space-y-3 p-5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={`inline-block max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-semibold ${getMovieAccessBadgeClass(accessTier)}`}
+                      >
+                        {getMovieGenreSummary(movie)}
+                      </span>
+                    </div>
+                    <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
+                    {renderReleaseDate(movie.release_date)}
+                    <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
                   </div>
-                  <h3 className="truncate text-xl font-bold text-white">{movie.title}</h3>
-                  {renderReleaseDate(movie.release_date)}
-                  <p className="truncate text-sm leading-6 text-gray-300">{movie.description}</p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-    );
-  };
-*/
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      );
+    };
+  */
 
   const renderRecommendationSection = () =>
     renderMovieCarouselSection(
@@ -1107,6 +1113,126 @@ export default function MovieListPage() {
       '\u30db\u30fc\u30e0\u306b\u63b2\u8f09\u4e2d\u306e\u304a\u3059\u3059\u3081\u4f5c\u54c1\u3092\u8868\u793a\u3057\u3066\u3044\u307e\u3059\u3002',
       featuredMovies,
     );
+
+  const renderHeroCarouselSection = () => {
+    if (heroFeaturedMovies.length) {
+      const activePage = activeHomeCarouselPages['hero-featured'] ?? 0;
+      const showControls = heroFeaturedMovies.length > 1;
+
+      return (
+        <section className="mb-12">
+          <div className="relative">
+            <div
+              ref={(node) => {
+                homeCarouselRefs.current['hero-featured'] = node;
+              }}
+              onScroll={() => handleHomeCarouselScroll('hero-featured', heroFeaturedPageCount)}
+              className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {heroFeaturedMovies.map((movie) => (
+                <div
+                  key={movie.id}
+                  className="w-full shrink-0 snap-start"
+                >
+                  <div className="relative h-[60vh] overflow-hidden rounded-xl">
+                    <img
+                      src={getTestMovieThumbnail(movie, 'hero')}
+                      alt={movie.title}
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
+                      <div className="absolute bottom-0 left-0 p-8">
+                        <div
+                          className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(movie))}`}
+                        >
+                          {getMovieGenreSummary(movie)}
+                        </div>
+                        <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{movie.title}</h2>
+                        <button
+                          onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
+                          className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
+                        >
+                          詳細を見る
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {showControls && (
+              <>
+                <button
+                  type="button"
+                  aria-label="前のメイン表示へ"
+                  onClick={() => handleHomeCarouselMove('hero-featured', 'prev', heroFeaturedPageCount)}
+                  className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  aria-label="次のメイン表示へ"
+                  onClick={() => handleHomeCarouselMove('hero-featured', 'next', heroFeaturedPageCount)}
+                  className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+          {showControls && (
+            <div className="mt-5 flex items-center justify-center gap-2">
+              {heroFeaturedMovies.map((movie, index) => {
+                const isActive = index === activePage;
+
+                return (
+                  <button
+                    key={`hero-featured-dot-${movie.id}`}
+                    type="button"
+                    aria-label={`メイン表示の${index + 1}ページ目へ移動`}
+                    onClick={() => scrollHomeCarouselToPage('hero-featured', index)}
+                    className={`rounded-full transition ${isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'}`}
+                  />
+
+                );
+              })}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    if (!heroMovie) return null;
+
+    return (
+      <section className="mb-12">
+        <div className="relative h-[60vh] overflow-hidden rounded-xl">
+          <img
+            src={getTestMovieThumbnail(heroMovie, 'hero')}
+            alt={heroMovie.title}
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
+            <div className="absolute bottom-0 left-0 p-8">
+              <div
+                className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}
+              >
+                {getMovieGenreSummary(heroMovie)}
+              </div>
+              <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
+              <button
+                onClick={() => navigate(`/movies/${heroMovie.id}`, { state: { from: location } })}
+                className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
+              >
+                詳細を見る
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  };
 
   const renderRecommendationStyleSection = (
     title: string,
@@ -1187,33 +1313,10 @@ export default function MovieListPage() {
       />
 
       <main className="container mx-auto px-4 pb-12 pt-24">
-        {heroMovie && (
-          <section className="mb-12">
-            <div className="relative h-[60vh] overflow-hidden rounded-xl">
-              <img
-                src={getTestMovieThumbnail(heroMovie, 'hero')}
-                alt={heroMovie.title}
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent">
-                <div className="absolute bottom-0 left-0 p-8">
-                  <div
-                    className={`inline-flex rounded-full border px-3 py-1 text-sm ${getMovieAccessBadgeClass(getMovieAccessTier(heroMovie))}`}
-                  >
-                    {getMovieGenreSummary(heroMovie)}
-                  </div>
-                  <h2 className="mb-4 mt-4 text-4xl font-bold text-white">{heroMovie.title}</h2>
-                  <button
-                    onClick={() => navigate(`/movies/${heroMovie.id}`, { state: { from: location } })}
-                    className="rounded-lg bg-white px-8 py-3 font-semibold text-gray-900 transition hover:bg-gray-100"
-                  >
-                    詳細を見る
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
+        {renderHeroCarouselSection()}
+
+
+
 
         {renderRecommendationSection()}
         {desiredGenreSections.map((section) => (

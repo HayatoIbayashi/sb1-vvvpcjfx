@@ -63,7 +63,7 @@ export interface Database {
           buy_price: number
           currency: string
           stripe_price_id_one_time: string | null
-          is_home_featured: boolean
+          is_home_feature: boolean
           home_featured_order: number | null
         }
         Insert: {
@@ -87,7 +87,7 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
-          is_home_featured?: boolean
+          is_home_feature?: boolean
           home_featured_order?: number | null
         }
         Update: {
@@ -111,7 +111,7 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
-          is_home_featured?: boolean
+          is_home_feature?: boolean
           home_featured_order?: number | null
         }
       }
