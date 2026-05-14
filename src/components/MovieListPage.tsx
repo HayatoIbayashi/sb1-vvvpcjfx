@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
@@ -31,6 +31,14 @@ type GenreCard = {
 };
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
+
+function getGenreItemsPerPage(width: number) {
+  if (width >= 1280) return 5;
+  if (width >= 1024) return 4;
+  if (width >= 768) return 3;
+  if (width >= 640) return 2;
+  return 1;
+}
 
 function toMovieListItem(movie: Movie): MovieListItem {
   return {
@@ -109,8 +117,13 @@ export default function MovieListPage() {
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
   );
+  const [activeGenrePage, setActiveGenrePage] = useState(0);
+  const [genreItemsPerPage, setGenreItemsPerPage] = useState(() =>
+    typeof window === 'undefined' ? 5 : getGenreItemsPerPage(window.innerWidth),
+  );
   const api = useApiClient();
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
+  const genreCarouselRef = useRef<HTMLDivElement | null>(null);
 
   const handleSearchSubmit = () => {
     const trimmed = searchQuery.trim();
@@ -171,6 +184,18 @@ export default function MovieListPage() {
     };
   }, [api, isAuthenticated, useMockMovies]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setGenreItemsPerPage(getGenreItemsPerPage(window.innerWidth));
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   const { publicMovies, memberMovies } = partitionMoviesByAccess(movies);
   const topRated = useMemo(
     () =>
@@ -230,6 +255,42 @@ export default function MovieListPage() {
       }),
     [genreOptions, movies],
   );
+  const genrePageCount = Math.max(1, Math.ceil(genreCards.length / genreItemsPerPage));
+  const showGenreCarouselControls = genreCards.length > 5;
+
+  useEffect(() => {
+    setActiveGenrePage((current) => Math.min(current, genrePageCount - 1));
+  }, [genrePageCount]);
+
+  const scrollGenreCarouselToPage = (pageIndex: number) => {
+    const container = genreCarouselRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      left: container.clientWidth * pageIndex,
+      behavior: 'smooth',
+    });
+    setActiveGenrePage(pageIndex);
+  };
+
+  const handleGenreCarouselMove = (direction: 'prev' | 'next') => {
+    if (genrePageCount <= 1) return;
+
+    const nextPage =
+      direction === 'next'
+        ? (activeGenrePage + 1) % genrePageCount
+        : (activeGenrePage - 1 + genrePageCount) % genrePageCount;
+
+    scrollGenreCarouselToPage(nextPage);
+  };
+
+  const handleGenreCarouselScroll = () => {
+    const container = genreCarouselRef.current;
+    if (!container || container.clientWidth === 0) return;
+
+    const nextPage = Math.round(container.scrollLeft / container.clientWidth);
+    setActiveGenrePage(Math.max(0, Math.min(nextPage, genrePageCount - 1)));
+  };
 
 
   const renderMovieCard = (movie: DisplayMovie) => {
@@ -312,6 +373,92 @@ export default function MovieListPage() {
             </Link>
           ))}
         </div>
+      </section>
+    );
+  };
+
+  const renderGenreCarouselSection = (title: string, sectionGenres: GenreCard[]) => {
+    if (!sectionGenres.length) return null;
+
+    return (
+      <section className="mb-12">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+        </div>
+        <div className="relative">
+          <div
+            ref={genreCarouselRef}
+            onScroll={handleGenreCarouselScroll}
+            className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {sectionGenres.map((genre) => (
+              <div
+                key={genre.name}
+                className="w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)] lg:basis-[calc((100%-4.5rem)/4)] xl:basis-[calc((100%-6rem)/5)]"
+              >
+                <Link
+                  to={`/genres/${encodeURIComponent(genre.name)}`}
+                  state={{ from: location }}
+                  aria-label={`ジャンル一覧:${genre.name}`}
+                  className="group relative block overflow-hidden rounded-lg transition-transform duration-300 hover:scale-105"
+                >
+                  <img
+                    src={getTestMovieThumbnail(genre.representativeMovie, 'card')}
+                    alt={genre.name}
+                    className="aspect-[2/3] w-full object-cover"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/25 px-2 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
+                    ジャンル
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent">
+                    <div className="absolute bottom-0 left-0 p-4">
+                      <h3 className="mb-1 text-2xl font-bold text-white">{genre.name}</h3>
+                      <p className="text-sm text-gray-300">作品数: {genre.movieCount}</p>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            ))}
+          </div>
+          {showGenreCarouselControls && (
+            <>
+              <button
+                type="button"
+                aria-label="前のジャンルへ"
+                onClick={() => handleGenreCarouselMove('prev')}
+                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label="次のジャンルへ"
+                onClick={() => handleGenreCarouselMove('next')}
+                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+              >
+                ›
+              </button>
+            </>
+          )}
+        </div>
+        {showGenreCarouselControls && (
+          <div className="mt-5 flex items-center justify-center gap-2">
+            {Array.from({ length: genrePageCount }, (_, index) => {
+              const isActive = index === activeGenrePage;
+              return (
+                <button
+                  key={`genre-dot-${index}`}
+                  type="button"
+                  aria-label={`${index + 1}ページ目へ移動`}
+                  onClick={() => scrollGenreCarouselToPage(index)}
+                  className={`rounded-full transition ${
+                    isActive ? 'h-2.5 w-8 bg-white' : 'h-2.5 w-2.5 bg-white/30 hover:bg-white/55'
+                  }`}
+                />
+              );
+            })}
+          </div>
+        )}
       </section>
     );
   };
@@ -551,7 +698,7 @@ export default function MovieListPage() {
         )}
 
         {renderRecommendationSection()}
-        {renderGenreCardSection('ジャンル一覧', genreCards)}
+        {renderGenreCarouselSection('ジャンル一覧', genreCards)}
 
         {publicMovies.length > 0
           ? renderMovieSection(publicSectionTitle, publicSectionDescription, publicMovies)

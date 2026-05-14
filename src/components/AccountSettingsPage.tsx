@@ -646,7 +646,27 @@ export default function AccountSettingsPage() {
               }}
               className="rounded bg-blue-600 px-8 py-2 font-semibold hover:bg-blue-700"
             >
-              {savedTarget === 'profile' ? '保存しました' : '保存'}
+              {savedTarget === 'profile' ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4 shrink-0 text-white"
+                    fill="none"
+                  >
+                    <path
+                      d="M3.5 8.5 6.5 11.5 12.5 5.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>保存しました</span>
+                </span>
+              ) : (
+                '保存'
+              )}
             </button>
             {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
@@ -706,7 +726,27 @@ export default function AccountSettingsPage() {
               }}
               className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
             >
-              {savedTarget === 'preferences' ? '保存しました' : '視聴設定を保存'}
+              {savedTarget === 'preferences' ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4 shrink-0 text-white"
+                    fill="none"
+                  >
+                    <path
+                      d="M3.5 8.5 6.5 11.5 12.5 5.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>保存しました</span>
+                </span>
+              ) : (
+                '視聴設定を保存'
+              )}
             </button>
             {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
