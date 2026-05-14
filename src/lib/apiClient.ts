@@ -6,6 +6,7 @@ export type Movie = Database['public']['Tables']['movies']['Row'];
 export type MovieListItem = Movie & {
   average_rating: number | null;
   review_count: number;
+  publish_at?: string | null;
 };
 
 export type SignUpPayload = {
