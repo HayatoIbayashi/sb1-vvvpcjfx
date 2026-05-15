@@ -3,13 +3,19 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { ArrowLeft, Maximize, Pause, Play, RefreshCcw, Volume2, VolumeX } from 'lucide-react';
 import type { Database } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 import { AWS_SAMPLE_VIDEO_STORAGE_PATH, linkToStorageFile } from '../lib/storageUtils';
 import useApiClient from '../lib/useApiClient';
-import { useAuthStatus } from '../lib/authBridge';
+import { getBillingToken, useAuthStatus } from '../lib/authBridge';
 import { MOCK_MOVIES } from '../mockData';
 import { getLocalMockMovie } from '../lib/mockMovieResolver';
 import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import {
+  buildAbsoluteAppUrl,
+  buildPurchaseCompletionPath,
+  getReturnToFromLocation,
+} from '../lib/subscriptionNavigation';
 import { canAccessMovie, getMovieAccessTier, getMovieBuyPrice, getMovieCurrency } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -35,6 +41,7 @@ function loadMockWatchHistory(): MockWatchHistoryItem[] {
 }
 
 export default function MoviePlayerPage() {
+  const auth = useAuth();
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,6 +75,8 @@ export default function MoviePlayerPage() {
   const [duration, setDuration] = useState(0);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [isStartingPurchase, setIsStartingPurchase] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [resumePositionSec, setResumePositionSec] = useState(0);
   const [isResumeLoading, setIsResumeLoading] = useState(false);
   const hasRecordedWatchHistoryRef = useRef(false);
@@ -461,6 +470,43 @@ export default function MoviePlayerPage() {
     void fetchStorageUrl();
   };
 
+  const handlePurchase = useCallback(async () => {
+    if (!movie?.id) return;
+
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsStartingPurchase(true);
+      setPurchaseError(null);
+
+      const billingToken = getBillingToken(auth);
+      if (!billingToken) {
+        setPurchaseError('購入を開始するには、もう一度ログインしてください。');
+        return;
+      }
+
+      const returnTo = getReturnToFromLocation(location);
+      const session = await api.createPurchaseCheckoutSession({
+        movieId: movie.id,
+        successUrl: buildAbsoluteAppUrl(
+          window.location.origin,
+          buildPurchaseCompletionPath(movie.id, returnTo),
+        ),
+        cancelUrl: buildAbsoluteAppUrl(window.location.origin, returnTo),
+      }, billingToken);
+
+      window.location.assign(session.url);
+    } catch (purchaseStartError) {
+      console.error('Purchase checkout error:', purchaseStartError);
+      setPurchaseError('購入手続きの開始に失敗しました。');
+    } finally {
+      setIsStartingPurchase(false);
+    }
+  }, [api, auth, isAuthenticated, location, movie, navigate]);
+
   const handlePlayPause = () => {
     setIsPlaying((current) => {
       if (current) {
@@ -633,8 +679,12 @@ export default function MoviePlayerPage() {
                   </button>
                 </>
               ) : (
-                <div
-                  className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-3 font-semibold text-white"
+                <button
+                  onClick={() => {
+                    void handlePurchase();
+                  }}
+                  disabled={isStartingPurchase}
+                  className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span>この動画は購入が必要です</span>
                   {buyPrice > 0 && (
@@ -642,12 +692,17 @@ export default function MoviePlayerPage() {
                       {currency === 'JPY' ? `¥${buyPrice.toLocaleString()}` : `${buyPrice.toLocaleString()} ${currency}`}
                     </span>
                   )}
-                </div>
+                </button>
               )}
               <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-gray-200">
                 {getPrimaryMovieGenre(movie)}
               </div>
             </div>
+            {purchaseError && (
+              <div className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {purchaseError}
+              </div>
+            )}
           </div>
         </main>
       </div>

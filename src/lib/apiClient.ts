@@ -74,6 +74,17 @@ export type SubscriptionCheckoutSessionResponse = {
   sessionId: string;
 };
 
+export type PurchaseCheckoutSessionPayload = {
+  movieId: string;
+  successUrl?: string | null;
+  cancelUrl?: string | null;
+};
+
+export type PurchaseCheckoutSessionResponse = {
+  url: string;
+  sessionId: string;
+};
+
 export type Purchase = Database['public']['Tables']['purchases']['Row'] & {
   title?: string | null;
   thumbnail?: string | null;
@@ -399,6 +410,16 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     ) {
       return postWithOptionalAuth<SubscriptionCheckoutSessionResponse>(
         '/subscriptions/checkout-session',
+        payload,
+        authTokenOverride,
+      );
+    },
+    async createPurchaseCheckoutSession(
+      payload: PurchaseCheckoutSessionPayload,
+      authTokenOverride?: string | null,
+    ) {
+      return postWithOptionalAuth<PurchaseCheckoutSessionResponse>(
+        '/purchases/checkout-session',
         payload,
         authTokenOverride,
       );

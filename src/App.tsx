@@ -10,6 +10,7 @@ import MovieManagementPage from './components/admin/MovieManagementPage';
 import AdminDashboard from './components/AdminDashboard';
 import SubscriptionPage from './components/SubscriptionPage';
 import SubscriptionCompletionPage from './components/SubscriptionCompletionPage';
+import PurchaseCompletionPage from './components/PurchaseCompletionPage';
 import AccountSettingsPage from './components/AccountSettingsPage';
 import SearchResultsPage from './components/SearchResultsPage';
 import WatchlistPage from './components/WatchlistPage';
@@ -34,6 +35,7 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/movies" element={<MovieManagementPage />} />
         <Route path="/subscription/complete" element={<SubscriptionCompletionPage />} />
+        <Route path="/purchase/complete" element={<PurchaseCompletionPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
         <Route path="/account" element={<AccountSettingsPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />

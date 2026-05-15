@@ -400,6 +400,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/subscriptions/checkout-session
             Method: POST
+        PurchaseCheckoutSessionCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/purchases/checkout-session
+            Method: POST
         SubscriptionCurrentDelete:
           Type: HttpApi
           Properties:

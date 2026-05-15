@@ -3,6 +3,7 @@ type AppLocationLike = Pick<Location, 'pathname' | 'search' | 'hash'>;
 export const DEFAULT_MEMBERSHIP_RETURN_TO = '/';
 const SUBSCRIPTION_PATH = '/subscription';
 const SUBSCRIPTION_COMPLETE_PATH = '/subscription/complete';
+const PURCHASE_COMPLETE_PATH = '/purchase/complete';
 
 export function normalizeReturnTo(
   value?: string | null,
@@ -40,6 +41,21 @@ export function buildSubscriptionPath(returnTo?: string | null) {
 
 export function buildSubscriptionCompletionPath(returnTo?: string | null) {
   return buildPathWithReturnTo(SUBSCRIPTION_COMPLETE_PATH, returnTo);
+}
+
+export function buildPurchaseCompletionPath(movieId: string, returnTo?: string | null) {
+  const normalizedMovieId = movieId.trim();
+  if (!normalizedMovieId) {
+    return PURCHASE_COMPLETE_PATH;
+  }
+
+  const searchParams = new URLSearchParams({ movieId: normalizedMovieId });
+  const normalizedReturnTo = normalizeReturnTo(returnTo, '');
+  if (normalizedReturnTo) {
+    searchParams.set('returnTo', normalizedReturnTo);
+  }
+
+  return `${PURCHASE_COMPLETE_PATH}?${searchParams.toString()}`;
 }
 
 export function buildAbsoluteAppUrl(origin: string, relativePath: string) {
