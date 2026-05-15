@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
-import type { HomePageData, MovieListItem, Purchase } from '../lib/apiClient';
+import type { HomePageData, MovieListItem, Purchase, WatchHistoryItem } from '../lib/apiClient';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import {
@@ -33,7 +33,13 @@ type GenreCard = {
   representativeMovie: DisplayMovie;
   movieCount: number;
 };
-type HomeCarouselSectionId = 'hero-featured' | 'featured' | 'new-arrivals' | 'purchased' | 'watchlist';
+type HomeCarouselSectionId =
+  | 'hero-featured'
+  | 'continue-watching'
+  | 'featured'
+  | 'new-arrivals'
+  | 'purchased'
+  | 'watchlist';
 
 const LS_RECOMMENDATION_PREFERENCES = 'account_recommendation_preferences_v1';
 
@@ -157,6 +163,41 @@ function toCarouselMovieFromPurchase(
   };
 }
 
+function toCarouselMovieFromWatchHistory(
+  item: WatchHistoryItem,
+  movieMap: Map<string, MovieListItem>,
+): MovieListItem {
+  const existingMovie = movieMap.get(item.movie_id);
+  if (existingMovie) return existingMovie;
+
+  return {
+    id: item.movie_id,
+    title: item.title,
+    description: '',
+    thumbnail: item.thumbnail ?? null,
+    thumbnail_top: item.thumbnail ?? null,
+    thumbnail_detail: item.thumbnail ?? null,
+    release_date: null,
+    duration: null,
+    genre: [],
+    cast: [],
+    director: null,
+    release_year: null,
+    created_at: item.watched_at,
+    updated_at: item.watched_at,
+    price: 0,
+    rental_price: 0,
+    access_mode: 'public',
+    buy_price: 0,
+    currency: 'JPY',
+    stripe_price_id_one_time: null,
+    is_home_feature: false,
+    home_featured_order: null,
+    average_rating: null,
+    review_count: 0,
+  };
+}
+
 export default function MovieListPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -171,9 +212,11 @@ export default function MovieListPage() {
     isAuthenticated ? 'registered' : 'guest',
   );
   const [purchasedMovies, setPurchasedMovies] = useState<MovieListItem[]>([]);
+  const [continueWatchingMovies, setContinueWatchingMovies] = useState<MovieListItem[]>([]);
   const [watchlistMovies, setWatchlistMovies] = useState<MovieListItem[]>([]);
   const [activeHomeCarouselPages, setActiveHomeCarouselPages] = useState<Record<HomeCarouselSectionId, number>>({
     'hero-featured': 0,
+    'continue-watching': 0,
     featured: 0,
     'new-arrivals': 0,
     purchased: 0,
@@ -191,6 +234,7 @@ export default function MovieListPage() {
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const homeCarouselRefs = useRef<Record<HomeCarouselSectionId, HTMLDivElement | null>>({
     'hero-featured': null,
+    'continue-watching': null,
     featured: null,
     'new-arrivals': null,
     purchased: null,
@@ -235,6 +279,7 @@ export default function MovieListPage() {
         if (!cancelled) {
           setMovies(MOCK_MOVIES.map(toMovieListItem));
           setAccessState(isAuthenticated ? 'registered' : 'guest');
+          setContinueWatchingMovies([]);
           setPurchasedMovies([]);
           setWatchlistMovies([]);
         }
@@ -250,6 +295,7 @@ export default function MovieListPage() {
 
         if (!isAuthenticated || cancelled) {
           if (!cancelled) {
+            setContinueWatchingMovies([]);
             setPurchasedMovies([]);
             setWatchlistMovies([]);
           }
@@ -257,12 +303,24 @@ export default function MovieListPage() {
         }
 
         const movieMap = new Map(result.movies.map((movie) => [movie.id, movie] as const));
-        const [purchasesResult, watchlistResult] = await Promise.allSettled([
+        const [watchHistoryResult, purchasesResult, watchlistResult] = await Promise.allSettled([
+          api.getWatchHistory(),
           api.getPurchases({ status: 'completed' }),
           api.getWatchlist(),
         ]);
 
         if (cancelled) return;
+
+        if (watchHistoryResult.status === 'fulfilled') {
+          setContinueWatchingMovies(
+            watchHistoryResult.value.items
+              .filter((item) => item.resume_position_sec > 0)
+              .map((item) => toCarouselMovieFromWatchHistory(item, movieMap)),
+          );
+        } else {
+          console.error('Error fetching continue watching movies for home page:', watchHistoryResult.reason);
+          setContinueWatchingMovies([]);
+        }
 
         if (purchasesResult.status === 'fulfilled') {
           setPurchasedMovies(
@@ -284,6 +342,7 @@ export default function MovieListPage() {
         if (!cancelled) {
           setMovies(MOCK_MOVIES.map(toMovieListItem));
           setAccessState(isAuthenticated ? 'registered' : 'guest');
+          setContinueWatchingMovies([]);
           setPurchasedMovies([]);
           setWatchlistMovies([]);
         }
@@ -402,6 +461,10 @@ export default function MovieListPage() {
       'hero-featured': Math.min(current['hero-featured'] ?? 0, heroFeaturedPageCount - 1),
       featured: Math.min(current.featured ?? 0, featuredPageCount - 1),
       'new-arrivals': Math.min(current['new-arrivals'] ?? 0, newArrivalPageCount - 1),
+      'continue-watching': Math.min(
+        current['continue-watching'] ?? 0,
+        Math.max(1, Math.ceil(continueWatchingMovies.length / newArrivalItemsPerPage)) - 1,
+      ),
       purchased: Math.min(
         current.purchased ?? 0,
         Math.max(1, Math.ceil(purchasedMovies.length / newArrivalItemsPerPage)) - 1,
@@ -416,6 +479,7 @@ export default function MovieListPage() {
     featuredPageCount,
     newArrivalItemsPerPage,
     newArrivalPageCount,
+    continueWatchingMovies.length,
     purchasedMovies.length,
     watchlistMovies.length,
   ]);
@@ -739,10 +803,12 @@ export default function MovieListPage() {
     titleOrDescription: string,
     descriptionOrMovies: string | DisplayMovie[],
     sectionMoviesOrListPath?: DisplayMovie[] | string,
-    maybeListPath?: string,
+    maybeListPathOrMovieLinkBuilder?: string | ((movie: DisplayMovie) => string),
+    maybeMovieLinkBuilder?: (movie: DisplayMovie) => string,
   ) => {
     const isKnownSectionId =
-      sectionIdOrTitle === 'featured'
+      sectionIdOrTitle === 'continue-watching'
+      || sectionIdOrTitle === 'featured'
       || sectionIdOrTitle === 'new-arrivals'
       || sectionIdOrTitle === 'purchased'
       || sectionIdOrTitle === 'watchlist';
@@ -753,7 +819,16 @@ export default function MovieListPage() {
     const sectionMovies = (
       isLegacySignature ? descriptionOrMovies : sectionMoviesOrListPath
     ) as DisplayMovie[];
-    const listPath = isLegacySignature ? undefined : maybeListPath;
+    const listPath = isLegacySignature
+      ? undefined
+      : typeof maybeListPathOrMovieLinkBuilder === 'string'
+        ? maybeListPathOrMovieLinkBuilder
+        : undefined;
+    const movieLinkBuilder = isLegacySignature
+      ? undefined
+      : typeof maybeListPathOrMovieLinkBuilder === 'function'
+        ? maybeListPathOrMovieLinkBuilder
+        : maybeMovieLinkBuilder;
 
     if (!sectionMovies.length) return null;
 
@@ -800,7 +875,7 @@ export default function MovieListPage() {
                 className="min-w-0 w-full shrink-0 snap-start sm:basis-[calc((100%-1.5rem)/2)] md:basis-[calc((100%-3rem)/3)]"
               >
                 <Link
-                  to={`/movies/${movie.id}`}
+                  to={movieLinkBuilder ? movieLinkBuilder(movie) : `/movies/${movie.id}`}
                   state={{ from: location }}
                   aria-label={`${title}:${movie.title}`}
                   className="block min-w-0 overflow-hidden rounded-2xl border border-gray-800 bg-gray-800/70 shadow-lg transition-transform duration-300 hover:scale-[1.02] hover:border-gray-700"
@@ -1337,6 +1412,13 @@ export default function MovieListPage() {
 
 
 
+        {isAuthenticated && renderMovieCarouselSection(
+          'continue-watching',
+          '視聴中',
+          '最後に視聴した動画から続きの再生ができます。',
+          continueWatchingMovies,
+          (movie) => `/watch/${movie.id}?autoplay=1`,
+        )}
         {renderRecommendationSection()}
         {desiredGenreSections.map((section) => (
           <div key={section.id}>
