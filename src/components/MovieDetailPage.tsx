@@ -55,6 +55,7 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
   const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [hasResumePosition, setHasResumePosition] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +124,36 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
       cancelled = true;
     };
   }, [api, isAuthenticated, movieId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadResumePosition = async () => {
+      if (!isAuthenticated || !movieId || shouldUseLocalMockMovie) {
+        if (!cancelled) {
+          setHasResumePosition(false);
+        }
+        return;
+      }
+
+      try {
+        const result = await api.getWatchHistoryItem(movieId);
+        if (!cancelled) {
+          setHasResumePosition((result.item?.resume_position_sec ?? 0) > 0);
+        }
+      } catch (error) {
+        console.error('Error fetching resume position:', error);
+        if (!cancelled) {
+          setHasResumePosition(false);
+        }
+      }
+    };
+
+    void loadResumePosition();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movieId, shouldUseLocalMockMovie]);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,7 +258,7 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
         >
           <Play className="h-5 w-5" />
-          今すぐ視聴する
+          {hasResumePosition ? '続きから再生する' : '今すぐ視聴する'}
         </button>
       );
     }
