@@ -24,6 +24,11 @@ import {
 } from '../lib/movieAccess';
 import { MEMBERSHIP_MONTHLY_PRICE, type MembershipAccessState } from '../lib/useMembershipStatus';
 import useHeaderGenres from '../lib/useHeaderGenres';
+import {
+  getGenreLabelsFromPreferenceIds,
+  getStoredHiddenGenreLabels,
+  matchesHiddenGenre,
+} from '../lib/warningPreferences';
 import { Header } from './common/Header';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
@@ -208,6 +213,7 @@ export default function MovieListPage() {
     getRecommendationGenreLabels(getStoredDesiredGenreIds()),
   );
   const [desiredGenreIds, setDesiredGenreIds] = useState<string[]>(() => getStoredDesiredGenreIds());
+  const [hiddenGenreLabels, setHiddenGenreLabels] = useState<string[]>(() => getStoredHiddenGenreLabels());
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
   );
@@ -254,8 +260,10 @@ export default function MovieListPage() {
 
     const applyStoredRecommendations = () => {
       const storedDesiredGenreIds = getStoredDesiredGenreIds();
+      const storedHiddenGenreLabels = getStoredHiddenGenreLabels();
       if (!cancelled) {
         setDesiredGenreIds(storedDesiredGenreIds);
+        setHiddenGenreLabels(storedHiddenGenreLabels);
         setSampleGenreLabels(getRecommendationGenreLabels(storedDesiredGenreIds));
       }
     };
@@ -265,6 +273,7 @@ export default function MovieListPage() {
       setMovies(result.movies);
       setAccessState(result.accessState);
       setDesiredGenreIds(result.desiredGenreIds);
+      setHiddenGenreLabels(getGenreLabelsFromPreferenceIds(result.hiddenCategoryIds));
 
       if (isAuthenticated) {
         setSampleGenreLabels(getRecommendationGenreLabels(result.desiredGenreIds));
@@ -396,8 +405,6 @@ export default function MovieListPage() {
         .slice(0, 10),
     [movies],
   );
-  const availableNowMovies = movies.filter((movie) => canAccessMovie(accessState, movie));
-  const heroMovie = availableNowMovies[0] ?? publicMovies[0] ?? memberMovies[0] ?? movies[0] ?? null;
   const publicCatalogFallbackItems = useMemo(
     () => getHomePublicCatalogFallbackItems(sampleGenreLabels),
     [sampleGenreLabels],
@@ -406,7 +413,19 @@ export default function MovieListPage() {
     () => getHomeMemberCatalogFallbackItems(sampleGenreLabels),
     [sampleGenreLabels],
   );
-  const featuredMovies = useMemo(() => pickFeaturedMovies(movies), [movies]);
+  const visibleRecommendedMovies = useMemo(
+    () => movies.filter((movie) => !matchesHiddenGenre(movie, hiddenGenreLabels)),
+    [hiddenGenreLabels, movies],
+  );
+  const availableRecommendedMovies = useMemo(
+    () => visibleRecommendedMovies.filter((movie) => canAccessMovie(accessState, movie)),
+    [accessState, visibleRecommendedMovies],
+  );
+  const heroMovie =
+    availableRecommendedMovies[0]
+    ?? visibleRecommendedMovies[0]
+    ?? null;
+  const featuredMovies = useMemo(() => pickFeaturedMovies(visibleRecommendedMovies), [visibleRecommendedMovies]);
   const heroFeaturedMovies = useMemo(() => featuredMovies.slice(0, 5), [featuredMovies]);
   const desiredGenreSections = useMemo(
     () =>

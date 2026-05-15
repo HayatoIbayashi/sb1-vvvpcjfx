@@ -15,27 +15,48 @@ function getWarningLabelMap() {
   return new Map(RECOMMENDATION_CONTENT_FILTER_MASTER.map((option) => [option.id, option.label]));
 }
 
-export function getStoredWarningGenreLabels() {
+export function getGenreLabelsFromPreferenceIds(
+  ids: string[] | null | undefined,
+) {
+  const labelMap = getWarningLabelMap();
+
+  return Array.from(
+    new Set(
+      (ids ?? [])
+        .map((id) => labelMap.get(id))
+        .filter((label): label is string => typeof label === 'string' && label.trim().length > 0),
+    ),
+  );
+}
+
+function getStoredRecommendationPreferenceIds(key: 'hiddenCategoryIds' | 'warningCategoryIds') {
   try {
     const raw = localStorage.getItem(LS_RECOMMENDATION_PREFERENCES);
     if (!raw) return [];
 
-    const parsed = JSON.parse(raw) as { warningCategoryIds?: unknown };
-    const warningIds = Array.isArray(parsed?.warningCategoryIds)
-      ? parsed.warningCategoryIds.filter((value): value is string => typeof value === 'string')
-      : [];
-    const labelMap = getWarningLabelMap();
+    const parsed = JSON.parse(raw) as {
+      hiddenCategoryIds?: unknown;
+      warningCategoryIds?: unknown;
+    };
 
-    return Array.from(
-      new Set(
-        warningIds
-          .map((id) => labelMap.get(id))
-          .filter((label): label is string => typeof label === 'string' && label.trim().length > 0),
-      ),
-    );
+    return Array.isArray(parsed?.[key])
+      ? parsed[key].filter((value): value is string => typeof value === 'string')
+      : [];
   } catch {
     return [];
   }
+}
+
+function getStoredGenreLabels(key: 'hiddenCategoryIds' | 'warningCategoryIds') {
+  return getGenreLabelsFromPreferenceIds(getStoredRecommendationPreferenceIds(key));
+}
+
+export function getStoredWarningGenreLabels() {
+  return getStoredGenreLabels('warningCategoryIds');
+}
+
+export function getStoredHiddenGenreLabels() {
+  return getStoredGenreLabels('hiddenCategoryIds');
 }
 
 export function getMatchingWarningGenres(
@@ -47,4 +68,15 @@ export function getMatchingWarningGenres(
   );
 
   return getMovieGenres(movie).filter((genre) => warningGenreSet.has(normalizeGenre(genre)));
+}
+
+export function matchesHiddenGenre(
+  movie: MovieGenreLike | null | undefined,
+  hiddenGenreLabels: string[],
+) {
+  const hiddenGenreSet = new Set(
+    hiddenGenreLabels.map((label) => normalizeGenre(label)).filter(Boolean),
+  );
+
+  return getMovieGenres(movie).some((genre) => hiddenGenreSet.has(normalizeGenre(genre)));
 }

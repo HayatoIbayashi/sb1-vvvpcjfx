@@ -10,7 +10,10 @@ import {
   type AdminAccountRole,
 } from './adminAccounts.js';
 import { buildMovieSearchClause } from './movieSearch.js';
-import { parseRecommendationPreferencesBody } from './recommendationPreferences.js';
+import {
+  normalizeRecommendationPreferences,
+  parseRecommendationPreferencesBody,
+} from './recommendationPreferences.js';
 
 const MOVIE_COLUMNS = [
   'id',
@@ -762,6 +765,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         return response(200, {
           movies: rows,
           accessState: 'guest',
+          hiddenCategoryIds: [],
           desiredGenreIds: [],
         });
       }
@@ -789,17 +793,16 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           [userId],
         );
 
-        const recommendationPreferences =
-          (profileRes.rows[0]?.recommendation_preferences as { desiredGenreIds?: unknown } | undefined) ?? {};
-        const desiredGenreIds = Array.isArray(recommendationPreferences.desiredGenreIds)
-          ? recommendationPreferences.desiredGenreIds.filter((value): value is string => typeof value === 'string')
-          : [];
+        const recommendationPreferences = normalizeRecommendationPreferences(
+          profileRes.rows[0]?.recommendation_preferences,
+        );
         const accessState = subscriptionRes.rows[0]?.status === 'active' ? 'member' : 'registered';
 
         return response(200, {
           movies: moviesRes.rows,
           accessState,
-          desiredGenreIds,
+          hiddenCategoryIds: recommendationPreferences.hiddenCategoryIds,
+          desiredGenreIds: recommendationPreferences.desiredGenreIds,
         });
       } finally {
         client.release();

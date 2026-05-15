@@ -27,6 +27,7 @@ export type RecommendationPreferences = {
 export type HomePageData = {
   movies: MovieListItem[];
   accessState: 'guest' | 'registered' | 'member';
+  hiddenCategoryIds: string[];
   desiredGenreIds: string[];
 };
 
