@@ -204,6 +204,11 @@ export class AuthSignupStack extends Stack {
       integration: moviesIntegration,
     });
     httpApi.addRoutes({
+      path: '/v1/watch-history/{movieId}',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.PATCH],
+      integration: moviesIntegration,
+    });
+    httpApi.addRoutes({
       path: '/v1/subscriptions/current',
       methods: [apigwv2.HttpMethod.GET],
       integration: moviesIntegration,

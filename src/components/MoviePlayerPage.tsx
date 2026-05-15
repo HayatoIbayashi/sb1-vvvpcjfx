@@ -13,6 +13,26 @@ import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
 import { canAccessMovie, getMovieAccessTier, getMovieBuyPrice, getMovieCurrency } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type MockWatchHistoryItem = {
+  id: string;
+  title: string;
+  watchedAt: string;
+  resumePositionSec: number;
+};
+
+const MOCK_WATCH_HISTORY_KEY = 'mock_watch_history_v1';
+const RESUME_SAVE_INTERVAL_SEC = 10;
+const RESUME_COMPLETE_THRESHOLD_SEC = 30;
+const RESUME_COMPLETE_THRESHOLD_RATIO = 0.95;
+
+function loadMockWatchHistory(): MockWatchHistoryItem[] {
+  const raw = localStorage.getItem(MOCK_WATCH_HISTORY_KEY);
+  if (!raw) {
+    return [];
+  }
+
+  return JSON.parse(raw) as MockWatchHistoryItem[];
+}
 
 export default function MoviePlayerPage() {
   const { id } = useParams();
@@ -48,7 +68,12 @@ export default function MoviePlayerPage() {
   const [duration, setDuration] = useState(0);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [resumePositionSec, setResumePositionSec] = useState(0);
+  const [isResumeLoading, setIsResumeLoading] = useState(false);
   const hasRecordedWatchHistoryRef = useRef(false);
+  const hasAppliedResumeRef = useRef(false);
+  const lastPlaybackPositionRef = useRef(0);
+  const lastSavedResumePositionRef = useRef(0);
 
   const canWatchMovie = movie ? canAccessMovie(accessState, movie, { hasPurchased: hasPurchasedMovie }) : false;
   const videoUrls = {
@@ -78,6 +103,93 @@ export default function MoviePlayerPage() {
     date.setSeconds(seconds);
     return date.toISOString().substring(11, 19);
   };
+
+  const getCurrentPlaybackSeconds = useCallback(() => {
+    if (seeking) {
+      return played * duration;
+    }
+
+    return Math.max(lastPlaybackPositionRef.current, played * duration);
+  }, [duration, played, seeking]);
+
+  const normalizeResumePosition = useCallback((seconds: number) => {
+    const wholeSeconds = Math.max(0, Math.floor(seconds));
+    if (duration <= 0) {
+      return wholeSeconds;
+    }
+
+    const remaining = duration - wholeSeconds;
+    const ratio = duration > 0 ? wholeSeconds / duration : 0;
+    if (remaining <= RESUME_COMPLETE_THRESHOLD_SEC || ratio >= RESUME_COMPLETE_THRESHOLD_RATIO) {
+      return 0;
+    }
+
+    return wholeSeconds;
+  }, [duration]);
+
+  const persistMockResumePosition = useCallback((movieId: string, movieTitle: string, nextResumePositionSec: number) => {
+    const current = loadMockWatchHistory();
+    const existing = current.find((item) => item.id === movieId);
+    const next = [
+      {
+        id: movieId,
+        title: movieTitle,
+        watchedAt: existing?.watchedAt ?? new Date().toISOString(),
+        resumePositionSec: nextResumePositionSec,
+      },
+      ...current.filter((item) => item.id !== movieId),
+    ];
+    localStorage.setItem(MOCK_WATCH_HISTORY_KEY, JSON.stringify(next));
+  }, []);
+
+  const saveResumePosition = useCallback(async (seconds: number, options?: { force?: boolean }) => {
+    if (!movie?.id || !isAuthenticated || accessState === 'guest' || !canWatchMovie) {
+      return;
+    }
+
+    const force = options?.force ?? false;
+    const normalizedSeconds = normalizeResumePosition(seconds);
+    const previousSavedSeconds = lastSavedResumePositionRef.current;
+    const shouldSkip = !force
+      && normalizedSeconds !== 0
+      && normalizedSeconds < previousSavedSeconds + RESUME_SAVE_INTERVAL_SEC;
+    if (shouldSkip || normalizedSeconds === previousSavedSeconds) {
+      return;
+    }
+
+    lastSavedResumePositionRef.current = normalizedSeconds;
+    setResumePositionSec(normalizedSeconds);
+
+    if (useMockWatchHistory) {
+      try {
+        persistMockResumePosition(movie.id, movie.title, normalizedSeconds);
+      } catch (historyError) {
+        lastSavedResumePositionRef.current = previousSavedSeconds;
+        console.error('Error saving mock resume position:', historyError);
+      }
+      return;
+    }
+
+    if (getLocalMockMovie(movie.id)) {
+      return;
+    }
+
+    try {
+      await api.updateWatchHistoryResumePosition(movie.id, normalizedSeconds);
+    } catch (historyError) {
+      lastSavedResumePositionRef.current = previousSavedSeconds;
+      console.error('Error saving resume position:', historyError);
+    }
+  }, [
+    accessState,
+    api,
+    canWatchMovie,
+    isAuthenticated,
+    movie,
+    normalizeResumePosition,
+    persistMockResumePosition,
+    useMockWatchHistory,
+  ]);
 
   const handleQualityChange = (newQuality: '1080p' | '720p' | '360p') => {
     setQuality(newQuality);
@@ -195,15 +307,102 @@ export default function MoviePlayerPage() {
 
   useEffect(() => {
     hasRecordedWatchHistoryRef.current = false;
+    hasAppliedResumeRef.current = false;
+    lastPlaybackPositionRef.current = 0;
+    lastSavedResumePositionRef.current = 0;
+    setPlayed(0);
+    setDuration(0);
+    setResumePositionSec(0);
+    setIsResumeLoading(false);
   }, [movie?.id]);
 
   useEffect(() => {
-    if (!shouldAutoplay || !storageUrl || !canWatchMovie) {
+    if (!storageUrl || !canWatchMovie || isResumeLoading) {
       return;
     }
 
-    setIsPlaying(true);
-  }, [canWatchMovie, shouldAutoplay, storageUrl]);
+    if (resumePositionSec > 0 || shouldAutoplay) {
+      setIsPlaying(true);
+    }
+  }, [canWatchMovie, isResumeLoading, resumePositionSec, shouldAutoplay, storageUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadResumePosition = async () => {
+      if (!movie?.id || !isAuthenticated || getLocalMockMovie(movie.id)) {
+        if (!cancelled) {
+          setResumePositionSec(0);
+          lastSavedResumePositionRef.current = 0;
+          setIsResumeLoading(false);
+        }
+        return;
+      }
+
+      setIsResumeLoading(true);
+
+      if (useMockWatchHistory) {
+        try {
+          const current = loadMockWatchHistory();
+          const savedPosition = current.find((item) => item.id === movie.id)?.resumePositionSec ?? 0;
+          if (!cancelled) {
+            setResumePositionSec(savedPosition);
+            lastSavedResumePositionRef.current = savedPosition;
+          }
+        } catch (historyError) {
+          console.error('Error loading mock resume position:', historyError);
+          if (!cancelled) {
+            setResumePositionSec(0);
+            lastSavedResumePositionRef.current = 0;
+          }
+        } finally {
+          if (!cancelled) {
+            setIsResumeLoading(false);
+          }
+        }
+        return;
+      }
+
+      try {
+        const result = await api.getWatchHistoryItem(movie.id);
+        if (!cancelled) {
+          const savedPosition = result.item?.resume_position_sec ?? 0;
+          setResumePositionSec(savedPosition);
+          lastSavedResumePositionRef.current = savedPosition;
+        }
+      } catch (historyError) {
+        console.error('Error loading resume position:', historyError);
+        if (!cancelled) {
+          setResumePositionSec(0);
+          lastSavedResumePositionRef.current = 0;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsResumeLoading(false);
+        }
+      }
+    };
+
+    void loadResumePosition();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movie?.id, useMockWatchHistory]);
+
+  useEffect(() => {
+    if (!resumePositionSec || duration <= 0 || hasAppliedResumeRef.current) {
+      return;
+    }
+
+    hasAppliedResumeRef.current = true;
+    lastPlaybackPositionRef.current = resumePositionSec;
+    setPlayed(Math.min(resumePositionSec / duration, 0.999));
+
+    const player = document.querySelector('video');
+    if (player) {
+      player.currentTime = resumePositionSec;
+    }
+  }, [duration, resumePositionSec]);
 
   useEffect(() => {
     const recordWatchHistory = async () => {
@@ -220,20 +419,18 @@ export default function MoviePlayerPage() {
 
       if (useMockWatchHistory) {
         try {
-          const key = 'mock_watch_history_v1';
-          const raw = localStorage.getItem(key);
-          const current = raw
-            ? (JSON.parse(raw) as Array<{ id: string; title: string; watchedAt: string }>)
-            : [];
+          const current = loadMockWatchHistory();
+          const existing = current.find((item) => item.id === movie.id);
           const next = [
             {
               id: movie.id,
               title: movie.title,
               watchedAt: new Date().toISOString(),
+              resumePositionSec: existing?.resumePositionSec ?? 0,
             },
             ...current.filter((item) => item.id !== movie.id),
           ];
-          localStorage.setItem(key, JSON.stringify(next));
+          localStorage.setItem(MOCK_WATCH_HISTORY_KEY, JSON.stringify(next));
           hasRecordedWatchHistoryRef.current = true;
         } catch (historyError) {
           console.error('Error saving mock watch history:', historyError);
@@ -265,7 +462,12 @@ export default function MoviePlayerPage() {
   };
 
   const handlePlayPause = () => {
-    setIsPlaying((current) => !current);
+    setIsPlaying((current) => {
+      if (current) {
+        void saveResumePosition(getCurrentPlaybackSeconds(), { force: true });
+      }
+      return !current;
+    });
   };
 
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,15 +487,31 @@ export default function MoviePlayerPage() {
   const handleSeekMouseUp = () => {
     setSeeking(false);
     const player = document.querySelector('video');
+    const nextSeconds = played * duration;
+    lastPlaybackPositionRef.current = nextSeconds;
     if (player) {
       player.currentTime = played * player.duration;
     }
+    void saveResumePosition(nextSeconds, { force: true });
   };
 
-  const handleProgress = (state: { played: number }) => {
+  const handleProgress = (state: { played: number; playedSeconds: number }) => {
+    lastPlaybackPositionRef.current = state.playedSeconds;
     if (!seeking) {
       setPlayed(state.played);
     }
+    void saveResumePosition(state.playedSeconds);
+  };
+
+  const handleDuration = (nextDuration: number) => {
+    setDuration(nextDuration);
+  };
+
+  const handleEnded = () => {
+    lastPlaybackPositionRef.current = 0;
+    setPlayed(0);
+    setIsPlaying(false);
+    void saveResumePosition(duration, { force: true });
   };
 
   const handleMute = () => {
@@ -314,7 +532,19 @@ export default function MoviePlayerPage() {
     }
   };
 
-  const isPlayerPreparing = !!movie && canWatchMovie && !storageUrl && !error;
+  useEffect(() => {
+    const flushResumePosition = () => {
+      void saveResumePosition(getCurrentPlaybackSeconds(), { force: true });
+    };
+
+    window.addEventListener('beforeunload', flushResumePosition);
+    return () => {
+      window.removeEventListener('beforeunload', flushResumePosition);
+      flushResumePosition();
+    };
+  }, [getCurrentPlaybackSeconds, saveResumePosition]);
+
+  const isPlayerPreparing = !!movie && canWatchMovie && (!storageUrl || isResumeLoading) && !error;
 
   if (loading || (isAuthenticated && (isMembershipLoading || isPurchaseLoading)) || isPlayerPreparing) {
     return (
@@ -449,7 +679,8 @@ export default function MoviePlayerPage() {
               volume={volume}
               muted={isMuted}
               onProgress={handleProgress}
-              onDuration={setDuration}
+              onDuration={handleDuration}
+              onEnded={handleEnded}
             />
 
             <div

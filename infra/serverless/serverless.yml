@@ -116,6 +116,12 @@ functions:
           path: /v1/watch-history
           method: POST
       - httpApi:
+          path: /v1/watch-history/{movieId}
+          method: GET
+      - httpApi:
+          path: /v1/watch-history/{movieId}
+          method: PATCH
+      - httpApi:
           path: /v1/subscriptions/current
           method: GET
       - httpApi:

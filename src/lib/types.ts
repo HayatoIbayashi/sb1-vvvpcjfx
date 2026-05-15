@@ -185,6 +185,7 @@ export interface Database {
           user_id: string
           movie_id: string
           watched_at: string
+          resume_position_sec: number
           created_at: string
           updated_at: string
         }
@@ -193,6 +194,7 @@ export interface Database {
           user_id: string
           movie_id: string
           watched_at?: string
+          resume_position_sec?: number
           created_at?: string
           updated_at?: string
         }
@@ -201,6 +203,7 @@ export interface Database {
           user_id?: string
           movie_id?: string
           watched_at?: string
+          resume_position_sec?: number
           created_at?: string
           updated_at?: string
         }

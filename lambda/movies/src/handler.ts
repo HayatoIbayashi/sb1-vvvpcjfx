@@ -72,7 +72,7 @@ function response(statusCode: number, body?: unknown): APIGatewayProxyResultV2 {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   };
@@ -463,6 +463,13 @@ function parseOffset(value?: string | null) {
   return parsed;
 }
 
+function parseResumePositionSec(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const parsed = Math.floor(value);
+  if (parsed < 0) return null;
+  return parsed;
+}
+
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
   try {
     const method = event.requestContext.http.method;
@@ -610,11 +617,30 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
     }
 
-    const watchHistoryMatch = path.match(/^\/v1\/watch-history$/);
+    const watchHistoryMatch = path.match(/^\/v1\/watch-history(?:\/([^/]+))?$/);
     if (watchHistoryMatch) {
       const userId = getUserIdFromAuth(event.headers);
+      const movieId = watchHistoryMatch[1] ? decodeURIComponent(watchHistoryMatch[1]) : null;
       if (!userId) {
         return response(401, { code: 'UNAUTHORIZED', message: 'Authorization required' });
+      }
+
+      if (method === 'GET' && movieId) {
+        const { rows } = await getPool().query(
+          `SELECT
+             wh.id,
+             wh.movie_id,
+             wh.watched_at,
+             wh.resume_position_sec,
+             m.title,
+             m.thumbnail
+           FROM watch_history wh
+           JOIN movies m ON m.id = wh.movie_id
+           WHERE wh.user_id = $1 AND wh.movie_id = $2
+           LIMIT 1`,
+          [userId, movieId],
+        );
+        return response(200, { item: rows[0] ?? null });
       }
 
       if (method === 'GET') {
@@ -626,6 +652,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             wh.id,
             wh.movie_id,
             wh.watched_at,
+            wh.resume_position_sec,
             m.title,
             m.thumbnail
           FROM watch_history wh
@@ -647,7 +674,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         return response(200, { items: rows });
       }
 
-      if (method === 'POST') {
+      if (method === 'POST' && !movieId) {
         const body = parseJsonBody(event);
         const inputMovieId = typeof body?.movieId === 'string' ? body.movieId : null;
         if (!inputMovieId) {
@@ -664,13 +691,49 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         }
 
         const result = await getPool().query(
-          `INSERT INTO watch_history (user_id, movie_id, watched_at, created_at, updated_at)
-           VALUES ($1, $2, now(), now(), now())
+          `INSERT INTO watch_history (user_id, movie_id, watched_at, resume_position_sec, created_at, updated_at)
+           VALUES ($1, $2, now(), 0, now(), now())
            ON CONFLICT (user_id, movie_id) DO UPDATE SET
              watched_at = EXCLUDED.watched_at,
              updated_at = now()
-           RETURNING id, movie_id, watched_at`,
+           RETURNING id, movie_id, watched_at, resume_position_sec`,
           [userId, inputMovieId],
+        );
+
+        return response(200, {
+          ok: true,
+          item: {
+            ...result.rows[0],
+            title: movie.title,
+            thumbnail: movie.thumbnail,
+          },
+        });
+      }
+
+      if (method === 'PATCH' && movieId) {
+        const body = parseJsonBody(event);
+        const resumePositionSec = parseResumePositionSec(body?.resumePositionSec);
+        if (resumePositionSec === null) {
+          return response(400, { code: 'VALIDATION_ERROR', message: 'resumePositionSec must be a non-negative number' });
+        }
+
+        const movieRes = await getPool().query(
+          'SELECT id, title, thumbnail FROM movies WHERE id = $1',
+          [movieId],
+        );
+        const movie = movieRes.rows[0];
+        if (!movie) {
+          return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+        }
+
+        const result = await getPool().query(
+          `INSERT INTO watch_history (user_id, movie_id, watched_at, resume_position_sec, created_at, updated_at)
+           VALUES ($1, $2, now(), $3, now(), now())
+           ON CONFLICT (user_id, movie_id) DO UPDATE SET
+             resume_position_sec = EXCLUDED.resume_position_sec,
+             updated_at = now()
+           RETURNING id, movie_id, watched_at, resume_position_sec`,
+          [userId, movieId, resumePositionSec],
         );
 
         return response(200, {
