@@ -186,7 +186,7 @@ async function upsertPurchaseCheckoutSession(session: StripeCheckoutSession) {
              status = 'completed',
              amount_total = $3,
              currency = $4,
-             payment_method = COALESCE(payment_method, 'stripe_checkout'),
+             payment_method = COALESCE(payment_method, 'CASH'),
              stripe_payment_intent_id = COALESCE($5, stripe_payment_intent_id),
              purchased_at = COALESCE(purchased_at, now()),
              updated_at = now()
@@ -206,7 +206,7 @@ async function upsertPurchaseCheckoutSession(session: StripeCheckoutSession) {
            stripe_payment_intent_id,
            purchased_at
          )
-         VALUES ($1, $2, 'completed', $3, $4, 'stripe_checkout', $5, $6, now())`,
+         VALUES ($1, $2, 'completed', $3, $4, 'CASH', $5, $6, now())`,
         [userId, movieId, amountTotal, currency, stripeCheckoutSessionId, stripePaymentIntentId],
       );
     }
@@ -265,7 +265,7 @@ async function upsertSubscription(subscription: StripeSubscription) {
     status === 'active'
       ? null
       : unixToIso(subscription.ended_at ?? subscription.canceled_at ?? subscription.current_period_end) ??
-        new Date().toISOString();
+      new Date().toISOString();
   const stripeCustomerId = normalizeString(subscription.customer);
 
   const client = await getPool().connect();
