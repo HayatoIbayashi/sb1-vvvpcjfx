@@ -117,6 +117,8 @@ export type AdminMovieWritePayload = {
   duration?: string | null;
   genre?: string[] | null;
   cast?: string[] | null;
+  director?: string | null;
+  release_year?: number | null;
   price?: number;
   rental_price?: number;
   access_mode?: Movie['access_mode'];
@@ -124,6 +126,8 @@ export type AdminMovieWritePayload = {
   currency?: string;
   stripe_price_id_one_time?: string | null;
   is_published?: boolean;
+  is_home_feature?: boolean;
+  home_featured_order?: number | null;
   publish_at?: string | null;
   unpublish_at?: string | null;
   view_window_days?: number;

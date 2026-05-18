@@ -15,6 +15,11 @@ function normalizeNullableText(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeNullableNumber(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return null;
+  return value;
+}
+
 function normalizeDateForDateInput(value: string | null | undefined) {
   const trimmed = normalizeNullableText(value);
   if (!trimmed) return '';
@@ -44,6 +49,11 @@ export function createEmptyFormData(): MovieFormData {
     duration: '',
     genre: [],
     cast: [],
+    director: null,
+    release_year: null,
+    is_published: false,
+    is_home_feature: false,
+    home_featured_order: null,
     accessTier: 'public',
     buyPrice: 0,
     videoFile: null,
@@ -61,6 +71,11 @@ export function createMovieFormData(movie: Movie): MovieFormData {
     duration: movie.duration || '',
     genre: movie.genre || [],
     cast: movie.cast || [],
+    director: movie.director,
+    release_year: movie.release_year,
+    is_published: movie.is_published,
+    is_home_feature: movie.is_home_feature,
+    home_featured_order: movie.home_featured_order,
     accessTier: getMovieAccessTier(movie),
     buyPrice: Number(movie.buy_price || movie.price || 0),
     videoFile: null,
@@ -85,6 +100,13 @@ export function buildMoviePayload(formData: MovieFormData): AdminMovieWritePaylo
     duration: normalizeNullableText(formData.duration),
     genre: formData.genre ?? [],
     cast: formData.cast ?? [],
+    director: normalizeNullableText(formData.director),
+    release_year: normalizeNullableNumber(formData.release_year),
+    is_published: formData.is_published === true,
+    is_home_feature: formData.is_home_feature === true,
+    home_featured_order: formData.is_home_feature
+      ? normalizeNullableNumber(formData.home_featured_order)
+      : null,
     ...toMovieAccessPayload(formData.accessTier, Number(formData.buyPrice || formData.buy_price || 0)),
   };
 }

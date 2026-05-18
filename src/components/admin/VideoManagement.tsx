@@ -172,11 +172,14 @@ export function VideoManagement() {
           thumbnail_detail: formData.thumbnail_detail || formData.thumbnail || null,
           release_date: formData.release_date || null,
           duration: formData.duration || null,
-          director: null,
-          release_year: null,
+          director: formData.director || null,
+          release_year: formData.release_year ?? null,
           ...toMovieAccessPayload(formData.accessTier, formData.buyPrice),
           genre: formData.genre || [],
           cast: formData.cast || [],
+          is_published: formData.is_published === true,
+          is_home_feature: formData.is_home_feature === true,
+          home_featured_order: formData.is_home_feature ? formData.home_featured_order ?? null : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -393,6 +396,29 @@ export function VideoManagement() {
                   </select>
                 </div>
                 <div>
+                  <label className="mb-2 block text-gray-300">監督</label>
+                  <input
+                    type="text"
+                    value={formData.director || ''}
+                    onChange={(event) => updateFormData({ director: event.target.value })}
+                    aria-label="監督"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-gray-300">公開年</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.release_year ?? ''}
+                    onChange={(event) => updateFormData({
+                      release_year: event.target.value === '' ? null : Number(event.target.value),
+                    })}
+                    aria-label="公開年"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
+                </div>
+                <div>
                   <label className="mb-2 block text-gray-300">単品価格</label>
                   <input
                     type="number"
@@ -427,6 +453,44 @@ export function VideoManagement() {
                     onChange={(event) => updateFormData({ duration: event.target.value })}
                     aria-label="再生時間"
                     className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
+                </div>
+
+                <label className="flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-4 py-3 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_published === true}
+                    onChange={(event) => updateFormData({ is_published: event.target.checked })}
+                    aria-label="公開フラグ"
+                    className="h-4 w-4"
+                  />
+                  <span>公開フラグ</span>
+                </label>
+                <label className="flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-4 py-3 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_home_feature === true}
+                    onChange={(event) => updateFormData({
+                      is_home_feature: event.target.checked,
+                      home_featured_order: event.target.checked ? formData.home_featured_order : null,
+                    })}
+                    aria-label="おすすめフラグ"
+                    className="h-4 w-4"
+                  />
+                  <span>おすすめフラグ</span>
+                </label>
+                <div>
+                  <label className="mb-2 block text-gray-300">おすすめの順番</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.home_featured_order ?? ''}
+                    onChange={(event) => updateFormData({
+                      home_featured_order: event.target.value === '' ? null : Number(event.target.value),
+                    })}
+                    aria-label="おすすめの順番"
+                    disabled={formData.is_home_feature !== true}
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
 

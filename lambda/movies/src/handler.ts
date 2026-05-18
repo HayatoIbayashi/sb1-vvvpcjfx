@@ -34,8 +34,11 @@ const MOVIE_COLUMNS = [
   'buy_price',
   'currency',
   'stripe_price_id_one_time',
+  'is_published',
   'is_home_feature',
   'home_featured_order',
+  'publish_at',
+  'unpublish_at',
   'view_window_days',
   'created_at',
   'updated_at',
@@ -225,6 +228,8 @@ type AdminMovieWriteInput = {
   currency: string;
   stripe_price_id_one_time: string | null;
   is_published: boolean;
+  is_home_feature: boolean;
+  home_featured_order: number | null;
   publish_at: string | null;
   unpublish_at: string | null;
   view_window_days: number;
@@ -307,6 +312,15 @@ function parseNonNegativeInteger(value: unknown, fieldName: string, fallback: nu
   return parsed;
 }
 
+function parseNullableNonNegativeInteger(value: unknown, fieldName: string) {
+  const parsed = parseInteger(value, fieldName, null);
+  if (parsed == null) return null;
+  if (parsed < 0) {
+    throw new ValidationError(`${fieldName} must be 0 or greater`);
+  }
+  return parsed;
+}
+
 function parseStringArray(value: unknown) {
   if (value == null) return [];
   if (Array.isArray(value)) {
@@ -352,8 +366,8 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     duration: normalizeString(body.duration),
     genre: parseStringArray(body.genre),
     cast: parseStringArray(body.cast),
-    director: null,
-    release_year: null,
+    director: normalizeString(body.director),
+    release_year: parseNullableNonNegativeInteger(body.release_year, 'release_year'),
     price: parseNonNegativeInteger(body.price, 'price', 0),
     rental_price: parseNonNegativeInteger(body.rental_price, 'rental_price', 0),
     access_mode: parseAccessMode(body.access_mode),
@@ -361,6 +375,10 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     currency: normalizeString(body.currency) ?? 'JPY',
     stripe_price_id_one_time: normalizeString(body.stripe_price_id_one_time),
     is_published: typeof body.is_published === 'boolean' ? body.is_published : false,
+    is_home_feature: typeof body.is_home_feature === 'boolean' ? body.is_home_feature : false,
+    home_featured_order: typeof body.is_home_feature === 'boolean' && body.is_home_feature
+      ? parseNullableNonNegativeInteger(body.home_featured_order, 'home_featured_order')
+      : null,
     publish_at: normalizeString(body.publish_at),
     unpublish_at: normalizeString(body.unpublish_at),
     view_window_days: parseNonNegativeInteger(body.view_window_days, 'view_window_days', 2),
@@ -1607,11 +1625,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
               currency,
               stripe_price_id_one_time,
               is_published,
+              is_home_feature,
+              home_featured_order,
               publish_at,
               unpublish_at,
               view_window_days
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
             )
             RETURNING ${MOVIE_COLUMNS.join(', ')}
           `;
@@ -1634,6 +1654,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.currency,
             input.stripe_price_id_one_time,
             input.is_published,
+            input.is_home_feature,
+            input.home_featured_order,
             input.publish_at,
             input.unpublish_at,
             input.view_window_days,
@@ -1671,9 +1693,11 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
               currency = $17,
               stripe_price_id_one_time = $18,
               is_published = $19,
-              publish_at = $20,
-              unpublish_at = $21,
-              view_window_days = $22,
+              is_home_feature = $20,
+              home_featured_order = $21,
+              publish_at = $22,
+              unpublish_at = $23,
+              view_window_days = $24,
               updated_at = now()
             WHERE id = $1
             RETURNING ${MOVIE_COLUMNS.join(', ')}
@@ -1698,6 +1722,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.currency,
             input.stripe_price_id_one_time,
             input.is_published,
+            input.is_home_feature,
+            input.home_featured_order,
             input.publish_at,
             input.unpublish_at,
             input.view_window_days,

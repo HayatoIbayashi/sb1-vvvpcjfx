@@ -63,6 +63,7 @@ export interface Database {
           buy_price: number
           currency: string
           stripe_price_id_one_time: string | null
+          is_published: boolean
           is_home_feature: boolean
           home_featured_order: number | null
         }
@@ -87,6 +88,7 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
+          is_published?: boolean
           is_home_feature?: boolean
           home_featured_order?: number | null
         }
@@ -111,6 +113,7 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
+          is_published?: boolean
           is_home_feature?: boolean
           home_featured_order?: number | null
         }
