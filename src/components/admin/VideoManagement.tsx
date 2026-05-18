@@ -155,11 +155,11 @@ export function VideoManagement() {
         setVideos((current) => current.map((video) => (
           video.id === selectedVideo.id
             ? {
-                ...video,
-                ...nextFields,
-                ...toMovieAccessPayload(accessTier, buyPrice),
-                updated_at: new Date().toISOString(),
-              }
+              ...video,
+              ...nextFields,
+              ...toMovieAccessPayload(accessTier, buyPrice),
+              updated_at: new Date().toISOString(),
+            }
             : video
         )));
       } else {
@@ -325,8 +325,14 @@ export function VideoManagement() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onMouseDown={closeModal}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <h3 className="mb-6 text-2xl font-bold text-white">
               {selectedVideo ? '動画を編集' : '新規動画を追加'}
             </h3>
@@ -461,10 +467,10 @@ export function VideoManagement() {
                     type="checkbox"
                     checked={formData.is_published === true}
                     onChange={(event) => updateFormData({ is_published: event.target.checked })}
-                    aria-label="公開フラグ"
+                    aria-label="公開する"
                     className="h-4 w-4"
                   />
-                  <span>公開フラグ</span>
+                  <span>公開する</span>
                 </label>
                 <label className="flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-4 py-3 text-gray-300">
                   <input
@@ -474,10 +480,10 @@ export function VideoManagement() {
                       is_home_feature: event.target.checked,
                       home_featured_order: event.target.checked ? formData.home_featured_order : null,
                     })}
-                    aria-label="おすすめフラグ"
+                    aria-label="おすすめ"
                     className="h-4 w-4"
                   />
-                  <span>おすすめフラグ</span>
+                  <span>おすすめ</span>
                 </label>
                 <div>
                   <label className="mb-2 block text-gray-300">おすすめの順番</label>
