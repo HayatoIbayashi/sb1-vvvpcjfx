@@ -438,6 +438,14 @@ export function VideoManagement() {
                     className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-gray-300">Stripe単品Price ID</h4>
+                  <div className="min-h-10 rounded bg-gray-900 px-4 py-2 font-mono text-sm text-gray-200">
+                    {selectedVideo
+                      ? selectedVideo.stripe_price_id_one_time || '未設定'
+                      : '作成後に表示されます'}
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">

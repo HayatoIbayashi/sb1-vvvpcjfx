@@ -209,6 +209,16 @@ class ValidationError extends Error {
   code = 'VALIDATION_ERROR';
 }
 
+class StripeCatalogError extends Error {
+  constructor(
+    public statusCode: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 type AdminMovieWriteInput = {
   title: string;
   description: string | null;
@@ -283,6 +293,29 @@ type WalletTransactionRow = {
   movie_title: string | null;
 };
 
+type StripeProduct = {
+  id: string;
+};
+
+type StripePrice = {
+  id: string;
+};
+
+function getStripeErrorMessage(data: unknown) {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'error' in data &&
+    typeof data.error === 'object' &&
+    data.error !== null &&
+    'message' in data.error &&
+    typeof data.error.message === 'string'
+  ) {
+    return data.error.message;
+  }
+  return null;
+}
+
 function normalizeString(value: unknown) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -293,6 +326,72 @@ function requireString(value: unknown, fieldName: string) {
   const normalized = normalizeString(value);
   if (!normalized) throw new ValidationError(`${fieldName} is required`);
   return normalized;
+}
+
+function shouldCreateOneTimeStripePrice(input: AdminMovieWriteInput) {
+  return (
+    (input.access_mode === 'purchase_only' || input.access_mode === 'subscription_or_purchase') &&
+    input.buy_price >= 1
+  );
+}
+
+async function stripeRequest<T>(path: string, body: URLSearchParams): Promise<T> {
+  const secretKey = normalizeString(process.env.STRIPE_SECRET_KEY);
+  if (!secretKey) {
+    throw new StripeCatalogError(
+      500,
+      'STRIPE_SECRET_KEY_MISSING',
+      'STRIPE_SECRET_KEY is not configured',
+    );
+  }
+
+  const res = await fetch(`https://api.stripe.com${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  const data = await res.json().catch(() => null) as unknown;
+  if (!res.ok) {
+    const message = getStripeErrorMessage(data) ?? `Stripe request failed: ${res.status}`;
+    throw new StripeCatalogError(502, 'STRIPE_CATALOG_CREATE_FAILED', message);
+  }
+
+  return data as T;
+}
+
+async function createStripeOneTimePriceForMovie(input: AdminMovieWriteInput) {
+  const productBody = new URLSearchParams({
+    name: input.title,
+    'metadata[source]': 'admin_movie_create',
+    'metadata[access_mode]': input.access_mode,
+  });
+  if (input.description) {
+    productBody.set('description', input.description);
+  }
+
+  const product = await stripeRequest<StripeProduct>('/v1/products', productBody);
+  if (!normalizeString(product.id)) {
+    throw new StripeCatalogError(502, 'STRIPE_CATALOG_CREATE_FAILED', 'Stripe product id is missing');
+  }
+
+  const currency = input.currency || 'JPY';
+  const price = await stripeRequest<StripePrice>('/v1/prices', new URLSearchParams({
+    product: product.id,
+    currency: currency.toLowerCase(),
+    unit_amount: String(input.buy_price),
+    'metadata[source]': 'admin_movie_create',
+    'metadata[access_mode]': input.access_mode,
+  }));
+
+  if (!normalizeString(price.id)) {
+    throw new StripeCatalogError(502, 'STRIPE_CATALOG_CREATE_FAILED', 'Stripe price id is missing');
+  }
+
+  return price.id;
 }
 
 function parseInteger(value: unknown, fieldName: string, fallback: number | null) {
@@ -1605,6 +1704,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       if (method === 'POST' && path === '/v1/admin/movies') {
         try {
           const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const stripePriceIdOneTime = shouldCreateOneTimeStripePrice(input)
+            ? await createStripeOneTimePriceForMovie(input)
+            : input.stripe_price_id_one_time;
           const sql = `
             INSERT INTO movies (
               title,
@@ -1652,7 +1754,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.access_mode,
             input.buy_price,
             input.currency,
-            input.stripe_price_id_one_time,
+            stripePriceIdOneTime,
             input.is_published,
             input.is_home_feature,
             input.home_featured_order,
@@ -1664,6 +1766,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         } catch (error) {
           if (error instanceof ValidationError) {
             return response(400, { code: error.code, message: error.message });
+          }
+          if (error instanceof StripeCatalogError) {
+            return response(error.statusCode, { code: error.code, message: error.message });
           }
           throw error;
         }
