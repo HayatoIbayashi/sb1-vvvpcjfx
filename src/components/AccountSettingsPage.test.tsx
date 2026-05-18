@@ -31,6 +31,7 @@ vi.mock('../lib/authBridge', () => ({
   getBillingToken: mockGetBillingToken,
   useAuthStatus: () => ({
     isAuthenticated: true,
+    logoutAll: vi.fn(),
   }),
 }));
 
@@ -115,6 +116,8 @@ describe('AccountSettingsPage', () => {
     await waitFor(() => {
       expect(mockApi.getProfile).toHaveBeenCalledTimes(1);
     });
+
+    expect(screen.getByRole('link', { href: '/account' })).toBeInTheDocument();
 
     const displayNameInput = await screen.findByPlaceholderText('表示名');
     await waitFor(() => {

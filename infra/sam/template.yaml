@@ -102,7 +102,7 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
+        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
         AllowHeaders: [Authorization, Content-Type]
         AllowOrigins: ['*']
 
@@ -258,6 +258,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/watch-history
             Method: POST
+        WatchHistoryItemGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watch-history/{movieId}
+            Method: GET
+        WatchHistoryItemPatch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/watch-history/{movieId}
+            Method: PATCH
         PurchasesGet:
           Type: HttpApi
           Properties:

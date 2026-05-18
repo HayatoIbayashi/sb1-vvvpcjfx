@@ -13,6 +13,7 @@ import {
 import useApiClient from '../lib/useApiClient';
 import type { SubscriptionPlan } from '../lib/apiClient';
 import { MEMBERSHIP_MONTHLY_PRICE, useMembershipStatus } from '../lib/useMembershipStatus';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 const MOCK_MEMBERSHIP_PLAN: SubscriptionPlan = {
   id: 'mock-membership',
@@ -57,6 +58,7 @@ export default function SubscriptionPage() {
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const { accessState, isLoading: isMembershipLoading } = useMembershipStatus();
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
+  const genreOptions = useHeaderGenres();
 
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [isLoadingPlan, setIsLoadingPlan] = useState(true);
@@ -173,7 +175,7 @@ export default function SubscriptionPage() {
         onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}
-        hideMembershipLink={true}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 py-8 pt-24">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getAvailableMovieGenres,
+  getMovieGenreOptions,
   getMovieGenreSummary,
   getMovieGenres,
   getPrimaryMovieGenre,
@@ -33,5 +34,14 @@ describe('movieGenres', () => {
       '過度な暴力表現',
     ]);
     expect(toggleMovieGenre(['ホラー描写'], 'ホラー描写')).toEqual([]);
+  });
+
+  it('collects unique sorted genre options from movie arrays', () => {
+    expect(getMovieGenreOptions([
+      { genre: [' サスペンス ', 'アクション'] },
+      { genre: ['アクション', '', 'ドラマ'] },
+      null,
+      undefined,
+    ])).toEqual(['アクション', 'サスペンス', 'ドラマ']);
   });
 });

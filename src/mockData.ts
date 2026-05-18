@@ -29,6 +29,8 @@ export const MOCK_MOVIES: Movie[] = [
     buy_price: 0,
     currency: 'JPY',
     stripe_price_id_one_time: null,
+    is_home_feature: false,
+    home_featured_order: null,
   },
   {
     id: '2',
@@ -55,6 +57,8 @@ export const MOCK_MOVIES: Movie[] = [
     buy_price: 1000,
     currency: 'JPY',
     stripe_price_id_one_time: null,
+    is_home_feature: false,
+    home_featured_order: null,
   },
   {
     id: '3',
@@ -82,5 +86,7 @@ export const MOCK_MOVIES: Movie[] = [
     buy_price: 1000,
     currency: 'JPY',
     stripe_price_id_one_time: null,
+    is_home_feature: false,
+    home_featured_order: null,
   }
 ];

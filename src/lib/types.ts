@@ -63,6 +63,8 @@ export interface Database {
           buy_price: number
           currency: string
           stripe_price_id_one_time: string | null
+          is_home_feature: boolean
+          home_featured_order: number | null
         }
         Insert: {
           id?: string
@@ -85,6 +87,8 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
+          is_home_feature?: boolean
+          home_featured_order?: number | null
         }
         Update: {
           id?: string
@@ -107,6 +111,8 @@ export interface Database {
           buy_price?: number
           currency?: string
           stripe_price_id_one_time?: string | null
+          is_home_feature?: boolean
+          home_featured_order?: number | null
         }
       }
       purchases: {
@@ -179,6 +185,7 @@ export interface Database {
           user_id: string
           movie_id: string
           watched_at: string
+          resume_position_sec: number
           created_at: string
           updated_at: string
         }
@@ -187,6 +194,7 @@ export interface Database {
           user_id: string
           movie_id: string
           watched_at?: string
+          resume_position_sec?: number
           created_at?: string
           updated_at?: string
         }
@@ -195,6 +203,7 @@ export interface Database {
           user_id?: string
           movie_id?: string
           watched_at?: string
+          resume_position_sec?: number
           created_at?: string
           updated_at?: string
         }

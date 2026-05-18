@@ -6,6 +6,7 @@ export type Movie = Database['public']['Tables']['movies']['Row'];
 export type MovieListItem = Movie & {
   average_rating: number | null;
   review_count: number;
+  publish_at?: string | null;
 };
 
 export type SignUpPayload = {
@@ -26,6 +27,7 @@ export type RecommendationPreferences = {
 export type HomePageData = {
   movies: MovieListItem[];
   accessState: 'guest' | 'registered' | 'member';
+  hiddenCategoryIds: string[];
   desiredGenreIds: string[];
 };
 
@@ -83,6 +85,7 @@ export type WatchHistoryItem = {
   title: string;
   thumbnail: string | null;
   watched_at: string;
+  resume_position_sec: number;
 };
 
 export type BillingPortalSessionPayload = {
@@ -348,6 +351,21 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
       return request<{ ok: true; item: WatchHistoryItem }>(
         '/watch-history',
         { method: 'POST', body: JSON.stringify({ movieId }) },
+      );
+    },
+    getWatchHistoryItem(movieId: string) {
+      return request<{ item: WatchHistoryItem | null }>(
+        `/watch-history/${encodeURIComponent(movieId)}`,
+        { method: 'GET' },
+      );
+    },
+    updateWatchHistoryResumePosition(movieId: string, resumePositionSec: number) {
+      return request<{ ok: true; item: WatchHistoryItem }>(
+        `/watch-history/${encodeURIComponent(movieId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ resumePositionSec }),
+        },
       );
     },
     getPurchases(query?: { movieId?: string; status?: string; limit?: number; offset?: number }) {

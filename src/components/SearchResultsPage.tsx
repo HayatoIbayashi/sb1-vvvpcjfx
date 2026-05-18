@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
 import useApiClient from '../lib/useApiClient';
@@ -7,10 +7,12 @@ import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import { matchesMovieSearchQuery } from '../lib/movieSearch';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
 
 export default function SearchResultsPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,6 +23,7 @@ export default function SearchResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const useMockMovies = import.meta.env.VITE_USE_MOCK_MOVIES === 'true';
   const { isAuthenticated, logoutAll } = useAuthStatus();
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     setSearchQuery(query);
@@ -71,7 +74,7 @@ export default function SearchResultsPage() {
   };
 
   const handleMovieClick = (movieId: string) => {
-    navigate(`/movies/${movieId}`);
+    navigate(`/movies/${movieId}`, { state: { from: location } });
   };
 
   return (
@@ -82,6 +85,7 @@ export default function SearchResultsPage() {
         onLogout={logoutAll}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pt-24 pb-12">

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
 import type { Movie } from '../lib/apiClient';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 function matchesQuery(movie: Movie, query: string) {
   const normalized = query.trim().toLowerCase();
@@ -17,6 +18,7 @@ function matchesQuery(movie: Movie, query: string) {
 }
 
 export default function WatchlistPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const { isAuthenticated, logoutAll } = useAuthStatus();
@@ -25,6 +27,7 @@ export default function WatchlistPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingMovieId, setRemovingMovieId] = useState<string | null>(null);
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +90,8 @@ export default function WatchlistPage() {
           onLogin={() => navigate('/login')}
           onLogout={logoutAll}
           searchQuery=""
-          onSearchChange={() => {}}
+          onSearchChange={() => { }}
+          genreOptions={genreOptions}
         />
         <main className="container mx-auto px-4 pt-24 pb-12">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
@@ -111,8 +115,9 @@ export default function WatchlistPage() {
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate('/login')}
         onLogout={logoutAll}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        searchQuery=""
+        onSearchChange={() => { }}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pt-24 pb-12">
@@ -148,35 +153,45 @@ export default function WatchlistPage() {
               : '検索条件に一致する作品はありません。'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filteredMovies.map((movie) => (
-              <div key={movie.id} className="overflow-hidden rounded-xl bg-gray-800 shadow-lg">
+              <div
+                key={movie.id}
+                className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-800 shadow-lg"
+              >
                 <button
-                  onClick={() => navigate(`/movies/${movie.id}`)}
+                  onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
                   className="block w-full text-left"
                 >
                   <img
-                    src={getTestMovieThumbnail(movie, 'card')}
+                    src={getTestMovieThumbnail(movie, 'hero')}
                     alt={movie.title}
-                    className="aspect-[2/3] w-full object-cover"
+                    className="aspect-[16/9] w-full object-cover"
                   />
                 </button>
-                <div className="space-y-3 p-4">
+                <div className="space-y-4 p-5">
                   <div>
-                    <h2 className="line-clamp-2 text-lg font-semibold text-white">{movie.title}</h2>
-                    <p className="mt-2 line-clamp-3 text-sm text-gray-400">{movie.description || '説明はありません。'}</p>
+                    <h2 className="line-clamp-2 text-2xl font-bold text-white">{movie.title}</h2>
+                    {movie.release_date && (
+                      <p className="mt-3 text-sm font-medium text-gray-400">
+                        公開日 : {movie.release_date}
+                      </p>
+                    )}
+                    <p className="mt-3 line-clamp-3 text-base leading-7 text-gray-300">
+                      {movie.description || '説明はありません。'}
+                    </p>
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => navigate(`/movies/${movie.id}`)}
-                      className="flex-1 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100"
+                      onClick={() => navigate(`/movies/${movie.id}`, { state: { from: location } })}
+                      className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-100"
                     >
                       詳細を見る
                     </button>
                     <button
                       onClick={() => void handleRemove(movie.id)}
                       disabled={removingMovieId === movie.id}
-                      className="flex-1 rounded-lg bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex-1 rounded-lg bg-gray-700 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {removingMovieId === movie.id ? '更新中...' : '外す'}
                     </button>

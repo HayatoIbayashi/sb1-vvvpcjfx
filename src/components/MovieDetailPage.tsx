@@ -11,20 +11,22 @@ import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
 import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
-import { getMovieGenreSummary, getPrimaryMovieGenre } from '../lib/movieGenres';
+import { getMovieGenreSummary } from '../lib/movieGenres';
+import useHeaderGenres from '../lib/useHeaderGenres';
 import {
   canAccessMovie,
-  getMovieAccessBadgeClass,
   getMovieAccessLabel,
   getMovieBuyPrice,
   getMovieCurrency,
-  getMovieAccessSummary,
   getMovieAccessTier,
 } from '../lib/movieAccess';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type MovieDetailPageProps = {
+  initialMovie?: Movie | null;
+};
 
-function MovieDetailPage() {
+function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { id: movieId } = useParams<{ id: string }>();
@@ -46,17 +48,27 @@ function MovieDetailPage() {
     [localMockMovie, useMockMovies],
   );
 
-  const [movie, setMovie] = useState<Movie | null>(null);
+  const [movie, setMovie] = useState<Movie | null>(() =>
+    initialMovie && initialMovie.id === movieId ? initialMovie : null,
+  );
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [hasResumePosition, setHasResumePosition] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadMovie = async () => {
       if (!movieId) return;
+
+      if (initialMovie && initialMovie.id === movieId) {
+        if (!cancelled) {
+          setMovie(initialMovie);
+        }
+        return;
+      }
 
       if (useMockMovies || shouldUseLocalMockMovie) {
         const foundMovie = localMockMovie ?? MOCK_MOVIES.find((item) => item.id === movieId) ?? null;
@@ -84,7 +96,7 @@ function MovieDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [api, localMockMovie, movieId, shouldUseLocalMockMovie, useMockMovies]);
+  }, [api, initialMovie, localMockMovie, movieId, shouldUseLocalMockMovie, useMockMovies]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +124,36 @@ function MovieDetailPage() {
       cancelled = true;
     };
   }, [api, isAuthenticated, movieId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadResumePosition = async () => {
+      if (!isAuthenticated || !movieId || shouldUseLocalMockMovie) {
+        if (!cancelled) {
+          setHasResumePosition(false);
+        }
+        return;
+      }
+
+      try {
+        const result = await api.getWatchHistoryItem(movieId);
+        if (!cancelled) {
+          setHasResumePosition((result.item?.resume_position_sec ?? 0) > 0);
+        }
+      } catch (error) {
+        console.error('Error fetching resume position:', error);
+        if (!cancelled) {
+          setHasResumePosition(false);
+        }
+      }
+    };
+
+    void loadResumePosition();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isAuthenticated, movieId, shouldUseLocalMockMovie]);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,9 +237,14 @@ function MovieDetailPage() {
   const displayReleaseDate = testDetailItem?.detail.releaseDate ?? movie?.release_date ?? '-';
   const displayDuration = testDetailItem?.detail.duration ?? movie?.duration ?? '-';
   const displayGenreSummary = getMovieGenreSummary(movie);
-  const displayPrimaryGenre = getPrimaryMovieGenre(movie);
+  const displayCast = movie?.cast?.filter(Boolean).join('、') || '-';
+  const displayDirector = movie?.director?.trim() || '-';
+  const displayReleaseYear = movie?.release_year != null ? String(movie.release_year) : '-';
   const testDetailNote = testDetailItem?.detail.note ?? null;
   const isAccessStatePending = isAuthenticated && (isMembershipLoading || isPurchaseLoading);
+  const requiresPurchase = movieAccessTier === 'purchase' || movieAccessTier === 'subscription_or_purchase';
+  const shouldShowAccessNotice = !isAccessStatePending && !(requiresPurchase && hasPurchasedMovie);
+  const genreOptions = useHeaderGenres();
 
   const renderPrimaryActions = () => {
     if (isAccessStatePending) {
@@ -208,10 +255,10 @@ function MovieDetailPage() {
       return (
         <button
           onClick={() => navigate(`/watch/${movieId}?autoplay=1`)}
-          className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-6 py-4 font-semibold text-gray-900 transition hover:bg-gray-100"
         >
           <Play className="h-5 w-5" />
-          今すぐ視聴する
+          {hasResumePosition ? '続きから再生する' : '今すぐ視聴する'}
         </button>
       );
     }
@@ -219,11 +266,10 @@ function MovieDetailPage() {
     if (isAuthenticated) {
       return (
         <div
-          className="flex min-w-[240px] flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg"
+          className="flex flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg"
         >
-          <span>この動画は購入が必要です</span>
           {buyPrice > 0 && (
-            <span className="text-sm font-medium text-white/90">
+            <span className="text-[20px] font-semibold text-white">
               {currency === 'JPY' ? `¥${buyPrice.toLocaleString()}` : `${buyPrice.toLocaleString()} ${currency}`}
             </span>
           )}
@@ -249,17 +295,13 @@ function MovieDetailPage() {
     );
   };
 
-  const accessStatusText = ({
-    guest: '未ログイン',
-    registered: 'ログイン済み',
-    member: 'メンバーシップ登録済み',
-  }[accessState]);
-
-  const accessDescription = canWatchMovie
-    ? `この作品は${getMovieAccessLabel(movieAccessTier)}です。現在の状態でそのまま視聴できます。`
-    : accessState === 'guest'
-      ? 'この作品はログイン後、購入済みの場合に視聴できます。'
-      : 'この作品は購入済みの場合に視聴できます。';
+  const accessDescription = !requiresPurchase
+    ? `この動画は${getMovieAccessLabel(movieAccessTier)}です。`
+    : !isAuthenticated
+      ? 'この動画は、ログインして購入することで視聴できます。'
+      : !canWatchMovie
+        ? 'この動画を視聴するには購入が必要です。'
+        : `この動画は${getMovieAccessLabel(movieAccessTier)}です。`;
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -269,23 +311,40 @@ function MovieDetailPage() {
         onLogout={logoutAll}
         searchQuery=""
         onSearchChange={() => {}}
+        genreOptions={genreOptions}
       />
       {movie && (
         <div className="container mx-auto px-4 pb-8 pt-24">
           <div className="flex flex-col gap-8 md:flex-row">
             <div className="md:w-1/3">
-              <img
-                src={getTestMovieThumbnail(movie, 'detail')}
-                alt={displayTitle}
-                className="w-full rounded-lg shadow-lg"
-              />
+              <div className="aspect-[16/9] w-full overflow-hidden rounded-lg shadow-lg">
+                <img
+                  src={getTestMovieThumbnail(movie, 'detail')}
+                  alt={displayTitle}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="mt-4 flex gap-4">
+                {renderPrimaryActions()}
+                {isAuthenticated && (
+                  <button
+                    onClick={() => void handleToggleWatchlist()}
+                    disabled={isWatchlistBusy}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Heart className={`h-5 w-5 ${isInWatchlist ? 'fill-current text-pink-400' : ''}`} />
+                    {isWatchlistBusy
+                      ? '更新中...'
+                      : isInWatchlist
+                        ? 'マイリストから外す'
+                        : 'マイリストに追加'}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="md:w-2/3">
-              <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="mb-4">
                 <h1 className="text-3xl font-bold text-white">{displayTitle}</h1>
-                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-1 text-sm font-semibold text-cyan-100">
-                  {displayPrimaryGenre}
-                </span>
               </div>
               <p className="mb-6 text-gray-300">{displayDescription}</p>
 
@@ -308,41 +367,25 @@ function MovieDetailPage() {
                   <h3 className="font-semibold text-gray-400">ジャンル</h3>
                   <p className="text-white">{displayGenreSummary}</p>
                 </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">キャスト</h3>
+                  <p className="text-white">{displayCast}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">監督</h3>
+                  <p className="text-white">{displayDirector}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-400">制作年</h3>
+                  <p className="text-white">{displayReleaseYear}</p>
+                </div>
               </div>
 
-              {!isAccessStatePending && (
+              {shouldShowAccessNotice && (
                 <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200">
-                        Access
-                      </p>
-                      <p className="mt-2 text-xl font-semibold text-white">{accessStatusText}</p>
-                      <p className="mt-2 text-sm leading-6 text-amber-50/90">{accessDescription}</p>
-                    </div>
-                    <div className={`rounded-full border px-4 py-2 text-sm ${getMovieAccessBadgeClass(movieAccessTier)}`}>
-                      {displayPrimaryGenre}
-                    </div>
-                  </div>
-                  <p className="mt-4 text-sm text-amber-50/80">{getMovieAccessSummary(movieAccessTier)}</p>
+                  <p className="text-sm leading-6 text-amber-50/90">{accessDescription}</p>
                 </div>
               )}
-
-              <div className="flex flex-wrap gap-4">
-                {renderPrimaryActions()}
-                <button
-                  onClick={() => void handleToggleWatchlist()}
-                  disabled={isWatchlistBusy}
-                  className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Heart className={`h-5 w-5 ${isInWatchlist ? 'fill-current text-pink-400' : ''}`} />
-                  {isWatchlistBusy
-                    ? '更新中...'
-                    : isInWatchlist
-                      ? 'マイリストから外す'
-                      : 'マイリストに追加'}
-                </button>
-              </div>
             </div>
           </div>
         </div>

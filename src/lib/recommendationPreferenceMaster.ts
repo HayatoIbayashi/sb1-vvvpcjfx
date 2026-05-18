@@ -44,6 +44,40 @@ const RECOMMENDATION_GENRE_LABEL_MAP = new Map(
   RECOMMENDATION_GENRE_MASTER.map((option) => [option.id, option.label]),
 );
 
+const RECOMMENDATION_GENRE_MATCH_GENRES = new Map(
+  RECOMMENDATION_GENRE_MASTER.map((option) => [option.id, [option.label]]),
+);
+
+function normalizeGenre(value: string) {
+  return value.trim().toLocaleLowerCase('ja-JP');
+}
+
+export function getRecommendationGenreSectionTitle(genreId: string) {
+  return RECOMMENDATION_GENRE_LABEL_MAP.get(genreId) ?? null;
+}
+
+export function getRecommendationGenreMatchGenres(genreId: string) {
+  const matchGenres = RECOMMENDATION_GENRE_MATCH_GENRES.get(genreId) ?? [];
+  return Array.from(new Set(matchGenres.map((genre) => normalizeGenre(genre)).filter(Boolean)));
+}
+
+export function matchesRecommendationGenre(
+  genreId: string,
+  movieGenres: string[] | null | undefined,
+) {
+  const targetGenres = getRecommendationGenreMatchGenres(genreId);
+  if (!targetGenres.length) {
+    return false;
+  }
+
+  const normalizedMovieGenres = (movieGenres ?? [])
+    .filter((genre): genre is string => typeof genre === 'string')
+    .map((genre) => normalizeGenre(genre))
+    .filter(Boolean);
+
+  return normalizedMovieGenres.some((genre) => targetGenres.includes(genre));
+}
+
 export function getRecommendationGenreLabels(
   genreIds: string[] | null | undefined,
   count = 3,

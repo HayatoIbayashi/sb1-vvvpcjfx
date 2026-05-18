@@ -35,7 +35,7 @@ export function getAvailableMovieGenres(selectedGenres: string[] | null | undefi
   return Array.from(
     new Set([
       ...MOVIE_GENRE_MASTER,
-      ...selectedGenres.map((genre) => normalizeGenre(String(genre))).filter(Boolean),
+      ...(selectedGenres ?? []).map((genre) => normalizeGenre(String(genre))).filter(Boolean),
     ]),
   );
 }
@@ -50,4 +50,9 @@ export function toggleMovieGenre(selectedGenres: string[] | null | undefined, ge
   return genres.includes(normalizedGenre)
     ? genres.filter((item) => item !== normalizedGenre)
     : [...genres, normalizedGenre];
+}
+
+export function getMovieGenreOptions(movies: Array<MovieGenreLike | null | undefined>) {
+  const genres = movies.flatMap((movie) => getMovieGenres(movie));
+  return Array.from(new Set(genres)).sort((left, right) => left.localeCompare(right, 'ja'));
 }

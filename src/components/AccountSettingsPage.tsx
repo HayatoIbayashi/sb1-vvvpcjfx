@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Header } from './common/Header';
 import type { RecommendationPreferences as RecommendationPreferencesPayload, SubscriptionCurrent } from '../lib/apiClient';
 import { getBillingToken, useAuthStatus } from '../lib/authBridge';
 import {
@@ -10,7 +11,7 @@ import {
 } from '../lib/recommendationPreferenceMaster';
 import { buildSubscriptionPath, getReturnToFromLocation } from '../lib/subscriptionNavigation';
 import useApiClient from '../lib/useApiClient';
-import { MEMBERSHIP_MONTHLY_PRICE } from '../lib/useMembershipStatus';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 type Profile = {
   displayName: string;
@@ -22,6 +23,7 @@ type Profile = {
 
 type RecommendationPreferences = RecommendationPreferencesPayload;
 type RecommendationPreferencesResponse = Partial<RecommendationPreferences> | null | undefined;
+type SaveTarget = 'profile' | 'preferences';
 
 type Watch = {
   id: string;
@@ -182,11 +184,10 @@ function PreferenceButtonGroup({
               aria-pressed={isSelected}
               aria-label={`${title}:${option.label}`}
               onClick={() => onToggle(option.id)}
-              className={`rounded-lg border px-4 py-3 text-left transition ${
-                isSelected
-                  ? selectedClassMap[selectedTone]
-                  : 'border-gray-600 bg-gray-800/80 text-gray-200 hover:border-gray-500 hover:bg-gray-800'
-              }`}
+              className={`rounded-lg border px-4 py-3 text-left transition ${isSelected
+                ? selectedClassMap[selectedTone]
+                : 'border-gray-600 bg-gray-800/80 text-gray-200 hover:border-gray-500 hover:bg-gray-800'
+                }`}
             >
               <div className="font-medium">{option.label}</div>
               {option.description && (
@@ -201,11 +202,12 @@ function PreferenceButtonGroup({
 }
 
 export default function AccountSettingsPage() {
-  const { isAuthenticated } = useAuthStatus();
+  const { isAuthenticated, logoutAll } = useAuthStatus();
   const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
+  const genreOptions = useHeaderGenres();
   const useMockProfile = import.meta.env.VITE_USE_MOCK_PROFILE === 'true';
   const useMockSubscriptions = import.meta.env.VITE_USE_MOCK_SUBSCRIPTIONS === 'true';
   const useMockWatchHistory = import.meta.env.VITE_USE_MOCK_WATCH_HISTORY === 'true';
@@ -262,12 +264,21 @@ export default function AccountSettingsPage() {
       loadJSON<Partial<RecommendationPreferences> | null>(LS_RECOMMENDATION_PREFERENCES, null),
     ),
   );
-  const [saved, setSaved] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [savedTarget, setSavedTarget] = useState<SaveTarget | null>(null);
   const [isMember, setIsMember] = useState<boolean>(() => loadJSON<boolean>(LS_MEMBER, false));
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionCurrent['subscription'] | null>(null);
   const [watchHistory, setWatchHistory] = useState<Watch[]>(() => loadJSON<Watch[]>(LS_WATCH, []));
   const [isBillingPortalLoading, setIsBillingPortalLoading] = useState(false);
   const [isSubscriptionActionLoading, setIsSubscriptionActionLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const saveFeedbackTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (saveFeedbackTimeoutRef.current != null) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -362,36 +373,44 @@ export default function AccountSettingsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900">
-        <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
-          <p className="mb-6">
-            アカウント設定を利用するにはログインが必要です。会員登録がまだの場合は、無料会員として登録してください。
-          </p>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full rounded bg-blue-600 py-2 font-semibold hover:bg-blue-700"
-            >
-              ログイン
-            </button>
-            <button
-              onClick={() => navigate('/signup')}
-              className="w-full rounded border border-gray-600 py-2 font-semibold hover:bg-gray-700"
-            >
-              会員登録する
-            </button>
+      <div className="min-h-screen bg-gray-900 text-white">
+        <Header
+          isAuthenticated={false}
+          onLogin={() => navigate('/login')}
+          onLogout={logoutAll}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          genreOptions={genreOptions}
+        />
+        <div className="flex min-h-screen items-center justify-center px-4 pt-24">
+          <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-center text-white">
+            <p className="mb-6">
+              アカウント設定を利用するにはログインが必要です。会員登録がまだの場合は、無料会員として登録してください。
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full rounded bg-blue-600 py-2 font-semibold hover:bg-blue-700"
+              >
+                ログイン
+              </button>
+              <button
+                onClick={() => navigate('/signup')}
+                className="w-full rounded border border-gray-600 py-2 font-semibold hover:bg-gray-700"
+              >
+                会員登録する
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const membershipPrice = MEMBERSHIP_MONTHLY_PRICE;
-  const renewalDate = subscriptionInfo?.renews_at
-    ? new Date(subscriptionInfo.renews_at).toLocaleDateString()
-    : null;
+  const handleSave = async (saveTarget: SaveTarget) => {
+    setSaveError('');
+    setSavedTarget(null);
 
-  const handleSave = async () => {
     let nextProfile = profile;
 
     if (!useMockProfile) {
@@ -419,77 +438,89 @@ export default function AccountSettingsPage() {
         );
       } catch (error) {
         console.error('Error updating profile:', error);
-        setSaved('保存に失敗しました。');
-        setTimeout(() => setSaved(''), 2500);
+        setSaveError('保存に失敗しました。');
+        if (saveFeedbackTimeoutRef.current != null) {
+          window.clearTimeout(saveFeedbackTimeoutRef.current);
+        }
+        saveFeedbackTimeoutRef.current = window.setTimeout(() => {
+          setSaveError('');
+          saveFeedbackTimeoutRef.current = null;
+        }, 2500);
         return;
       }
     }
 
     saveJSON(LS_PROFILE, nextProfile);
     saveJSON(LS_RECOMMENDATION_PREFERENCES, recommendationPreferences);
-    setSaved('保存しました。');
-    setTimeout(() => setSaved(''), 2000);
+    setSavedTarget(saveTarget);
+    if (saveFeedbackTimeoutRef.current != null) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+    saveFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setSavedTarget(null);
+      saveFeedbackTimeoutRef.current = null;
+    }, 2000);
   };
 
   const handleOpenBillingPortal = async () => {
-  if (useMockSubscriptions) {
-    alert('請求情報の管理は Stripe 連携時に利用できます。');
-    return;
-  }
+    if (useMockSubscriptions) {
+      alert('請求情報の管理は Stripe 連携時に利用できます。');
+      return;
+    }
 
-  const billingToken = getBillingToken(auth);
-
-  if (!billingToken) {
-    alert('請求情報を管理するには再ログインが必要です。');
-    return;
-  }
-
-  try {
-    setIsBillingPortalLoading(true);
-    const session = await api.createBillingPortalSession(
-      { returnUrl: `${window.location.origin}/account` },
-      billingToken,
-    );
-    window.location.assign(session.url);
-  } catch (error) {
-    console.error('Error opening billing portal:', error);
-    alert('請求情報画面の起動に失敗しました。');
-  } finally {
-    setIsBillingPortalLoading(false);
-  }
-  };
-
-  const handleCancelMembership = async () => {
-  if (!isMember) return;
-  if (!confirm('メンバーシップを解約しますか？')) return;
-
-  if (!useMockSubscriptions) {
     const billingToken = getBillingToken(auth);
+
     if (!billingToken) {
-      alert('メンバーシップを解約するには、もう一度ログインしてください。');
+      alert('請求情報を管理するには再ログインが必要です。');
       return;
     }
 
     try {
-      setIsSubscriptionActionLoading(true);
-      const result = await api.cancelSubscriptionCurrent(billingToken);
-      setIsMember(result.active);
-      setSubscriptionInfo(result.subscription);
-      saveJSON(LS_MEMBER, result.active);
-      alert('メンバーシップを解約しました。');
+      setIsBillingPortalLoading(true);
+      const session = await api.createBillingPortalSession(
+        { returnUrl: `${window.location.origin}/account` },
+        billingToken,
+      );
+      window.location.assign(session.url);
     } catch (error) {
-      console.error('Error canceling subscription:', error);
-      alert('解約に失敗しました。');
+      console.error('Error opening billing portal:', error);
+      alert('請求情報画面の起動に失敗しました。');
     } finally {
-      setIsSubscriptionActionLoading(false);
+      setIsBillingPortalLoading(false);
     }
-    return;
-  }
+  };
 
-  setIsMember(false);
-  setSubscriptionInfo(null);
-  saveJSON(LS_MEMBER, false);
-  alert('メンバーシップを解約しました。');
+  const handleCancelMembership = async () => {
+    if (!isMember) return;
+    if (!confirm('メンバーシップを解約しますか？')) return;
+
+    if (!useMockSubscriptions) {
+      const billingToken = getBillingToken(auth);
+      if (!billingToken) {
+        alert('メンバーシップを解約するには、もう一度ログインしてください。');
+        return;
+      }
+
+      try {
+        setIsSubscriptionActionLoading(true);
+        const result = await api.cancelSubscriptionCurrent(billingToken);
+        setIsMember(result.active);
+        setSubscriptionInfo(result.subscription);
+        saveJSON(LS_MEMBER, result.active);
+        alert('メンバーシップを解約しました。');
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+        alert('解約に失敗しました。');
+      } finally {
+        setIsSubscriptionActionLoading(false);
+      }
+      return;
+    }
+
+    setIsMember(false);
+    setSubscriptionInfo(null);
+    saveJSON(LS_MEMBER, false);
+    alert('メンバーシップを解約しました。');
   };
 
   const seedMock = () => {
@@ -522,6 +553,14 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      <Header
+        isAuthenticated={isAuthenticated}
+        onLogin={() => navigate('/login')}
+        onLogout={logoutAll}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        genreOptions={genreOptions}
+      />
       <div className="container mx-auto max-w-4xl px-4 pb-12 pt-24">
         <h1 className="mb-6 text-3xl font-bold">アカウント設定</h1>
 
@@ -600,14 +639,36 @@ export default function AccountSettingsPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-4">
+          <div className="mt-4 flex items-center justify-end gap-4">
             <button
-              onClick={handleSave}
-              className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
+              onClick={() => {
+                void handleSave('profile');
+              }}
+              className="rounded bg-blue-600 px-8 py-2 font-semibold hover:bg-blue-700"
             >
-              保存
+              {savedTarget === 'profile' ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4 shrink-0 text-white"
+                    fill="none"
+                  >
+                    <path
+                      d="M3.5 8.5 6.5 11.5 12.5 5.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>保存しました</span>
+                </span>
+              ) : (
+                '保存'
+              )}
             </button>
-            {saved && <span className="text-sm text-green-400">{saved}</span>}
+            {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
         </div>
 
@@ -658,107 +719,148 @@ export default function AccountSettingsPage() {
             />
           </div>
 
-          <div className="mt-4 flex items-center gap-4">
+          <div className="mt-4 flex items-center justify-end gap-4">
             <button
-              onClick={handleSave}
+              onClick={() => {
+                void handleSave('preferences');
+              }}
               className="rounded bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
             >
-              視聴設定を保存
+              {savedTarget === 'preferences' ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4 shrink-0 text-white"
+                    fill="none"
+                  >
+                    <path
+                      d="M3.5 8.5 6.5 11.5 12.5 5.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>保存しました</span>
+                </span>
+              ) : (
+                '視聴設定を保存'
+              )}
             </button>
-            {saved && <span className="text-sm text-green-400">{saved}</span>}
+            {saveError && <span className="text-sm text-red-400">{saveError}</span>}
           </div>
         </div>
 
-        <div className="mb-8 rounded-lg border border-gray-700 bg-gray-800 p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">メンバーシップ</h2>
-              <p className="mt-2 text-sm text-gray-300">
-                単品購入は提供していません。ログイン済みユーザーはメンバーシップ登録により全作品を視聴できます。
-              </p>
-            </div>
-            <span
-              className={`rounded px-3 py-1 text-sm ${
-                isMember ? 'bg-green-500/10 text-green-400' : 'bg-gray-600/30 text-gray-300'
-              }`}
-            >
-              {isMember ? '登録中' : '未登録'}
-            </span>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-lg bg-gray-700/60 p-4">
-              <p className="text-xs text-gray-400">料金</p>
-              <p className="mt-2 text-lg font-semibold">月額 {membershipPrice.toLocaleString()} 円</p>
-            </div>
-            <div className="rounded-lg bg-gray-700/60 p-4">
-              <p className="text-xs text-gray-400">次回更新日</p>
-              <p className="mt-2 text-lg font-semibold">{renewalDate ?? '未設定'}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            {isMember ? (
-              <>
-                <button
-                  onClick={() => {
-                    void handleOpenBillingPortal();
-                  }}
-                  disabled={isBillingPortalLoading}
-                  className="rounded bg-white px-4 py-2 font-semibold text-gray-900 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isBillingPortalLoading ? '起動中...' : '請求情報を管理'}
-                </button>
-                <button
-                  onClick={() => {
-                    void handleCancelMembership();
-                  }}
-                  disabled={isSubscriptionActionLoading}
-                  className="rounded bg-red-600 px-4 py-2 font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubscriptionActionLoading ? '処理中...' : 'メンバーシップを解約する'}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => navigate(subscriptionPath)}
-                className="rounded bg-primary px-4 py-2 font-semibold hover:bg-primary/90"
+        {false && (
+          <div className="mb-8 rounded-lg border border-gray-700 bg-gray-800 p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">メンバーシップ</h2>
+                <p className="mt-2 text-sm text-gray-300">
+                  単品購入は提供していません。ログイン済みユーザーはメンバーシップ登録により全作品を視聴できます。
+                </p>
+              </div>
+              <span
+                className={`rounded px-3 py-1 text-sm ${isMember ? 'bg-green-500/10 text-green-400' : 'bg-gray-600/30 text-gray-300'
+                  }`}
               >
-                メンバーシップに登録
-              </button>
-            )}
+                {isMember ? '登録中' : '未登録'}
+              </span>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg bg-gray-700/60 p-4">
+                <p className="text-xs text-gray-400">料金</p>
+                <p className="mt-2 text-lg font-semibold">月額 {membershipPrice.toLocaleString()} 円</p>
+              </div>
+              <div className="rounded-lg bg-gray-700/60 p-4">
+                <p className="text-xs text-gray-400">次回更新日</p>
+                <p className="mt-2 text-lg font-semibold">{renewalDate ?? '未設定'}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              {isMember ? (
+                <>
+                  <button
+                    onClick={() => {
+                      void handleOpenBillingPortal();
+                    }}
+                    disabled={isBillingPortalLoading}
+                    className="rounded bg-white px-8 py-2 font-semibold text-gray-900 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isBillingPortalLoading ? '起動中...' : '請求情報を管理'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      void handleCancelMembership();
+                    }}
+                    disabled={isSubscriptionActionLoading}
+                    className="rounded bg-red-600 px-8 py-2 font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubscriptionActionLoading ? '処理中...' : 'メンバーシップを解約する'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => navigate(subscriptionPath)}
+                  className="rounded bg-primary px-8 py-2 font-semibold hover:bg-primary/90"
+                >
+                  メンバーシップに登録
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-lg bg-gray-800 p-6">
+          <div className="order-3 rounded-lg bg-gray-800 p-6">
             <h2 className="mb-4 text-xl font-semibold">視聴履歴</h2>
-            <ul className="space-y-2">
+            <ul className="max-h-[7.5rem] space-y-2 overflow-y-auto pr-2">
               {watchHistory.length === 0 && <li className="text-sm text-gray-400">履歴はありません</li>}
               {watchHistory.map((item) => (
-                <li key={item.id} className="flex justify-between gap-4 text-sm text-gray-200">
-                  <span>{item.title}</span>
-                  <span className="text-gray-400">{new Date(item.watchedAt).toLocaleString()}</span>
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/movies/${item.id}`, { state: { from: location } })}
+                    className="flex w-full justify-between gap-4 rounded-md px-2 py-1 text-left text-sm text-gray-200 transition hover:bg-gray-700/60"
+                  >
+                    <span>{item.title}</span>
+                    <span className="text-gray-400">{new Date(item.watchedAt).toLocaleString()}</span>
+                  </button>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-lg bg-gray-800 p-6">
+          <div className="order-2 rounded-lg bg-gray-800 p-6">
             <h2 className="mb-4 text-xl font-semibold">マイリスト</h2>
             <p className="text-sm text-gray-300">
-              あとで見たい作品を一覧で管理できます。視聴導線はメンバーシップ登録済みアカウントに統一しています。
+              あとで見たい作品を一覧で管理できます。
             </p>
             <button
               onClick={() => navigate('/watchlist')}
-              className="mt-6 rounded bg-gray-700 px-4 py-2 font-semibold hover:bg-gray-600"
+              className="mt-6 ml-auto block rounded bg-gray-700 px-8 py-2 font-semibold hover:bg-gray-600"
             >
               マイリストを開く
             </button>
           </div>
+          <div className="order-1 rounded-lg bg-gray-800 p-6">
+            <h2 className="mb-4 text-xl font-semibold">購入した動画</h2>
+            <p className="text-sm text-gray-300">
+              購入済みの作品を一覧で確認できます。
+            </p>
+            <button
+              onClick={() => navigate('/library')}
+              className="mt-6 ml-auto block rounded bg-gray-700 px-8 py-2 font-semibold hover:bg-gray-600"
+            >
+              購入した動画を開く
+            </button>
+          </div>
         </div>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-right">
           <button onClick={seedMock} className="text-xs text-gray-400 underline">
             デモデータを投入（視聴履歴・メンバーシップ）
           </button>

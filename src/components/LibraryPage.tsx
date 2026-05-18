@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './common/Header';
 import { useAuthStatus } from '../lib/authBridge';
 import useApiClient from '../lib/useApiClient';
 import type { Purchase } from '../lib/apiClient';
+import useHeaderGenres from '../lib/useHeaderGenres';
 
 function matchesQuery(purchase: Purchase, query: string) {
   const normalized = query.trim().toLowerCase();
@@ -39,6 +40,7 @@ function formatAmount(amount: number, currency: string) {
 }
 
 export default function LibraryPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const api = useApiClient();
   const { isAuthenticated, logoutAll } = useAuthStatus();
@@ -46,6 +48,7 @@ export default function LibraryPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const genreOptions = useHeaderGenres();
 
   useEffect(() => {
     let cancelled = false;
@@ -95,11 +98,12 @@ export default function LibraryPage() {
           onLogin={() => navigate('/login')}
           onLogout={logoutAll}
           searchQuery=""
-          onSearchChange={() => {}}
+          onSearchChange={() => { }}
+          genreOptions={genreOptions}
         />
         <main className="container mx-auto px-4 pb-12 pt-24">
           <div className="mx-auto max-w-xl rounded-lg bg-gray-800 p-8 text-center text-white">
-            <h1 className="mb-4 text-2xl font-bold">購入済み一覧</h1>
+            <h1 className="mb-4 text-2xl font-bold">購入した動画</h1>
             <p className="mb-6 text-gray-300">購入済み作品を見るにはログインが必要です。</p>
             <button
               onClick={() => navigate('/login')}
@@ -119,14 +123,15 @@ export default function LibraryPage() {
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate('/login')}
         onLogout={logoutAll}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        searchQuery=""
+        onSearchChange={() => { }}
+        genreOptions={genreOptions}
       />
 
       <main className="container mx-auto px-4 pb-12 pt-24">
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">購入済み一覧</h1>
+            <h1 className="text-2xl font-bold text-white">購入した動画</h1>
             <p className="mt-1 text-sm text-gray-400">
               購入済み作品を確認できます。表示中 {filteredPurchases.length} 件です。
             </p>
@@ -164,7 +169,7 @@ export default function LibraryPage() {
               >
                 {purchase.thumbnail ? (
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="block w-full text-left"
                   >
                     <img
@@ -175,7 +180,7 @@ export default function LibraryPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 text-sm font-semibold text-gray-300"
                   >
                     購入済み作品
@@ -207,7 +212,7 @@ export default function LibraryPage() {
                   </dl>
 
                   <button
-                    onClick={() => navigate(`/movies/${purchase.movie_id}`)}
+                    onClick={() => navigate(`/movies/${purchase.movie_id}`, { state: { from: location } })}
                     className="w-full rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100"
                   >
                     作品詳細を見る
