@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Heart, Play } from 'lucide-react';
 import type { Database } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 import { Header } from './common/Header';
 import { MOCK_MOVIES } from '../mockData';
 import { getLocalMockMovie } from '../lib/mockMovieResolver';
-import { useAuthStatus } from '../lib/authBridge';
+import { getBillingToken, useAuthStatus } from '../lib/authBridge';
 import { getTestMovieThumbnail } from '../lib/testMovieThumbnails';
 import useApiClient from '../lib/useApiClient';
 import ReviewSection from './ReviewSection';
@@ -13,6 +14,11 @@ import { useMembershipStatus } from '../lib/useMembershipStatus';
 import { getHomeMovieListTestItem } from './homeDisplaySamples';
 import { getMovieGenreSummary } from '../lib/movieGenres';
 import useHeaderGenres from '../lib/useHeaderGenres';
+import {
+  buildAbsoluteAppUrl,
+  buildPurchaseCompletionPath,
+  getReturnToFromLocation,
+} from '../lib/subscriptionNavigation';
 import {
   canAccessMovie,
   getMovieAccessLabel,
@@ -27,6 +33,7 @@ type MovieDetailPageProps = {
 };
 
 function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
+  const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { id: movieId } = useParams<{ id: string }>();
@@ -55,6 +62,8 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
   const [isWatchlistBusy, setIsWatchlistBusy] = useState(false);
   const [hasPurchasedMovie, setHasPurchasedMovie] = useState(false);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [isStartingPurchase, setIsStartingPurchase] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [hasResumePosition, setHasResumePosition] = useState(false);
 
   useEffect(() => {
@@ -228,6 +237,43 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
     }
   };
 
+  const handlePurchase = async () => {
+    if (!movie?.id) return;
+
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsStartingPurchase(true);
+      setPurchaseError(null);
+
+      const billingToken = getBillingToken(auth);
+      if (!billingToken) {
+        setPurchaseError('購入を開始するには、もう一度ログインしてください。');
+        return;
+      }
+
+      const returnTo = getReturnToFromLocation(location);
+      const session = await api.createPurchaseCheckoutSession({
+        movieId: movie.id,
+        successUrl: buildAbsoluteAppUrl(
+          window.location.origin,
+          buildPurchaseCompletionPath(movie.id, returnTo),
+        ),
+        cancelUrl: buildAbsoluteAppUrl(window.location.origin, returnTo),
+      }, billingToken);
+
+      window.location.assign(session.url);
+    } catch (purchaseStartError) {
+      console.error('Purchase checkout error:', purchaseStartError);
+      setPurchaseError('購入手続きの開始に失敗しました。');
+    } finally {
+      setIsStartingPurchase(false);
+    }
+  };
+
   const movieAccessTier = movie ? getMovieAccessTier(movie) : 'member';
   const canWatchMovie = movie ? canAccessMovie(accessState, movie, { hasPurchased: hasPurchasedMovie }) : false;
   const buyPrice = movie ? getMovieBuyPrice(movie) : 0;
@@ -265,15 +311,23 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
 
     if (isAuthenticated) {
       return (
-        <div
-          className="flex flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg"
+        <button
+          onClick={() => {
+            void handlePurchase();
+          }}
+          disabled={isStartingPurchase}
+          className="flex flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 px-6 py-4 font-semibold text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {buyPrice > 0 && (
+          {isStartingPurchase ? (
+            <span className="text-sm font-semibold text-white">Stripe に移動しています...</span>
+          ) : buyPrice > 0 ? (
             <span className="text-[20px] font-semibold text-white">
               {currency === 'JPY' ? `¥${buyPrice.toLocaleString()}` : `${buyPrice.toLocaleString()} ${currency}`}
             </span>
+          ) : (
+            <span className="text-[20px] font-semibold text-white">購入する</span>
           )}
-        </div>
+        </button>
       );
     }
 
@@ -384,6 +438,12 @@ function MovieDetailPage({ initialMovie = null }: MovieDetailPageProps) {
               {shouldShowAccessNotice && (
                 <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
                   <p className="text-sm leading-6 text-amber-50/90">{accessDescription}</p>
+                </div>
+              )}
+
+              {purchaseError && (
+                <div className="mb-6 rounded-2xl border border-red-500/40 bg-red-500/10 p-5">
+                  <p className="text-sm leading-6 text-red-100">{purchaseError}</p>
                 </div>
               )}
             </div>

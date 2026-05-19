@@ -210,9 +210,11 @@ export default function MovieListPage() {
   const [movies, setMovies] = useState<MovieListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
-    getRecommendationGenreLabels(getStoredDesiredGenreIds()),
+    isAuthenticated ? getRecommendationGenreLabels(getStoredDesiredGenreIds()) : [],
   );
-  const [desiredGenreIds, setDesiredGenreIds] = useState<string[]>(() => getStoredDesiredGenreIds());
+  const [desiredGenreIds, setDesiredGenreIds] = useState<string[]>(() =>
+    isAuthenticated ? getStoredDesiredGenreIds() : [],
+  );
   const [hiddenGenreLabels, setHiddenGenreLabels] = useState<string[]>(() => getStoredHiddenGenreLabels());
   const [accessState, setAccessState] = useState<MembershipAccessState>(
     isAuthenticated ? 'registered' : 'guest',
@@ -259,12 +261,18 @@ export default function MovieListPage() {
     let cancelled = false;
 
     const applyStoredRecommendations = () => {
-      const storedDesiredGenreIds = getStoredDesiredGenreIds();
       const storedHiddenGenreLabels = getStoredHiddenGenreLabels();
       if (!cancelled) {
-        setDesiredGenreIds(storedDesiredGenreIds);
         setHiddenGenreLabels(storedHiddenGenreLabels);
-        setSampleGenreLabels(getRecommendationGenreLabels(storedDesiredGenreIds));
+        if (isAuthenticated) {
+          const storedDesiredGenreIds = getStoredDesiredGenreIds();
+          setDesiredGenreIds(storedDesiredGenreIds);
+          setSampleGenreLabels(getRecommendationGenreLabels(storedDesiredGenreIds));
+          return;
+        }
+
+        setDesiredGenreIds([]);
+        setSampleGenreLabels([]);
       }
     };
 

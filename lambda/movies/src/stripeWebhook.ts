@@ -14,6 +14,9 @@ type StripeCheckoutSession = {
   mode?: string;
   customer?: string;
   subscription?: string;
+  payment_intent?: string;
+  amount_total?: number;
+  currency?: string;
   metadata?: Record<string, string>;
 };
 
@@ -148,6 +151,75 @@ async function upsertCheckoutSession(session: StripeCheckoutSession) {
   );
 }
 
+async function upsertPurchaseCheckoutSession(session: StripeCheckoutSession) {
+  if (session.mode !== 'payment') return;
+
+  const stripeCheckoutSessionId = normalizeString(session.id);
+  const stripePaymentIntentId = normalizeString(session.payment_intent);
+  const userId = getMetadataValue(session.metadata, 'user_id');
+  const movieId = getMetadataValue(session.metadata, 'movie_id');
+  const amountTotal = typeof session.amount_total === 'number' ? session.amount_total : null;
+  const currency = normalizeString(session.currency)?.toUpperCase() ?? 'JPY';
+
+  if (!stripeCheckoutSessionId || !userId || !movieId || amountTotal == null) {
+    return;
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+
+    const existingRes = await client.query(
+      `SELECT id
+       FROM purchases
+       WHERE stripe_checkout_session_id = $1
+       LIMIT 1`,
+      [stripeCheckoutSessionId],
+    );
+    const existingId = normalizeString(existingRes.rows[0]?.id);
+
+    if (existingId) {
+      await client.query(
+        `UPDATE purchases
+         SET user_id = $1,
+             movie_id = $2,
+             status = 'completed',
+             amount_total = $3,
+             currency = $4,
+             payment_method = COALESCE(payment_method, 'CASH'),
+             stripe_payment_intent_id = COALESCE($5, stripe_payment_intent_id),
+             purchased_at = COALESCE(purchased_at, now()),
+             updated_at = now()
+         WHERE id = $6`,
+        [userId, movieId, amountTotal, currency, stripePaymentIntentId, existingId],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO purchases (
+           user_id,
+           movie_id,
+           status,
+           amount_total,
+           currency,
+           payment_method,
+           stripe_checkout_session_id,
+           stripe_payment_intent_id,
+           purchased_at
+         )
+         VALUES ($1, $2, 'completed', $3, $4, 'CASH', $5, $6, now())`,
+        [userId, movieId, amountTotal, currency, stripeCheckoutSessionId, stripePaymentIntentId],
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function findPlanIdByPriceId(priceId: string | null) {
   if (!priceId) return null;
   const res = await getPool().query(
@@ -193,7 +265,7 @@ async function upsertSubscription(subscription: StripeSubscription) {
     status === 'active'
       ? null
       : unixToIso(subscription.ended_at ?? subscription.canceled_at ?? subscription.current_period_end) ??
-        new Date().toISOString();
+      new Date().toISOString();
   const stripeCustomerId = normalizeString(subscription.customer);
 
   const client = await getPool().connect();
@@ -284,6 +356,7 @@ export async function handleStripeWebhook(
 
   if (eventType === 'checkout.session.completed') {
     await upsertCheckoutSession(object as StripeCheckoutSession);
+    await upsertPurchaseCheckoutSession(object as StripeCheckoutSession);
     return response(200, { received: true });
   }
 

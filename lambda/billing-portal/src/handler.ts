@@ -46,6 +46,12 @@ type SubscriptionPlan = {
   is_active: boolean;
 };
 
+type MovieBillingInfo = {
+  id: string;
+  access_mode: 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase';
+  stripe_price_id_one_time: string | null;
+};
+
 function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
     statusCode,
@@ -209,6 +215,23 @@ async function fetchSubscriptionPlans(event: APIGatewayProxyEventV2) {
   return data.items ?? [];
 }
 
+async function fetchMovieBillingInfo(event: APIGatewayProxyEventV2, movieId: string) {
+  const apiBaseUrl = buildApiBaseUrl(event);
+  if (!apiBaseUrl) {
+    throw new Error('Missing movies api url');
+  }
+
+  const res = await fetch(`${apiBaseUrl}/v1/movies/${encodeURIComponent(movieId)}`, { method: 'GET' });
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`Failed to fetch movie: ${res.status}`);
+  }
+
+  return (await res.json()) as MovieBillingInfo;
+}
+
 async function createCheckoutSession(
   event: APIGatewayProxyEventV2,
   user: UserContext,
@@ -254,6 +277,64 @@ async function createCheckoutSession(
     'metadata[plan_id]': plan.id,
     'subscription_data[metadata][user_id]': user.userId,
     'subscription_data[metadata][plan_id]': plan.id,
+  });
+
+  const session = await stripeRequest<StripeCheckoutSession>('/v1/checkout/sessions', {
+    method: 'POST',
+    body: form,
+  });
+
+  if (!session.url) {
+    throw new Error('Stripe checkout session url is missing');
+  }
+
+  return response(200, { url: session.url, sessionId: session.id });
+}
+
+async function createPurchaseCheckoutSession(
+  event: APIGatewayProxyEventV2,
+  user: UserContext,
+): Promise<APIGatewayProxyResultV2> {
+  if (!user.email) {
+    return response(400, { code: 'EMAIL_REQUIRED', message: 'Email claim is required' });
+  }
+
+  const body = parseJsonBody(event);
+  const movieId = normalizeString(body?.movieId);
+  if (!movieId) {
+    return response(400, { code: 'MOVIE_ID_REQUIRED', message: 'movieId is required' });
+  }
+
+  const successUrl = normalizeString(body?.successUrl);
+  const cancelUrl = normalizeString(body?.cancelUrl);
+  if (!successUrl || !cancelUrl) {
+    return response(400, { code: 'RETURN_URL_REQUIRED', message: 'successUrl and cancelUrl are required' });
+  }
+
+  const movie = await fetchMovieBillingInfo(event, movieId);
+  if (!movie) {
+    return response(404, { code: 'MOVIE_NOT_FOUND', message: 'Movie not found' });
+  }
+  if (movie.access_mode !== 'purchase_only' && movie.access_mode !== 'subscription_or_purchase') {
+    return response(409, { code: 'MOVIE_NOT_PURCHASABLE', message: 'Movie is not available for one-time purchase' });
+  }
+  if (!movie.stripe_price_id_one_time) {
+    return response(409, { code: 'MOVIE_BILLING_NOT_READY', message: 'stripe_price_id_one_time is not configured' });
+  }
+
+  const customer = await findOrCreateCustomer(user.email, user.userId, user.name);
+  const form = new URLSearchParams({
+    mode: 'payment',
+    customer: customer.id,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    client_reference_id: user.userId,
+    'line_items[0][price]': movie.stripe_price_id_one_time,
+    'line_items[0][quantity]': '1',
+    'metadata[user_id]': user.userId,
+    'metadata[movie_id]': movie.id,
+    'payment_intent_data[metadata][user_id]': user.userId,
+    'payment_intent_data[metadata][movie_id]': movie.id,
   });
 
   const session = await stripeRequest<StripeCheckoutSession>('/v1/checkout/sessions', {
@@ -335,6 +416,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     if (
       (method !== 'POST' || path !== '/v1/billing-portal/session') &&
       (method !== 'POST' || path !== '/v1/subscriptions/checkout-session') &&
+      (method !== 'POST' || path !== '/v1/purchases/checkout-session') &&
       (method !== 'DELETE' || path !== '/v1/subscriptions/current')
     ) {
       return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
@@ -351,6 +433,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
     if (method === 'POST' && path === '/v1/subscriptions/checkout-session') {
       return await createCheckoutSession(event, user);
+    }
+
+    if (method === 'POST' && path === '/v1/purchases/checkout-session') {
+      return await createPurchaseCheckoutSession(event, user);
     }
 
     if (method === 'DELETE' && path === '/v1/subscriptions/current') {

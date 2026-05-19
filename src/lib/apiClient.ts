@@ -74,6 +74,17 @@ export type SubscriptionCheckoutSessionResponse = {
   sessionId: string;
 };
 
+export type PurchaseCheckoutSessionPayload = {
+  movieId: string;
+  successUrl?: string | null;
+  cancelUrl?: string | null;
+};
+
+export type PurchaseCheckoutSessionResponse = {
+  url: string;
+  sessionId: string;
+};
+
 export type Purchase = Database['public']['Tables']['purchases']['Row'] & {
   title?: string | null;
   thumbnail?: string | null;
@@ -106,6 +117,8 @@ export type AdminMovieWritePayload = {
   duration?: string | null;
   genre?: string[] | null;
   cast?: string[] | null;
+  director?: string | null;
+  release_year?: number | null;
   price?: number;
   rental_price?: number;
   access_mode?: Movie['access_mode'];
@@ -113,6 +126,8 @@ export type AdminMovieWritePayload = {
   currency?: string;
   stripe_price_id_one_time?: string | null;
   is_published?: boolean;
+  is_home_feature?: boolean;
+  home_featured_order?: number | null;
   publish_at?: string | null;
   unpublish_at?: string | null;
   view_window_days?: number;
@@ -399,6 +414,16 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     ) {
       return postWithOptionalAuth<SubscriptionCheckoutSessionResponse>(
         '/subscriptions/checkout-session',
+        payload,
+        authTokenOverride,
+      );
+    },
+    async createPurchaseCheckoutSession(
+      payload: PurchaseCheckoutSessionPayload,
+      authTokenOverride?: string | null,
+    ) {
+      return postWithOptionalAuth<PurchaseCheckoutSessionResponse>(
+        '/purchases/checkout-session',
         payload,
         authTokenOverride,
       );

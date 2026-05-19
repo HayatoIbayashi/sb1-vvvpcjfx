@@ -155,11 +155,11 @@ export function VideoManagement() {
         setVideos((current) => current.map((video) => (
           video.id === selectedVideo.id
             ? {
-                ...video,
-                ...nextFields,
-                ...toMovieAccessPayload(accessTier, buyPrice),
-                updated_at: new Date().toISOString(),
-              }
+              ...video,
+              ...nextFields,
+              ...toMovieAccessPayload(accessTier, buyPrice),
+              updated_at: new Date().toISOString(),
+            }
             : video
         )));
       } else {
@@ -172,11 +172,14 @@ export function VideoManagement() {
           thumbnail_detail: formData.thumbnail_detail || formData.thumbnail || null,
           release_date: formData.release_date || null,
           duration: formData.duration || null,
-          director: null,
-          release_year: null,
+          director: formData.director || null,
+          release_year: formData.release_year ?? null,
           ...toMovieAccessPayload(formData.accessTier, formData.buyPrice),
           genre: formData.genre || [],
           cast: formData.cast || [],
+          is_published: formData.is_published === true,
+          is_home_feature: formData.is_home_feature === true,
+          home_featured_order: formData.is_home_feature ? formData.home_featured_order ?? null : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -322,8 +325,14 @@ export function VideoManagement() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onMouseDown={closeModal}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <h3 className="mb-6 text-2xl font-bold text-white">
               {selectedVideo ? '動画を編集' : '新規動画を追加'}
             </h3>
@@ -393,6 +402,29 @@ export function VideoManagement() {
                   </select>
                 </div>
                 <div>
+                  <label className="mb-2 block text-gray-300">監督</label>
+                  <input
+                    type="text"
+                    value={formData.director || ''}
+                    onChange={(event) => updateFormData({ director: event.target.value })}
+                    aria-label="監督"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-gray-300">公開年</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.release_year ?? ''}
+                    onChange={(event) => updateFormData({
+                      release_year: event.target.value === '' ? null : Number(event.target.value),
+                    })}
+                    aria-label="公開年"
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white"
+                  />
+                </div>
+                <div>
                   <label className="mb-2 block text-gray-300">単品価格</label>
                   <input
                     type="number"
@@ -405,6 +437,14 @@ export function VideoManagement() {
                     aria-label="単品価格"
                     className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
+                </div>
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-gray-300">Stripe単品Price ID</h4>
+                  <div className="min-h-10 rounded bg-gray-900 px-4 py-2 font-mono text-sm text-gray-200">
+                    {selectedVideo
+                      ? selectedVideo.stripe_price_id_one_time || '未設定'
+                      : '作成後に表示されます'}
+                  </div>
                 </div>
               </div>
 
@@ -430,6 +470,44 @@ export function VideoManagement() {
                   />
                 </div>
 
+                <label className="flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-4 py-3 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_published === true}
+                    onChange={(event) => updateFormData({ is_published: event.target.checked })}
+                    aria-label="公開する"
+                    className="h-4 w-4"
+                  />
+                  <span>公開する</span>
+                </label>
+                <label className="flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-4 py-3 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_home_feature === true}
+                    onChange={(event) => updateFormData({
+                      is_home_feature: event.target.checked,
+                      home_featured_order: event.target.checked ? formData.home_featured_order : null,
+                    })}
+                    aria-label="おすすめ"
+                    className="h-4 w-4"
+                  />
+                  <span>おすすめ</span>
+                </label>
+                <div>
+                  <label className="mb-2 block text-gray-300">おすすめの順番</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.home_featured_order ?? ''}
+                    onChange={(event) => updateFormData({
+                      home_featured_order: event.target.value === '' ? null : Number(event.target.value),
+                    })}
+                    aria-label="おすすめの順番"
+                    disabled={formData.is_home_feature !== true}
+                    className="w-full rounded bg-gray-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+
                 <VideoFileField
                   inputId="video-management-mp4"
                   isEditMode={selectedVideo != null}
@@ -452,7 +530,7 @@ export function VideoManagement() {
               </button>
               <button
                 onClick={handleSave}
-                className="rounded-lg bg-primary px-6 py-2 text-white transition hover:bg-primary/90"
+                className="rounded-lg bg-gray-900 px-6 py-2 text-gray-300 transition hover:bg-gray-700"
               >
                 {selectedVideo ? '更新する' : '追加する'}
               </button>
