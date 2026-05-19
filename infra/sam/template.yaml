@@ -160,7 +160,6 @@ Resources:
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
-          STRIPE_SECRET_KEY: !Ref StripeSecretKey
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
       Events:
         PublicMovies:
@@ -193,12 +192,6 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies/{id}
             Method: GET
-        AdminMovieUpdate:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /v1/admin/movies/{id}
-            Method: PUT
         AdminMovieDelete:
           Type: HttpApi
           Properties:
@@ -395,6 +388,31 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies
             Method: POST
+
+  AdminMovieUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: admin-movie-update
+      CodeUri: ../../lambda/movies
+      Handler: dist/adminMovieUpdate.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt MoviesListFunction.Arn
+      Environment:
+        Variables:
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          MOVIES_WRITE_LAMBDA_NAME: !Ref MoviesListFunction
+      Events:
+        AdminMovieUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies/{id}
+            Method: PUT
 
   BillingPortalFunction:
     Type: AWS::Serverless::Function
