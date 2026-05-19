@@ -76,6 +76,7 @@ export function createMovieFormData(movie: Movie): MovieFormData {
     is_published: movie.is_published,
     is_home_feature: movie.is_home_feature,
     home_featured_order: movie.home_featured_order,
+    stripe_price_id_one_time: movie.stripe_price_id_one_time,
     accessTier: getMovieAccessTier(movie),
     buyPrice: Number(movie.buy_price || movie.price || 0),
     videoFile: null,
@@ -107,6 +108,7 @@ export function buildMoviePayload(formData: MovieFormData): AdminMovieWritePaylo
     home_featured_order: formData.is_home_feature
       ? normalizeNullableNumber(formData.home_featured_order)
       : null,
+    stripe_price_id_one_time: normalizeNullableText(formData.stripe_price_id_one_time),
     ...toMovieAccessPayload(formData.accessTier, Number(formData.buyPrice || formData.buy_price || 0)),
   };
 }
