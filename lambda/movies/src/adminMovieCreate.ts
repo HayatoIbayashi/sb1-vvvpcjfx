@@ -16,6 +16,14 @@ type CreatedStripeCatalogItem = {
   priceId: string;
 };
 
+type LambdaProxyResponse = {
+  statusCode?: number;
+  headers?: Record<string, boolean | number | string>;
+  body?: string;
+  isBase64Encoded?: boolean;
+  cookies?: string[];
+};
+
 class StripeCatalogError extends Error {
   constructor(
     public statusCode: number,
@@ -184,7 +192,7 @@ async function deactivateStripeCatalogItem(item: CreatedStripeCatalogItem) {
 function decodePayload(payload?: Uint8Array) {
   if (!payload || !payload.length) return null;
   try {
-    return JSON.parse(Buffer.from(payload).toString('utf-8')) as APIGatewayProxyResultV2;
+    return JSON.parse(Buffer.from(payload).toString('utf-8')) as LambdaProxyResponse;
   } catch {
     return null;
   }
@@ -254,7 +262,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     if (createdStripeItem && statusCode >= 400) {
       await deactivateStripeCatalogItem(createdStripeItem);
     }
-    return result;
+    return result as APIGatewayProxyResultV2;
   } catch (error) {
     if (createdStripeItem) {
       await deactivateStripeCatalogItem(createdStripeItem);
