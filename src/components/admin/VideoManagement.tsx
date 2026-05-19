@@ -530,7 +530,7 @@ export function VideoManagement() {
               </button>
               <button
                 onClick={handleSave}
-                className="rounded-lg bg-primary px-6 py-2 text-white transition hover:bg-primary/90"
+                className="rounded-lg bg-gray-900 px-6 py-2 text-gray-300 transition hover:bg-gray-700"
               >
                 {selectedVideo ? '更新する' : '追加する'}
               </button>
