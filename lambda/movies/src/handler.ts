@@ -209,6 +209,16 @@ class ValidationError extends Error {
   code = 'VALIDATION_ERROR';
 }
 
+class StripeSyncError extends Error {
+  constructor(
+    public statusCode: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 type AdminMovieWriteInput = {
   title: string;
   description: string | null;
@@ -233,6 +243,13 @@ type AdminMovieWriteInput = {
   publish_at: string | null;
   unpublish_at: string | null;
   view_window_days: number;
+};
+
+type StripeProductRef = string | { id?: string | null };
+
+type StripePrice = {
+  id: string;
+  product: StripeProductRef;
 };
 
 type AdminUserUpdateInput = {
@@ -287,6 +304,81 @@ function normalizeString(value: unknown) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function shouldSyncStripeProduct(input: AdminMovieWriteInput) {
+  return (
+    (input.access_mode === 'purchase_only' || input.access_mode === 'subscription_or_purchase') &&
+    Boolean(input.stripe_price_id_one_time)
+  );
+}
+
+function getStripeErrorMessage(data: unknown) {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'error' in data &&
+    typeof data.error === 'object' &&
+    data.error !== null &&
+    'message' in data.error &&
+    typeof data.error.message === 'string'
+  ) {
+    return data.error.message;
+  }
+  return null;
+}
+
+async function stripeRequest<T>(
+  path: string,
+  init: { method?: 'GET' | 'POST'; body?: URLSearchParams } = {},
+): Promise<T> {
+  const secretKey = normalizeString(process.env.STRIPE_SECRET_KEY);
+  if (!secretKey) {
+    throw new StripeSyncError(500, 'STRIPE_SECRET_KEY_MISSING', 'STRIPE_SECRET_KEY is not configured');
+  }
+
+  const res = await fetch(`https://api.stripe.com${path}`, {
+    method: init.method ?? 'GET',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      ...(init.body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+    },
+    body: init.body,
+  });
+
+  const data = await res.json().catch(() => null) as unknown;
+  if (!res.ok) {
+    const message = getStripeErrorMessage(data) ?? `Stripe request failed: ${res.status}`;
+    throw new StripeSyncError(502, 'STRIPE_PRODUCT_UPDATE_FAILED', message);
+  }
+
+  return data as T;
+}
+
+function resolveStripeProductId(price: StripePrice) {
+  if (typeof price.product === 'string') return normalizeString(price.product);
+  return normalizeString(price.product?.id);
+}
+
+async function syncStripeProductForMovie(input: AdminMovieWriteInput) {
+  if (!shouldSyncStripeProduct(input)) return;
+
+  const priceId = input.stripe_price_id_one_time;
+  if (!priceId) return;
+
+  const price = await stripeRequest<StripePrice>(`/v1/prices/${encodeURIComponent(priceId)}`);
+  const productId = resolveStripeProductId(price);
+  if (!productId) {
+    throw new StripeSyncError(502, 'STRIPE_PRODUCT_UPDATE_FAILED', 'Stripe product id is missing');
+  }
+
+  await stripeRequest(`/v1/products/${encodeURIComponent(productId)}`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      name: input.title,
+      description: input.description ?? '',
+    }),
+  });
 }
 
 function requireString(value: unknown, fieldName: string) {
@@ -1672,6 +1764,22 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       if (movieId && method === 'PUT') {
         try {
           const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const current = await getPool().query(
+            'SELECT title, description FROM movies WHERE id = $1',
+            [movieId],
+          );
+          if (!current.rows.length) {
+            return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
+          }
+
+          const currentMovie = current.rows[0] as { title: string; description: string | null };
+          if (
+            shouldSyncStripeProduct(input) &&
+            (input.title !== currentMovie.title || input.description !== currentMovie.description)
+          ) {
+            await syncStripeProductForMovie(input);
+          }
+
           const sql = `
             UPDATE movies
             SET
@@ -1735,6 +1843,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         } catch (error) {
           if (error instanceof ValidationError) {
             return response(400, { code: error.code, message: error.message });
+          }
+          if (error instanceof StripeSyncError) {
+            return response(error.statusCode, { code: error.code, message: error.message });
           }
           throw error;
         }
