@@ -9,11 +9,17 @@ type StripeProduct = {
 
 type StripePrice = {
   id: string;
+  product: string | { id?: string | null };
+  unit_amount?: number | null;
+  currency?: string | null;
+  active?: boolean | null;
+  created?: number | null;
 };
 
 type CreatedStripeCatalogItem = {
   productId: string;
   priceId: string;
+  price: StripePrice;
 };
 
 type LambdaProxyResponse = {
@@ -173,7 +179,7 @@ async function createStripeOneTimePriceForMovie(body: Record<string, unknown>): 
     throw new StripeCatalogError(502, 'STRIPE_CATALOG_CREATE_FAILED', 'Stripe price id is missing');
   }
 
-  return { productId: product.id, priceId: price.id };
+  return { productId: product.id, priceId: price.id, price };
 }
 
 async function deactivateStripeCatalogItem(item: CreatedStripeCatalogItem) {
@@ -255,6 +261,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     if (shouldCreateOneTimeStripePrice(nextBody)) {
       createdStripeItem = await createStripeOneTimePriceForMovie(nextBody);
       nextBody.stripe_price_id_one_time = createdStripeItem.priceId;
+      nextBody.stripe_price_history = {
+        operation: 'new_price',
+        price: {
+          ...createdStripeItem.price,
+          stripe_product_id: createdStripeItem.productId,
+        },
+      };
     }
 
     const result = await invokeMoviesWrite(event, nextBody);

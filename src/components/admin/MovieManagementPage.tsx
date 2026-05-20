@@ -14,6 +14,32 @@ import {
 } from './movieManagementForm';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type MovieStripePrice = Database['public']['Tables']['movie_stripe_prices']['Row'];
+
+function formatPriceAmount(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat('ja-JP', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString()} ${currency.toUpperCase()}`;
+  }
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
 
 export default function MovieManagementPage() {
   const navigate = useNavigate();
@@ -27,6 +53,9 @@ export default function MovieManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [formData, setFormData] = useState<MovieFormData>(createEmptyFormData());
+  const [priceHistory, setPriceHistory] = useState<MovieStripePrice[]>([]);
+  const [isPriceHistoryLoading, setIsPriceHistoryLoading] = useState(false);
+  const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +108,28 @@ export default function MovieManagementPage() {
     setIsModalOpen(false);
     setSelectedMovie(null);
     setFormData(createEmptyFormData());
+    setPriceHistory([]);
+    setPriceHistoryError(null);
+    setIsPriceHistoryLoading(false);
+  };
+
+  const loadPriceHistory = async (movieId: string) => {
+    if (useMockMovies || typeof api.getAdminMovieStripePrices !== 'function') {
+      setPriceHistory([]);
+      return;
+    }
+
+    try {
+      setIsPriceHistoryLoading(true);
+      setPriceHistoryError(null);
+      const res = await api.getAdminMovieStripePrices(movieId);
+      setPriceHistory(res.items);
+    } catch (err) {
+      setPriceHistoryError('価格履歴の取得に失敗しました');
+      console.error('Error fetching movie stripe prices:', err);
+    } finally {
+      setIsPriceHistoryLoading(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -92,6 +143,7 @@ export default function MovieManagementPage() {
     setError(null);
     setSelectedMovie(movie);
     setFormData(createMovieFormData(movie));
+    void loadPriceHistory(movie.id);
     setIsModalOpen(true);
   };
 
@@ -406,6 +458,82 @@ export default function MovieManagementPage() {
                     className="w-full px-4 py-2 bg-dark-light text-white rounded"
                   />
                 </div>
+                {selectedMovie && (
+                  <div className="border-t border-gray-700 pt-6">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                      <h3 className="text-lg font-semibold text-white">Stripe価格変動履歴</h3>
+                      <button
+                        type="button"
+                        onClick={() => void loadPriceHistory(selectedMovie.id)}
+                        className="px-3 py-1.5 text-sm bg-dark-light text-gray-200 rounded hover:bg-dark transition"
+                      >
+                        再読み込み
+                      </button>
+                    </div>
+                    {priceHistoryError && (
+                      <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                        {priceHistoryError}
+                      </div>
+                    )}
+                    {isPriceHistoryLoading ? (
+                      <div className="rounded border border-gray-700 px-4 py-6 text-center text-sm text-gray-400">
+                        読み込み中...
+                      </div>
+                    ) : priceHistory.length ? (
+                      <div className="overflow-x-auto rounded border border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-700 text-sm">
+                          <thead className="bg-dark-light text-gray-300">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium">金額</th>
+                              <th className="px-3 py-2 text-left font-medium">通貨</th>
+                              <th className="px-3 py-2 text-left font-medium">Stripe Price ID</th>
+                              <th className="px-3 py-2 text-left font-medium">現在価格</th>
+                              <th className="px-3 py-2 text-left font-medium">Stripe active</th>
+                              <th className="px-3 py-2 text-left font-medium">作成日時</th>
+                              <th className="px-3 py-2 text-left font-medium">アーカイブ日時</th>
+                              <th className="px-3 py-2 text-left font-medium">アーカイブ理由</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800">
+                            {priceHistory.map((item) => (
+                              <tr
+                                key={item.id}
+                                className={item.is_current ? 'bg-emerald-500/10 text-white' : 'text-gray-300'}
+                              >
+                                <td className="whitespace-nowrap px-3 py-2 font-medium">
+                                  {formatPriceAmount(item.unit_amount, item.currency)}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 uppercase">{item.currency}</td>
+                                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{item.stripe_price_id}</td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {item.is_current ? (
+                                    <span className="rounded bg-emerald-500 px-2 py-1 text-xs font-semibold text-white">
+                                      現在
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  <span className={item.active ? 'text-emerald-300' : 'text-gray-500'}>
+                                    {item.active ? 'active' : 'inactive'}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {formatDateTime(item.stripe_created_at ?? item.created_at)}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">{formatDateTime(item.archived_at)}</td>
+                                <td className="whitespace-nowrap px-3 py-2">{item.archived_reason || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="rounded border border-gray-700 px-4 py-6 text-center text-sm text-gray-400">
+                        価格履歴はまだありません
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex justify-end space-x-4 mt-8">

@@ -12,11 +12,16 @@ type StripeProduct = {
 type StripePrice = {
   id: string;
   product: StripeProductRef;
+  unit_amount?: number | null;
+  currency?: string | null;
+  active?: boolean | null;
+  created?: number | null;
 };
 
 type CreatedStripeCatalogItem = {
   productId: string;
   priceId: string;
+  price: StripePrice;
 };
 
 type LambdaProxyResponse = {
@@ -34,6 +39,10 @@ type MovieRow = {
   buy_price?: number | null;
   currency?: string | null;
   stripe_price_id_one_time?: string | null;
+};
+
+type MovieStripePriceRow = {
+  stripe_price_id: string;
 };
 
 class StripeProductSyncError extends Error {
@@ -135,18 +144,24 @@ function decodeResponseBody<T>(result: LambdaProxyResponse) {
   }
 }
 
-async function invokeMoviesLambda(event: APIGatewayProxyEventV2, method: 'GET' | 'PUT', movieId: string, body?: unknown) {
+async function invokeMoviesPath(
+  event: APIGatewayProxyEventV2,
+  method: 'GET' | 'PUT',
+  path: string,
+  body?: unknown,
+  queryStringParameters?: Record<string, string>,
+) {
   const functionName = normalizeString(process.env.MOVIES_WRITE_LAMBDA_NAME);
   if (!functionName) {
     throw new Error('Missing env: MOVIES_WRITE_LAMBDA_NAME');
   }
 
-  const path = `/v1/admin/movies/${encodeURIComponent(movieId)}`;
   const payload = {
     ...event,
     rawPath: path,
     body: body == null ? undefined : JSON.stringify(body),
     isBase64Encoded: false,
+    queryStringParameters,
     requestContext: {
       ...event.requestContext,
       http: {
@@ -172,6 +187,10 @@ async function invokeMoviesLambda(event: APIGatewayProxyEventV2, method: 'GET' |
   }
 
   return invokedResponse;
+}
+
+async function invokeMoviesLambda(event: APIGatewayProxyEventV2, method: 'GET' | 'PUT', movieId: string, body?: unknown) {
+  return invokeMoviesPath(event, method, `/v1/admin/movies/${encodeURIComponent(movieId)}`, body);
 }
 
 function getStripeErrorMessage(data: unknown) {
@@ -263,13 +282,13 @@ async function createStripeOneTimePriceForMovie(body: Record<string, unknown>): 
     throw new StripeProductSyncError(502, 'STRIPE_CATALOG_UPDATE_FAILED', 'Stripe price id is missing');
   }
 
-  return { productId: product.id, priceId: price.id };
+  return { productId: product.id, priceId: price.id, price };
 }
 
 async function createStripePriceForProduct(
   productId: string,
   body: Record<string, unknown>,
-): Promise<string> {
+): Promise<StripePrice> {
   const accessMode = parseAccessMode(body.access_mode);
   const buyPrice = parseNonNegativeInteger(body.buy_price);
   const currency = normalizeString(body.currency) ?? 'JPY';
@@ -286,7 +305,7 @@ async function createStripePriceForProduct(
   if (!normalizeString(price.id)) {
     throw new StripeProductSyncError(502, 'STRIPE_CATALOG_UPDATE_FAILED', 'Stripe price id is missing');
   }
-  return price.id;
+  return price;
 }
 
 async function deactivateStripePrice(priceId: string) {
@@ -302,6 +321,13 @@ async function deactivateStripePriceQuietly(priceId: string, context: string) {
   } catch (error) {
     console.warn(`Failed to deactivate Stripe price in ${context}`, error);
   }
+}
+
+async function activateStripePrice(priceId: string) {
+  return stripeRequest<StripePrice>(`/v1/prices/${encodeURIComponent(priceId)}`, {
+    method: 'POST',
+    body: new URLSearchParams({ active: 'true' }),
+  });
 }
 
 async function deactivateStripeCatalogItem(item: CreatedStripeCatalogItem) {
@@ -337,6 +363,35 @@ function priceOrCurrencyChanged(current: MovieRow, body: Record<string, unknown>
   );
 }
 
+async function findRestoreCandidate(
+  event: APIGatewayProxyEventV2,
+  movieId: string,
+  unitAmount: number,
+  currency: string,
+  currentStripePriceId: string | null,
+) {
+  const query: Record<string, string> = {
+    unit_amount: String(unitAmount),
+    currency: currency.toLowerCase(),
+  };
+  if (currentStripePriceId) {
+    query.current_stripe_price_id = currentStripePriceId;
+  }
+
+  const result = await invokeMoviesPath(
+    event,
+    'GET',
+    `/v1/admin/movies/${encodeURIComponent(movieId)}/stripe-prices/restore-candidate`,
+    undefined,
+    query,
+  );
+  const statusCode = typeof result.statusCode === 'number' ? result.statusCode : 200;
+  if (statusCode >= 400) {
+    throw new Error(result.body || 'movies-list Lambda returned an invalid restore candidate response');
+  }
+  return decodeResponseBody<{ item: MovieStripePriceRow | null }>(result)?.item ?? null;
+}
+
 type StripeUpdatePlan = {
   body: Record<string, unknown>;
   oldPriceIdToDeactivate: string | null;
@@ -345,6 +400,8 @@ type StripeUpdatePlan = {
 };
 
 async function buildStripeUpdatePlan(
+  event: APIGatewayProxyEventV2,
+  movieId: string,
   currentMovie: MovieRow,
   body: Record<string, unknown>,
 ): Promise<StripeUpdatePlan> {
@@ -356,6 +413,11 @@ async function buildStripeUpdatePlan(
 
   if (!nextPurchasable) {
     nextBody.stripe_price_id_one_time = null;
+    nextBody.stripe_price_history = {
+      operation: 'archive_current',
+      old_stripe_price_id: currentPriceId,
+      archived_reason: currentPriceId ? 'movie_became_free' : 'purchase_disabled',
+    };
     return {
       body: nextBody,
       oldPriceIdToDeactivate: currentPriceId,
@@ -367,6 +429,13 @@ async function buildStripeUpdatePlan(
   if (!currentPriceId) {
     const createdCatalogItem = await createStripeOneTimePriceForMovie(nextBody);
     nextBody.stripe_price_id_one_time = createdCatalogItem.priceId;
+    nextBody.stripe_price_history = {
+      operation: 'new_price',
+      price: {
+        ...createdCatalogItem.price,
+        stripe_product_id: createdCatalogItem.productId,
+      },
+    };
     return {
       body: nextBody,
       oldPriceIdToDeactivate: null,
@@ -408,8 +477,45 @@ async function buildStripeUpdatePlan(
   }
 
   if (priceNeedsSync) {
-    const nextPriceId = await createStripePriceForProduct(productId, nextBody);
+    const nextBuyPrice = parseNonNegativeInteger(nextBody.buy_price);
+    const nextCurrency = normalizeString(nextBody.currency) ?? 'JPY';
+    const restoreCandidate = await findRestoreCandidate(
+      event,
+      movieId,
+      nextBuyPrice,
+      nextCurrency,
+      currentPriceId,
+    );
+
+    if (restoreCandidate?.stripe_price_id) {
+      const restoredPrice = await activateStripePrice(restoreCandidate.stripe_price_id);
+      nextBody.stripe_price_id_one_time = restoreCandidate.stripe_price_id;
+      nextBody.stripe_price_history = {
+        operation: 'restore_price',
+        stripe_price_id: restoreCandidate.stripe_price_id,
+        old_stripe_price_id: currentPriceId,
+        raw_stripe_price: restoredPrice,
+        archived_reason: 'price_changed',
+      };
+      return {
+        body: nextBody,
+        oldPriceIdToDeactivate: currentPriceId,
+        createdPriceIdToDeactivateOnFailure: restoreCandidate.stripe_price_id,
+        createdCatalogItem: null,
+      };
+    }
+
+    const nextPrice = await createStripePriceForProduct(productId, nextBody);
+    const nextPriceId = nextPrice.id;
     nextBody.stripe_price_id_one_time = nextPriceId;
+    nextBody.stripe_price_history = {
+      operation: 'new_price',
+      price: {
+        ...nextPrice,
+        stripe_product_id: productId,
+      },
+      archived_reason: 'price_changed',
+    };
     return {
       body: nextBody,
       oldPriceIdToDeactivate: currentPriceId,
@@ -459,7 +565,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       throw new Error('movies-list Lambda returned an invalid movie response');
     }
 
-    stripeUpdatePlan = await buildStripeUpdatePlan(currentMovie, body);
+    stripeUpdatePlan = await buildStripeUpdatePlan(event, movieId, currentMovie, body);
     const result = await invokeMoviesLambda(event, 'PUT', movieId, stripeUpdatePlan.body);
     const statusCode = typeof result.statusCode === 'number' ? result.statusCode : 200;
     if (statusCode >= 400) {

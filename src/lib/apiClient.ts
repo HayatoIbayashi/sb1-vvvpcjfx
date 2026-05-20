@@ -3,6 +3,7 @@ import type { Database } from './types';
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export type Movie = Database['public']['Tables']['movies']['Row'];
+export type MovieStripePrice = Database['public']['Tables']['movie_stripe_prices']['Row'];
 export type MovieListItem = Movie & {
   average_rating: number | null;
   review_count: number;
@@ -276,6 +277,12 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
     },
     getAdminMovie(id: string) {
       return request<Movie>(`/admin/movies/${encodeURIComponent(id)}`, { method: 'GET' });
+    },
+    getAdminMovieStripePrices(id: string) {
+      return request<{ items: MovieStripePrice[] }>(
+        `/admin/movies/${encodeURIComponent(id)}/stripe-prices`,
+        { method: 'GET' },
+      );
     },
     createAdminMovie(payload: AdminMovieWritePayload) {
       return request<Movie>('/admin/movies', { method: 'POST', body: JSON.stringify(payload) });

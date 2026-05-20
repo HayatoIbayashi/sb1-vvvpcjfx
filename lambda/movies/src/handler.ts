@@ -235,6 +235,25 @@ type AdminMovieWriteInput = {
   view_window_days: number;
 };
 
+type MovieStripePriceHistoryAction =
+  | {
+      operation: 'new_price';
+      price: Record<string, unknown>;
+      archived_reason?: string | null;
+    }
+  | {
+      operation: 'restore_price';
+      stripe_price_id: string;
+      old_stripe_price_id?: string | null;
+      raw_stripe_price?: unknown;
+      archived_reason?: string | null;
+    }
+  | {
+      operation: 'archive_current';
+      old_stripe_price_id?: string | null;
+      archived_reason?: string | null;
+    };
+
 type AdminUserUpdateInput = {
   email: string;
   gender: string | null;
@@ -383,6 +402,288 @@ function buildAdminMovieWriteInput(body: Record<string, unknown> | null): AdminM
     unpublish_at: normalizeString(body.unpublish_at),
     view_window_days: parseNonNegativeInteger(body.view_window_days, 'view_window_days', 2),
   };
+}
+
+function parseStripePriceHistoryAction(body: Record<string, unknown> | null): MovieStripePriceHistoryAction | null {
+  const value = body?.stripe_price_history;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const action = value as Record<string, unknown>;
+  const operation = normalizeString(action.operation);
+
+  if (operation === 'new_price') {
+    if (typeof action.price !== 'object' || action.price === null || Array.isArray(action.price)) {
+      throw new ValidationError('stripe_price_history.price is required');
+    }
+    return {
+      operation,
+      price: action.price as Record<string, unknown>,
+      archived_reason: normalizeString(action.archived_reason),
+    };
+  }
+
+  if (operation === 'restore_price') {
+    const stripePriceId = requireString(action.stripe_price_id, 'stripe_price_history.stripe_price_id');
+    return {
+      operation,
+      stripe_price_id: stripePriceId,
+      old_stripe_price_id: normalizeString(action.old_stripe_price_id),
+      raw_stripe_price: action.raw_stripe_price,
+      archived_reason: normalizeString(action.archived_reason),
+    };
+  }
+
+  if (operation === 'archive_current') {
+    return {
+      operation,
+      old_stripe_price_id: normalizeString(action.old_stripe_price_id),
+      archived_reason: normalizeString(action.archived_reason),
+    };
+  }
+
+  throw new ValidationError('stripe_price_history.operation is invalid');
+}
+
+function parseStripeCreatedAt(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value * 1000).toISOString();
+  }
+  return normalizeString(value);
+}
+
+function getStripePriceProductId(price: Record<string, unknown>) {
+  const product = price.product;
+  if (typeof product === 'string') return normalizeString(product);
+  if (typeof product === 'object' && product !== null && 'id' in product) {
+    return normalizeString((product as { id?: unknown }).id);
+  }
+  return normalizeString(price.stripe_product_id);
+}
+
+async function listMovieStripePrices(queryable: Queryable, movieId: string) {
+  const { rows } = await queryable.query(
+    `SELECT
+       id,
+       movie_id,
+       stripe_product_id,
+       stripe_price_id,
+       unit_amount,
+       currency,
+       price_type,
+       active,
+       is_current,
+       stripe_created_at,
+       synced_at,
+       archived_at,
+       archived_reason,
+       restored_at,
+       restored_from_stripe_price_id,
+       superseded_by_stripe_price_id,
+       raw_stripe_price,
+       created_at,
+       updated_at
+     FROM movie_stripe_prices
+     WHERE movie_id = $1
+     ORDER BY COALESCE(stripe_created_at, created_at) DESC, created_at DESC`,
+    [movieId],
+  );
+  return rows;
+}
+
+async function findMovieStripePriceRestoreCandidate(
+  queryable: Queryable,
+  movieId: string,
+  unitAmount: number,
+  currency: string,
+  currentStripePriceId: string | null,
+) {
+  const params: Array<string | number> = [movieId, unitAmount, currency.toLowerCase()];
+  let sql = `
+    SELECT
+      id,
+      movie_id,
+      stripe_product_id,
+      stripe_price_id,
+      unit_amount,
+      currency,
+      price_type,
+      active,
+      is_current,
+      stripe_created_at,
+      synced_at,
+      archived_at,
+      archived_reason,
+      restored_at,
+      restored_from_stripe_price_id,
+      superseded_by_stripe_price_id,
+      raw_stripe_price,
+      created_at,
+      updated_at
+    FROM movie_stripe_prices
+    WHERE movie_id = $1
+      AND unit_amount = $2
+      AND lower(currency) = $3
+      AND price_type = 'one_time'
+  `;
+  if (currentStripePriceId) {
+    params.push(currentStripePriceId);
+    sql += ` AND stripe_price_id <> $${params.length}`;
+  }
+  sql += ' ORDER BY COALESCE(stripe_created_at, created_at) DESC, created_at DESC LIMIT 1';
+
+  const { rows } = await queryable.query(sql, params);
+  return rows[0] ?? null;
+}
+
+async function archiveCurrentMovieStripePrices(
+  queryable: Queryable,
+  movieId: string,
+  reason: string,
+  supersededByStripePriceId: string | null,
+  oldStripePriceId: string | null = null,
+) {
+  const params: Array<string | null> = [movieId, reason, supersededByStripePriceId];
+  let sql = `
+    UPDATE movie_stripe_prices
+    SET
+      active = false,
+      is_current = false,
+      archived_at = COALESCE(archived_at, now()),
+      archived_reason = COALESCE($2, archived_reason),
+      superseded_by_stripe_price_id = COALESCE($3, superseded_by_stripe_price_id),
+      synced_at = now(),
+      updated_at = now()
+    WHERE movie_id = $1
+      AND (is_current = true OR active = true)
+  `;
+  if (oldStripePriceId) {
+    params.push(oldStripePriceId);
+    sql += ` AND stripe_price_id = $${params.length}`;
+  }
+  await queryable.query(sql, params);
+}
+
+async function insertCurrentMovieStripePrice(
+  queryable: Queryable,
+  movieId: string,
+  price: Record<string, unknown>,
+  archivedReason: string,
+) {
+  const stripePriceId = requireString(price.id ?? price.stripe_price_id, 'stripe_price_id');
+  const stripeProductId = requireString(getStripePriceProductId(price), 'stripe_product_id');
+  const unitAmount = parseNonNegativeInteger(price.unit_amount, 'unit_amount', 0);
+  const currency = requireString(price.currency, 'currency').toLowerCase();
+  const stripeCreatedAt = parseStripeCreatedAt(price.created ?? price.stripe_created_at);
+
+  await archiveCurrentMovieStripePrices(queryable, movieId, archivedReason, stripePriceId);
+  await queryable.query(
+    `INSERT INTO movie_stripe_prices (
+       movie_id,
+       stripe_product_id,
+       stripe_price_id,
+       unit_amount,
+       currency,
+       price_type,
+       active,
+       is_current,
+       stripe_created_at,
+       synced_at,
+       archived_at,
+       archived_reason,
+       restored_at,
+       restored_from_stripe_price_id,
+       superseded_by_stripe_price_id,
+       raw_stripe_price
+     ) VALUES (
+       $1, $2, $3, $4, $5, 'one_time', true, true, $6, now(), null, null, null, null, null, $7::jsonb
+     )
+     ON CONFLICT (stripe_price_id) DO UPDATE
+     SET
+       movie_id = EXCLUDED.movie_id,
+       stripe_product_id = EXCLUDED.stripe_product_id,
+       unit_amount = EXCLUDED.unit_amount,
+       currency = EXCLUDED.currency,
+       price_type = 'one_time',
+       active = true,
+       is_current = true,
+       stripe_created_at = COALESCE(EXCLUDED.stripe_created_at, movie_stripe_prices.stripe_created_at),
+       synced_at = now(),
+       archived_at = null,
+       archived_reason = null,
+       raw_stripe_price = EXCLUDED.raw_stripe_price,
+       updated_at = now()`,
+    [
+      movieId,
+      stripeProductId,
+      stripePriceId,
+      unitAmount,
+      currency,
+      stripeCreatedAt,
+      JSON.stringify(price),
+    ],
+  );
+}
+
+async function restoreCurrentMovieStripePrice(
+  queryable: Queryable,
+  movieId: string,
+  stripePriceId: string,
+  oldStripePriceId: string | null,
+  rawStripePrice: unknown,
+) {
+  await archiveCurrentMovieStripePrices(queryable, movieId, 'price_changed', stripePriceId, oldStripePriceId);
+  await queryable.query(
+    `UPDATE movie_stripe_prices
+     SET
+       active = true,
+       is_current = true,
+       archived_at = null,
+       archived_reason = null,
+       restored_at = now(),
+       restored_from_stripe_price_id = $3,
+       superseded_by_stripe_price_id = null,
+       raw_stripe_price = CASE WHEN $4::jsonb = '{}'::jsonb THEN raw_stripe_price ELSE $4::jsonb END,
+       synced_at = now(),
+       updated_at = now()
+     WHERE movie_id = $1 AND stripe_price_id = $2`,
+    [movieId, stripePriceId, oldStripePriceId, JSON.stringify(rawStripePrice ?? {})],
+  );
+}
+
+async function applyMovieStripePriceHistoryAction(
+  queryable: Queryable,
+  movieId: string,
+  action: MovieStripePriceHistoryAction | null,
+) {
+  if (!action) return;
+
+  if (action.operation === 'new_price') {
+    await insertCurrentMovieStripePrice(
+      queryable,
+      movieId,
+      action.price,
+      action.archived_reason ?? 'price_changed',
+    );
+    return;
+  }
+
+  if (action.operation === 'restore_price') {
+    await restoreCurrentMovieStripePrice(
+      queryable,
+      movieId,
+      action.stripe_price_id,
+      action.old_stripe_price_id ?? null,
+      action.raw_stripe_price,
+    );
+    return;
+  }
+
+  await archiveCurrentMovieStripePrices(
+    queryable,
+    movieId,
+    action.archived_reason ?? 'purchase_disabled',
+    null,
+    action.old_stripe_price_id ?? null,
+  );
 }
 
 function normalizeGender(value: unknown) {
@@ -1598,13 +1899,50 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
     const isAdmin = path.startsWith('/v1/admin/movies');
     const table = isAdmin ? 'movies' : 'public_movies';
+    const stripePricesMatch = path.match(/^\/v1\/admin\/movies\/([^/]+)\/stripe-prices$/);
+    const stripePriceRestoreCandidateMatch = path.match(/^\/v1\/admin\/movies\/([^/]+)\/stripe-prices\/restore-candidate$/);
     const detailMatch = path.match(/^\/v1\/(?:admin\/)?movies\/([^/]+)$/);
     const movieId = detailMatch ? decodeURIComponent(detailMatch[1]) : null;
 
     if (isAdmin) {
-      if (method === 'POST' && path === '/v1/admin/movies') {
+      if (stripePricesMatch && method === 'GET') {
+        const historyMovieId = decodeURIComponent(stripePricesMatch[1]);
+        const items = await listMovieStripePrices(getPool(), historyMovieId);
+        return response(200, { items });
+      }
+
+      if (stripePriceRestoreCandidateMatch && method === 'GET') {
         try {
-          const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const historyMovieId = decodeURIComponent(stripePriceRestoreCandidateMatch[1]);
+          const unitAmount = parseNonNegativeInteger(
+            event.queryStringParameters?.unit_amount,
+            'unit_amount',
+            0,
+          );
+          const currency = requireString(event.queryStringParameters?.currency, 'currency');
+          const currentStripePriceId = normalizeString(event.queryStringParameters?.current_stripe_price_id);
+          const item = await findMovieStripePriceRestoreCandidate(
+            getPool(),
+            historyMovieId,
+            unitAmount,
+            currency,
+            currentStripePriceId,
+          );
+          return response(200, { item });
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            return response(400, { code: error.code, message: error.message });
+          }
+          throw error;
+        }
+      }
+
+      if (method === 'POST' && path === '/v1/admin/movies') {
+        let client: PoolClient | null = null;
+        try {
+          const body = parseJsonBody(event);
+          const input = buildAdminMovieWriteInput(body);
+          const stripePriceHistoryAction = parseStripePriceHistoryAction(body);
           const sql = `
             INSERT INTO movies (
               title,
@@ -1635,7 +1973,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             )
             RETURNING ${MOVIE_COLUMNS.join(', ')}
           `;
-          const { rows } = await getPool().query(sql, [
+          client = await connectClient('admin movie create');
+          await client.query('BEGIN');
+          const { rows } = await client.query(sql, [
             input.title,
             input.description,
             input.thumbnail,
@@ -1660,18 +2000,26 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.unpublish_at,
             input.view_window_days,
           ]);
+          await applyMovieStripePriceHistoryAction(client, rows[0].id, stripePriceHistoryAction);
+          await client.query('COMMIT');
           return response(201, rows[0]);
         } catch (error) {
+          if (client) await rollbackQuietly(client, 'admin movie create');
           if (error instanceof ValidationError) {
             return response(400, { code: error.code, message: error.message });
           }
           throw error;
+        } finally {
+          client?.release();
         }
       }
 
       if (movieId && method === 'PUT') {
+        let client: PoolClient | null = null;
         try {
-          const input = buildAdminMovieWriteInput(parseJsonBody(event));
+          const body = parseJsonBody(event);
+          const input = buildAdminMovieWriteInput(body);
+          const stripePriceHistoryAction = parseStripePriceHistoryAction(body);
           const sql = `
             UPDATE movies
             SET
@@ -1702,7 +2050,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             WHERE id = $1
             RETURNING ${MOVIE_COLUMNS.join(', ')}
           `;
-          const { rows } = await getPool().query(sql, [
+          client = await connectClient('admin movie update');
+          await client.query('BEGIN');
+          const { rows } = await client.query(sql, [
             movieId,
             input.title,
             input.description,
@@ -1729,14 +2079,20 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             input.view_window_days,
           ]);
           if (!rows.length) {
+            await client.query('ROLLBACK');
             return response(404, { code: 'NOT_FOUND', message: 'Movie not found' });
           }
+          await applyMovieStripePriceHistoryAction(client, rows[0].id, stripePriceHistoryAction);
+          await client.query('COMMIT');
           return response(200, rows[0]);
         } catch (error) {
+          if (client) await rollbackQuietly(client, 'admin movie update');
           if (error instanceof ValidationError) {
             return response(400, { code: error.code, message: error.message });
           }
           throw error;
+        } finally {
+          client?.release();
         }
       }
 

@@ -192,6 +192,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /v1/admin/movies/{id}
             Method: GET
+        AdminMovieStripePrices:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/admin/movies/{id}/stripe-prices
+            Method: GET
         AdminMovieDelete:
           Type: HttpApi
           Properties:

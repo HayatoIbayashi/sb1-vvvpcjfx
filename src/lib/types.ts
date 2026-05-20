@@ -118,6 +118,71 @@ export interface Database {
           home_featured_order?: number | null
         }
       }
+      movie_stripe_prices: {
+        Row: {
+          id: string
+          movie_id: string
+          stripe_product_id: string
+          stripe_price_id: string
+          unit_amount: number
+          currency: string
+          price_type: string
+          active: boolean
+          is_current: boolean
+          stripe_created_at: string | null
+          synced_at: string
+          archived_at: string | null
+          archived_reason: string | null
+          restored_at: string | null
+          restored_from_stripe_price_id: string | null
+          superseded_by_stripe_price_id: string | null
+          raw_stripe_price: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          movie_id: string
+          stripe_product_id: string
+          stripe_price_id: string
+          unit_amount: number
+          currency: string
+          price_type?: string
+          active?: boolean
+          is_current?: boolean
+          stripe_created_at?: string | null
+          synced_at?: string
+          archived_at?: string | null
+          archived_reason?: string | null
+          restored_at?: string | null
+          restored_from_stripe_price_id?: string | null
+          superseded_by_stripe_price_id?: string | null
+          raw_stripe_price?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          movie_id?: string
+          stripe_product_id?: string
+          stripe_price_id?: string
+          unit_amount?: number
+          currency?: string
+          price_type?: string
+          active?: boolean
+          is_current?: boolean
+          stripe_created_at?: string | null
+          synced_at?: string
+          archived_at?: string | null
+          archived_reason?: string | null
+          restored_at?: string | null
+          restored_from_stripe_price_id?: string | null
+          superseded_by_stripe_price_id?: string | null
+          raw_stripe_price?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
       purchases: {
         Row: {
           id: string
