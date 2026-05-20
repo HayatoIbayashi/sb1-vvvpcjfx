@@ -17,6 +17,32 @@ import MovieGenreField from './MovieGenreField';
 import VideoFileField from './VideoFileField';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+type MovieStripePrice = Database['public']['Tables']['movie_stripe_prices']['Row'];
+
+function formatPriceAmount(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat('ja-JP', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString()} ${currency.toUpperCase()}`;
+  }
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
 
 const SAMPLE_TITLES = [
   'テスト動画',
@@ -119,6 +145,9 @@ export function VideoManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<Movie | null>(null);
   const [formData, setFormData] = useState<MovieFormData>(createVideoFormData());
+  const [priceHistory, setPriceHistory] = useState<MovieStripePrice[]>([]);
+  const [isPriceHistoryLoading, setIsPriceHistoryLoading] = useState(false);
+  const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,6 +219,28 @@ export function VideoManagement() {
     setIsModalOpen(false);
     setSelectedVideo(null);
     setFormData(createVideoFormData());
+    setPriceHistory([]);
+    setPriceHistoryError(null);
+    setIsPriceHistoryLoading(false);
+  };
+
+  const loadPriceHistory = async (movieId: string) => {
+    if (useMockMovies || typeof api.getAdminMovieStripePrices !== 'function') {
+      setPriceHistory([]);
+      return;
+    }
+
+    try {
+      setIsPriceHistoryLoading(true);
+      setPriceHistoryError(null);
+      const response = await api.getAdminMovieStripePrices(movieId);
+      setPriceHistory(response.items);
+    } catch (err) {
+      setPriceHistoryError('価格履歴の取得に失敗しました');
+      console.error('Error fetching movie stripe prices:', err);
+    } finally {
+      setIsPriceHistoryLoading(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -206,6 +257,7 @@ export function VideoManagement() {
       ...createVideoFormData(),
       ...createMovieFormData(video),
     });
+    void loadPriceHistory(video.id);
     setIsModalOpen(true);
   };
 
@@ -542,6 +594,82 @@ export function VideoManagement() {
                     className="w-full rounded bg-gray-900 px-4 py-2 text-white"
                   />
                 </div>
+                {selectedVideo && (
+                  <div className="border-t border-gray-700 pt-6">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                      <h4 className="text-sm font-medium text-gray-300">Stripe価格変動履歴</h4>
+                      <button
+                        type="button"
+                        onClick={() => void loadPriceHistory(selectedVideo.id)}
+                        className="rounded bg-gray-900 px-3 py-1.5 text-sm text-gray-200 transition hover:bg-gray-950"
+                      >
+                        再読み込み
+                      </button>
+                    </div>
+                    {priceHistoryError && (
+                      <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                        {priceHistoryError}
+                      </div>
+                    )}
+                    {isPriceHistoryLoading ? (
+                      <div className="rounded border border-gray-700 px-4 py-6 text-center text-sm text-gray-400">
+                        読み込み中...
+                      </div>
+                    ) : priceHistory.length ? (
+                      <div className="max-h-[168px] overflow-auto rounded border border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-700 text-xs">
+                          <thead className="bg-gray-900 text-gray-300">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium">金額</th>
+                              <th className="px-3 py-2 text-left font-medium">通貨</th>
+                              <th className="px-3 py-2 text-left font-medium">Stripe Price ID</th>
+                              <th className="px-3 py-2 text-left font-medium">現在価格</th>
+                              <th className="px-3 py-2 text-left font-medium">active</th>
+                              <th className="px-3 py-2 text-left font-medium">作成日時</th>
+                              <th className="px-3 py-2 text-left font-medium">アーカイブ日時</th>
+                              <th className="px-3 py-2 text-left font-medium">理由</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800">
+                            {priceHistory.map((item) => (
+                              <tr
+                                key={item.id}
+                                className={item.is_current ? 'bg-emerald-500/10 text-white' : 'text-gray-300'}
+                              >
+                                <td className="whitespace-nowrap px-3 py-2 font-medium">
+                                  {formatPriceAmount(item.unit_amount, item.currency)}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 uppercase">{item.currency}</td>
+                                <td className="whitespace-nowrap px-3 py-2 font-mono">{item.stripe_price_id}</td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {item.is_current ? (
+                                    <span className="rounded bg-emerald-500 px-2 py-1 font-semibold text-white">
+                                      現在
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  <span className={item.active ? 'text-emerald-300' : 'text-gray-500'}>
+                                    {item.active ? 'active' : 'inactive'}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {formatDateTime(item.stripe_created_at ?? item.created_at)}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">{formatDateTime(item.archived_at)}</td>
+                                <td className="whitespace-nowrap px-3 py-2">{item.archived_reason || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="rounded border border-gray-700 px-4 py-6 text-center text-sm text-gray-400">
+                        価格履歴はまだありません
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <h4 className="mb-2 text-sm font-medium text-gray-300">Stripe単品Price ID</h4>
                   <div className="min-h-10 rounded bg-gray-900 px-4 py-2 font-mono text-sm text-gray-200">
