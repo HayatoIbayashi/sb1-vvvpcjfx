@@ -1,11 +1,22 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import {
+  AdminListGroupsForUserCommand,
+  CognitoIdentityProviderClient,
+  GetUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import {
   createAdminAccount,
   deleteAdminAccount,
   listAdminAccounts,
   updateAdminAccount,
   type AdminAccountRole,
 } from './adminAccounts.js';
+
+type AdminRole = 'admin' | 'super_admin';
+
+const cognito = new CognitoIdentityProviderClient({
+  region: process.env.COGNITO_REGION || 'ap-northeast-1',
+});
 
 function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
@@ -19,6 +30,12 @@ function response(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
 
 class ValidationError extends Error {
   code = 'VALIDATION_ERROR';
+}
+
+class AuthError extends Error {
+  constructor(public statusCode: 401 | 403, message: string) {
+    super(message);
+  }
 }
 
 type AdminAccountCreateInput = {
@@ -77,6 +94,57 @@ function parseOffset(value?: string | null) {
   return parsed;
 }
 
+function getUserPoolId() {
+  const userPoolId = process.env.COGNITO_USER_POOL_ID;
+  if (!userPoolId) {
+    throw new Error('Missing env: COGNITO_USER_POOL_ID');
+  }
+  return userPoolId;
+}
+
+function getBearerToken(headers: Record<string, string | undefined> | undefined) {
+  const header = headers?.authorization || headers?.Authorization;
+  if (!header) return null;
+  return header.toLowerCase().startsWith('bearer ') ? header.slice(7) : header;
+}
+
+async function requireAdminRole(event: APIGatewayProxyEventV2, requiredRole: AdminRole = 'admin') {
+  const accessToken = getBearerToken(event.headers);
+  if (!accessToken) {
+    throw new AuthError(401, 'Authorization required');
+  }
+
+  let username: string | undefined;
+  try {
+    const user = await cognito.send(new GetUserCommand({ AccessToken: accessToken }));
+    username = user.Username;
+  } catch {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  if (!username) {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  const groups = await cognito.send(new AdminListGroupsForUserCommand({
+    UserPoolId: getUserPoolId(),
+    Username: username,
+    Limit: 60,
+  }));
+  const groupNames = new Set((groups.Groups ?? []).map((group) => group.GroupName).filter(Boolean));
+  const role: AdminRole | null = groupNames.has('super_admin')
+    ? 'super_admin'
+    : groupNames.has('admin')
+      ? 'admin'
+      : null;
+
+  if (!role || (requiredRole === 'super_admin' && role !== 'super_admin')) {
+    throw new AuthError(403, 'Admin permission required');
+  }
+
+  return role;
+}
+
 function buildAdminAccountCreateInput(body: Record<string, unknown> | null): AdminAccountCreateInput {
   if (!body) throw new ValidationError('Invalid JSON body');
 
@@ -127,6 +195,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
     try {
       if (method === 'GET' && !adminAccountId) {
+        await requireAdminRole(event);
         const q = event.queryStringParameters?.q?.trim();
         const role = event.queryStringParameters?.role?.trim();
         const limit = parseLimit(event.queryStringParameters?.limit);
@@ -143,6 +212,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       if (method === 'POST' && !adminAccountId) {
+        await requireAdminRole(event, 'super_admin');
         const created = await createAdminAccount(buildAdminAccountCreateInput(parseJsonBody(event)));
         if (!created) {
           return response(500, { code: 'COGNITO_ERROR', message: 'Failed to create admin account' });
@@ -151,6 +221,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       if (adminAccountId && method === 'PUT') {
+        await requireAdminRole(event, 'super_admin');
         const updated = await updateAdminAccount(
           adminAccountId,
           buildAdminAccountUpdateInput(parseJsonBody(event)),
@@ -162,10 +233,17 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       if (adminAccountId && method === 'DELETE') {
+        await requireAdminRole(event, 'super_admin');
         await deleteAdminAccount(adminAccountId);
         return response(200, { ok: true, deleted: true });
       }
     } catch (error) {
+      if (error instanceof AuthError) {
+        return response(error.statusCode, {
+          code: error.statusCode === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN',
+          message: error.message,
+        });
+      }
       if (error instanceof ValidationError) {
         return response(400, { code: error.code, message: error.message });
       }

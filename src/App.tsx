@@ -8,6 +8,8 @@ import MovieListPage from './components/MovieListPage';
 import MoviePlayerPage from './components/MoviePlayerPage';
 import MovieManagementPage from './components/admin/MovieManagementPage';
 import AdminDashboard from './components/AdminDashboard';
+import { AdminAuthProvider, AdminRouteGuard } from './components/admin/AdminAuth';
+import AdminLoginPage from './components/admin/AdminLoginPage';
 import SubscriptionPage from './components/SubscriptionPage';
 import SubscriptionCompletionPage from './components/SubscriptionCompletionPage';
 import PurchaseCompletionPage from './components/PurchaseCompletionPage';
@@ -32,8 +34,34 @@ function App() {
         <Route path="/watch/:id" element={<MoviePlayerPage />} />
         <Route path="/search" element={<SearchResultsPage />} />
         <Route path="/genres/:genreName" element={<GenreResultsPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/movies" element={<MovieManagementPage />} />
+        <Route
+          path="/admin/login"
+          element={(
+            <AdminAuthProvider>
+              <AdminLoginPage />
+            </AdminAuthProvider>
+          )}
+        />
+        <Route
+          path="/admin"
+          element={(
+            <AdminAuthProvider>
+              <AdminRouteGuard>
+                <AdminDashboard />
+              </AdminRouteGuard>
+            </AdminAuthProvider>
+          )}
+        />
+        <Route
+          path="/admin/movies"
+          element={(
+            <AdminAuthProvider>
+              <AdminRouteGuard>
+                <MovieManagementPage />
+              </AdminRouteGuard>
+            </AdminAuthProvider>
+          )}
+        />
         <Route path="/subscription/complete" element={<SubscriptionCompletionPage />} />
         <Route path="/purchase/complete" element={<PurchaseCompletionPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />

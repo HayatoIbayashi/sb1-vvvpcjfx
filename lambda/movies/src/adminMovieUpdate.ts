@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { AuthError, authErrorBody, requireAdminRole } from './adminAuth.js';
 
 type MovieAccessMode = 'public' | 'purchase_only' | 'subscription_only' | 'subscription_or_purchase';
 
@@ -538,6 +539,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   }
   if (event.requestContext.http.method !== 'PUT') {
     return response(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+  }
+
+  try {
+    await requireAdminRole(event);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return response(error.statusCode, authErrorBody(error));
+    }
+    throw error;
   }
 
   const movieId = getMovieId(event);

@@ -27,6 +27,13 @@ type AuthUser = {
   profile: AuthProfile;
 };
 
+type AuthProviderProps = {
+  children: ReactNode;
+  storageKey?: string;
+  loginPath?: string;
+  logoutRedirectPath?: string;
+};
+
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
@@ -53,12 +60,12 @@ function buildUser(tokens: StoredTokens | null): AuthUser | null {
   };
 }
 
-function readActiveTokens(): StoredTokens | null {
-  const tokens = readStoredTokens();
+function readActiveTokens(storageKey: string): StoredTokens | null {
+  const tokens = readStoredTokens(storageKey);
   if (!tokens) return null;
 
   if (hasExpiredTokens(tokens)) {
-    clearStoredTokens();
+    clearStoredTokens(storageKey);
     clearOidcArtifacts();
     return null;
   }
@@ -66,28 +73,33 @@ function readActiveTokens(): StoredTokens | null {
   return tokens;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [tokens, setTokensState] = useState<StoredTokens | null>(() => readActiveTokens());
+export function AuthProvider({
+  children,
+  storageKey = AUTH_STORAGE_KEY,
+  loginPath = '/login',
+  logoutRedirectPath = '/',
+}: AuthProviderProps) {
+  const [tokens, setTokensState] = useState<StoredTokens | null>(() => readActiveTokens(storageKey));
 
   const syncFromStorage = useCallback(() => {
-    setTokensState(readActiveTokens());
-  }, []);
+    setTokensState(readActiveTokens(storageKey));
+  }, [storageKey]);
 
   const setTokens = useCallback((nextTokens: StoredTokens | null) => {
     if (nextTokens?.id_token || nextTokens?.access_token || nextTokens?.refresh_token) {
-      writeStoredTokens(nextTokens);
-      setTokensState(readActiveTokens());
+      writeStoredTokens(nextTokens, storageKey);
+      setTokensState(readActiveTokens(storageKey));
       return;
     }
 
-    clearStoredTokens();
+    clearStoredTokens(storageKey);
     clearOidcArtifacts();
     setTokensState(null);
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== null && event.key !== AUTH_STORAGE_KEY) {
+      if (event.key !== null && event.key !== storageKey) {
         return;
       }
       syncFromStorage();
@@ -106,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [syncFromStorage]);
+  }, [storageKey, syncFromStorage]);
 
   const removeUser = useCallback(async () => {
     setTokens(null);
@@ -114,12 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signoutRedirect = useCallback(async () => {
     setTokens(null);
-    window.location.assign('/');
-  }, [setTokens]);
+    window.location.assign(logoutRedirectPath);
+  }, [logoutRedirectPath, setTokens]);
 
   const signinRedirect = useCallback(async () => {
-    window.location.assign('/login');
-  }, []);
+    window.location.assign(loginPath);
+  }, [loginPath]);
 
   const value = useMemo<AuthContextType>(() => {
     const user = buildUser(tokens);

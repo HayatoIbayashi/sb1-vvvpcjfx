@@ -161,6 +161,19 @@ Resources:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminListGroupsForUser
+                - cognito-idp:GetUser
+              Resource:
+                - !If
+                  - CreateCognito
+                  - !GetAtt UserPool.Arn
+                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
       Events:
         PublicMovies:
           Type: HttpApi
@@ -334,6 +347,7 @@ Resources:
                 - cognito-idp:AdminSetUserPassword
                 - cognito-idp:AdminUpdateUserAttributes
                 - cognito-idp:CreateGroup
+                - cognito-idp:GetUser
                 - cognito-idp:ListUsersInGroup
               Resource:
                 - !If
@@ -383,10 +397,21 @@ Resources:
                 - lambda:InvokeFunction
               Resource:
                 - !GetAtt MoviesListFunction.Arn
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminListGroupsForUser
+                - cognito-idp:GetUser
+              Resource:
+                - !If
+                  - CreateCognito
+                  - !GetAtt UserPool.Arn
+                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
       Environment:
         Variables:
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
           MOVIES_WRITE_LAMBDA_NAME: !Ref MoviesListFunction
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
       Events:
         AdminMoviesCreate:
           Type: HttpApi
@@ -408,10 +433,21 @@ Resources:
                 - lambda:InvokeFunction
               Resource:
                 - !GetAtt MoviesListFunction.Arn
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminListGroupsForUser
+                - cognito-idp:GetUser
+              Resource:
+                - !If
+                  - CreateCognito
+                  - !GetAtt UserPool.Arn
+                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
       Environment:
         Variables:
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
           MOVIES_WRITE_LAMBDA_NAME: !Ref MoviesListFunction
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
       Events:
         AdminMovieUpdate:
           Type: HttpApi

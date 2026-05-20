@@ -7,6 +7,8 @@ import type {
   AdminAccountUpdatePayload,
 } from '../../lib/apiClient';
 import useApiClient from '../../lib/useApiClient';
+import { useAuth } from '../../context/AuthContext';
+import { getAdminRole } from '../../lib/authStorage';
 
 const ROLE_OPTIONS: Array<{ value: AdminAccountRole; label: string }> = [
   { value: 'admin', label: '管理者' },
@@ -116,7 +118,9 @@ function getStatusBadge(account: AdminAccount) {
 
 export function AdminUserManagement() {
   const api = useApiClient();
+  const auth = useAuth();
   const useMockAdmins = import.meta.env.VITE_USE_MOCK_ADMIN_USERS === 'true';
+  const canManageAdminAccounts = getAdminRole(auth.user?.profile) === 'super_admin';
 
   const [adminUsers, setAdminUsers] = useState<AdminAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -319,13 +323,15 @@ export function AdminUserManagement() {
               </select>
             </div>
 
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-white transition hover:bg-primary/90"
-            >
-              <Shield className="h-5 w-5" />
-              <span>新規管理者を追加</span>
-            </button>
+            {canManageAdminAccounts && (
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-white transition hover:bg-primary/90"
+              >
+                <Shield className="h-5 w-5" />
+                <span>新規管理者を追加</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -382,24 +388,28 @@ export function AdminUserManagement() {
                       <td className="px-6 py-4 text-sm text-gray-400">{formatDate(admin.created_at)}</td>
                       <td className="px-6 py-4 text-sm text-gray-400">{formatDate(admin.updated_at)}</td>
                       <td className="px-6 py-4">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => openEditModal(admin)}
-                            className="p-1 text-gray-400 transition hover:text-white"
-                            title="編集"
-                            aria-label={`${admin.email} を編集`}
-                          >
-                            <Edit2 className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(admin.id)}
-                            className="p-1 text-gray-400 transition hover:text-red-500"
-                            title="削除"
-                            aria-label={`${admin.email} を削除`}
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
+                        {canManageAdminAccounts ? (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openEditModal(admin)}
+                              className="p-1 text-gray-400 transition hover:text-white"
+                              title="編集"
+                              aria-label={`${admin.email} を編集`}
+                            >
+                              <Edit2 className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(admin.id)}
+                              className="p-1 text-gray-400 transition hover:text-red-500"
+                              title="削除"
+                              aria-label={`${admin.email} を削除`}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500">-</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -417,7 +427,7 @@ export function AdminUserManagement() {
         )}
       </div>
 
-      {selectedAdmin && editForm && (
+      {canManageAdminAccounts && selectedAdmin && editForm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onMouseDown={closeEditModal}
@@ -483,7 +493,7 @@ export function AdminUserManagement() {
         </div>
       )}
 
-      {isCreateModalOpen && (
+      {canManageAdminAccounts && isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-md rounded-lg bg-dark-lighter p-6">
             <h3 className="mb-4 text-xl font-semibold text-white">新規管理者の追加</h3>

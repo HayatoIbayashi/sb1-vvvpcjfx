@@ -9,14 +9,16 @@ export type AuthProfile = {
   name?: string;
   sub?: string;
   exp?: number;
+  'cognito:groups'?: string[] | string;
   [key: string]: unknown;
 };
 
 export const AUTH_STORAGE_KEY = 'cognito_tokens';
+export const ADMIN_AUTH_STORAGE_KEY = 'admin_cognito_tokens';
 
-export function readStoredTokens(): StoredTokens | null {
+export function readStoredTokens(storageKey = AUTH_STORAGE_KEY): StoredTokens | null {
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
     return JSON.parse(raw) as StoredTokens;
   } catch {
@@ -24,17 +26,17 @@ export function readStoredTokens(): StoredTokens | null {
   }
 }
 
-export function writeStoredTokens(tokens: StoredTokens) {
+export function writeStoredTokens(tokens: StoredTokens, storageKey = AUTH_STORAGE_KEY) {
   try {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(tokens));
+    localStorage.setItem(storageKey, JSON.stringify(tokens));
   } catch {
     return;
   }
 }
 
-export function clearStoredTokens() {
+export function clearStoredTokens(storageKey = AUTH_STORAGE_KEY) {
   try {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(storageKey);
   } catch {
     return;
   }
@@ -85,4 +87,27 @@ export function hasExpiredTokens(tokens: StoredTokens | null): boolean {
   if (tokens.access_token && isTokenExpired(tokens.access_token)) return true;
   if (tokens.id_token && isTokenExpired(tokens.id_token)) return true;
   return false;
+}
+
+export function getCognitoGroups(profile: AuthProfile | null | undefined): string[] {
+  const rawGroups = profile?.['cognito:groups'];
+  if (Array.isArray(rawGroups)) {
+    return rawGroups.filter((group): group is string => typeof group === 'string');
+  }
+  if (typeof rawGroups === 'string') {
+    return [rawGroups];
+  }
+  return [];
+}
+
+export function getAdminRole(profile: AuthProfile | null | undefined): 'admin' | 'super_admin' | null {
+  const groups = new Set(getCognitoGroups(profile));
+  if (groups.has('super_admin')) return 'super_admin';
+  if (groups.has('admin')) return 'admin';
+  return null;
+}
+
+export function getAdminRoleFromTokens(tokens: StoredTokens | null): 'admin' | 'super_admin' | null {
+  if (!tokens) return null;
+  return getAdminRole(decodeJwtPayload(tokens.access_token)) ?? getAdminRole(decodeJwtPayload(tokens.id_token));
 }
