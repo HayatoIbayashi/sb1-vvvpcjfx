@@ -54,7 +54,7 @@ export default function VideoFileField({
         type="file"
         accept="video/mp4"
         onChange={(event) => onSelectFile(event.target.files?.[0] ?? null)}
-        className="mt-4 block w-full text-sm text-gray-300 file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:font-medium file:text-white hover:file:bg-primary/90"
+        className="mt-4 block w-full text-sm text-gray-200 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-semibold file:text-white file:shadow-sm hover:file:bg-blue-500"
       />
 
       <p className="mt-3 text-sm text-gray-300">

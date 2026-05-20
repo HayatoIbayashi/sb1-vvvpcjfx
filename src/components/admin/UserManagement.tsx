@@ -256,13 +256,13 @@ export function UserManagement() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="メールアドレス・表示名・都道府県で検索"
               aria-label="ユーザー検索"
-              className="w-full rounded-lg border border-dark bg-dark px-4 py-2 text-white outline-none focus:border-gray-600"
+              className="w-full rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-white placeholder:text-gray-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               aria-label="ステータス絞り込み"
-              className="w-full rounded-lg border border-dark bg-dark px-4 py-2 text-white outline-none focus:border-gray-600"
+              className="w-full rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               <option value="all">すべて</option>
               <option value="active">有効</option>
