@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Database } from '../lib/types';
 import { MOCK_MOVIES } from '../mockData';
@@ -208,6 +209,7 @@ export default function MovieListPage() {
   const navigate = useNavigate();
   const { isAuthenticated, logoutAll } = useAuthStatus();
   const [movies, setMovies] = useState<MovieListItem[]>([]);
+  const [isHomeLoading, setIsHomeLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sampleGenreLabels, setSampleGenreLabels] = useState<string[]>(() =>
     isAuthenticated ? getRecommendationGenreLabels(getStoredDesiredGenreIds()) : [],
@@ -292,6 +294,10 @@ export default function MovieListPage() {
     };
 
     const loadHomeData = async () => {
+      if (!cancelled) {
+        setIsHomeLoading(true);
+      }
+
       if (useMockMovies) {
         if (!cancelled) {
           setMovies(MOCK_MOVIES.map(toMovieListItem));
@@ -299,6 +305,7 @@ export default function MovieListPage() {
           setContinueWatchingMovies([]);
           setPurchasedMovies([]);
           setWatchlistMovies([]);
+          setIsHomeLoading(false);
         }
         applyStoredRecommendations();
         return;
@@ -315,6 +322,7 @@ export default function MovieListPage() {
             setContinueWatchingMovies([]);
             setPurchasedMovies([]);
             setWatchlistMovies([]);
+            setIsHomeLoading(false);
           }
           return;
         }
@@ -354,6 +362,8 @@ export default function MovieListPage() {
           console.error('Error fetching watchlist for home page:', watchlistResult.reason);
           setWatchlistMovies([]);
         }
+
+        setIsHomeLoading(false);
       } catch (error) {
         console.error('Error fetching home page data:', error);
         if (!cancelled) {
@@ -362,6 +372,7 @@ export default function MovieListPage() {
           setContinueWatchingMovies([]);
           setPurchasedMovies([]);
           setWatchlistMovies([]);
+          setIsHomeLoading(false);
         }
       }
     };
@@ -789,17 +800,17 @@ export default function MovieListPage() {
                 type="button"
                 aria-label="前のジャンルへ"
                 onClick={() => handleGenreCarouselMove('prev')}
-                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ‹
+                <ChevronLeft className="h-6 w-6" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 aria-label="次のジャンルへ"
                 onClick={() => handleGenreCarouselMove('next')}
-                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ›
+                <ChevronRight className="h-6 w-6" aria-hidden="true" />
               </button>
             </>
           )}
@@ -934,17 +945,17 @@ export default function MovieListPage() {
                 type="button"
                 aria-label={`前の${title}へ`}
                 onClick={() => handleHomeCarouselMove(sectionId, 'prev', pageCount)}
-                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ‹
+                <ChevronLeft className="h-6 w-6" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 aria-label={`次の${title}へ`}
                 onClick={() => handleHomeCarouselMove(sectionId, 'next', pageCount)}
-                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ›
+                <ChevronRight className="h-6 w-6" aria-hidden="true" />
               </button>
             </>
           )}
@@ -1048,17 +1059,17 @@ export default function MovieListPage() {
                 type="button"
                 aria-label={`前の${title}へ`}
                 onClick={() => handleDesiredGenreCarouselMove(sectionId, 'prev', pageCount)}
-                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ‹
+                <ChevronLeft className="h-6 w-6" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 aria-label={`次の${title}へ`}
                 onClick={() => handleDesiredGenreCarouselMove(sectionId, 'next', pageCount)}
-                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
               >
-                ›
+                <ChevronRight className="h-6 w-6" aria-hidden="true" />
               </button>
             </>
           )}
@@ -1283,17 +1294,17 @@ export default function MovieListPage() {
                   type="button"
                   aria-label="前のメイン表示へ"
                   onClick={() => handleHomeCarouselMove('hero-featured', 'prev', heroFeaturedPageCount)}
-                  className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                  className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
                 >
-                  ‹
+                  <ChevronLeft className="h-6 w-6" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   aria-label="次のメイン表示へ"
                   onClick={() => handleHomeCarouselMove('hero-featured', 'next', heroFeaturedPageCount)}
-                  className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-2xl text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
+                  className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-gray-900/85"
                 >
-                  ›
+                  <ChevronRight className="h-6 w-6" aria-hidden="true" />
                 </button>
               </>
             )}
@@ -1422,7 +1433,7 @@ export default function MovieListPage() {
     : '配信内容一覧の元データが未登録のため、暫定のテスト一覧を表示しています。';
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="flex min-h-screen flex-col bg-gray-900">
       <Header
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate('/login')}
@@ -1433,8 +1444,14 @@ export default function MovieListPage() {
         genreOptions={genreOptions}
       />
 
-      <main className="container mx-auto px-4 pb-12 pt-24">
-        {renderHeroCarouselSection()}
+      <main className="container mx-auto flex-1 px-4 pb-12 pt-24">
+        {isHomeLoading ? (
+          <div className="flex min-h-[calc(100vh-6rem)] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-white"></div>
+          </div>
+        ) : (
+          <>
+            {renderHeroCarouselSection()}
 
 
 
@@ -1523,6 +1540,8 @@ export default function MovieListPage() {
               表示できる動画がありません。
             </div>
           )}
+          </>
+        )}
       </main>
 
       <footer className="border-t border-gray-800 bg-gray-900">
