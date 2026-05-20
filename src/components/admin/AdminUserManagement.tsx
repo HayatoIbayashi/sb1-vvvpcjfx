@@ -10,12 +10,12 @@ import useApiClient from '../../lib/useApiClient';
 
 const ROLE_OPTIONS: Array<{ value: AdminAccountRole; label: string }> = [
   { value: 'admin', label: '管理者' },
-  { value: 'super_admin', label: 'スーパー管理者' },
+  { value: 'super_admin', label: '最高管理者' },
 ];
 
 const ROLE_LABEL: Record<AdminAccountRole, string> = {
   admin: '管理者',
-  super_admin: 'スーパー管理者',
+  super_admin: '最高管理者',
 };
 
 const MOCK_ADMIN_ACCOUNTS: AdminAccount[] = [
@@ -256,12 +256,12 @@ export function AdminUserManagement() {
         setAdminUsers((prev) => prev.map((admin) => (
           admin.id === selectedAdmin.id
             ? {
-                ...admin,
-                email: payload.email,
-                name: payload.name ?? null,
-                role: payload.role,
-                updated_at: new Date().toISOString(),
-              }
+              ...admin,
+              email: payload.email,
+              name: payload.name ?? null,
+              role: payload.role,
+              updated_at: new Date().toISOString(),
+            }
             : admin
         )));
       }
@@ -315,7 +315,7 @@ export function AdminUserManagement() {
               >
                 <option value="all">すべて</option>
                 <option value="admin">管理者</option>
-                <option value="super_admin">スーパー管理者</option>
+                <option value="super_admin">最高管理者</option>
               </select>
             </div>
 
@@ -366,11 +366,10 @@ export function AdminUserManagement() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`rounded px-2 py-1 text-xs font-medium ${
-                          admin.role === 'super_admin'
+                        <span className={`rounded px-2 py-1 text-xs font-medium ${admin.role === 'super_admin'
                             ? 'bg-purple-500/10 text-purple-400'
                             : 'bg-blue-500/10 text-blue-400'
-                        }`}
+                          }`}
                         >
                           {ROLE_LABEL[admin.role]}
                         </span>
@@ -419,8 +418,14 @@ export function AdminUserManagement() {
       </div>
 
       {selectedAdmin && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-lg bg-dark-lighter p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onMouseDown={closeEditModal}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-dark-lighter p-6"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <h3 className="mb-4 text-xl font-semibold text-white">管理者情報の編集</h3>
             <div className="space-y-4">
               <div>

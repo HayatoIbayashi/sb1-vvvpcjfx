@@ -370,9 +370,15 @@ export function UserManagement() {
       </div>
 
       {selectedUser && editForm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90">
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/90"
+          onMouseDown={closeModal}
+        >
           <div className="flex min-h-full items-center justify-center p-4">
-            <div className="w-full max-w-xl rounded-lg bg-dark-lighter p-6">
+            <div
+              className="w-full max-w-xl rounded-lg bg-dark-lighter p-6"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
               <h3 className="mb-4 text-xl font-semibold text-white">ユーザー情報の編集</h3>
               <div className="space-y-4">
                 <div>
