@@ -335,6 +335,7 @@ async function createPurchaseCheckoutSession(
     'metadata[movie_id]': movie.id,
     'payment_intent_data[metadata][user_id]': user.userId,
     'payment_intent_data[metadata][movie_id]': movie.id,
+    'payment_intent_data[receipt_email]': user.email,
   });
 
   const session = await stripeRequest<StripeCheckoutSession>('/v1/checkout/sessions', {
