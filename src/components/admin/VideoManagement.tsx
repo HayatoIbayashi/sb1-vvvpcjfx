@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Shuffle, Trash2 } from 'lucide-react';
 import { MOCK_MOVIES } from '../../mockData';
 import useApiClient from '../../lib/useApiClient';
 import type { Database } from '../../lib/types';
 import { getMovieAccessLabel, toMovieAccessPayload } from '../../lib/movieAccess';
+import { MOVIE_GENRE_MASTER } from '../../lib/movieGenres';
 import { getTestMovieThumbnail } from '../../lib/testMovieThumbnails';
 import {
   buildMoviePayload,
@@ -16,6 +17,87 @@ import MovieGenreField from './MovieGenreField';
 import VideoFileField from './VideoFileField';
 
 type Movie = Database['public']['Tables']['movies']['Row'];
+
+const SAMPLE_TITLES = [
+  'テスト動画',
+  'test_movie',
+];
+
+const SAMPLE_DESCRIPTIONS = [
+  '孤独な主人公が巨大な陰謀に巻き込まれ、限られた時間の中で真実へ迫るサンプル作品です。',
+  '都会の片隅で起きた事件をきっかけに、登場人物たちの過去と選択が交差していきます。',
+  '緊張感のあるアクションと人間ドラマを組み合わせた、管理画面確認用の紹介文です。',
+  '静かな日常が一変し、信頼と裏切りの狭間で答えを探す物語です。',
+];
+
+const SAMPLE_CAST = [
+  '佐藤蓮',
+  '高橋凛',
+  '田中悠真',
+  '鈴木美月',
+  '中村拓海',
+  '伊藤楓',
+  '山本航',
+  '小林葵',
+];
+
+const SAMPLE_DIRECTORS = [
+  '黒田健一',
+  '森下沙織',
+  '青木亮',
+  '西村遥',
+  '長谷川誠',
+];
+
+const SAMPLE_ACCESS_TIERS: MovieFormData['accessTier'][] = [
+  'public',
+  'member',
+  'purchase',
+  'subscription',
+  'subscription_or_purchase',
+];
+
+const SAMPLE_BUY_PRICES = [500, 800, 1000, 1200, 1500, 1800, 2000];
+
+function pickRandom<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomInteger(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function pickRandomItems<T>(items: T[], minCount: number, maxCount: number) {
+  const count = Math.min(randomInteger(minCount, maxCount), items.length);
+  return [...items]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, count);
+}
+
+function createRandomMovieFormPatch(): Partial<MovieFormData> {
+  const accessTier = pickRandom(SAMPLE_ACCESS_TIERS);
+  const buyPrice = accessTier === 'purchase' || accessTier === 'subscription_or_purchase'
+    ? pickRandom(SAMPLE_BUY_PRICES)
+    : 0;
+  const isHomeFeature = Math.random() >= 0.5;
+
+  return {
+    title: `${pickRandom(SAMPLE_TITLES)} ${randomInteger(1, 999)}`,
+    description: pickRandom(SAMPLE_DESCRIPTIONS),
+    release_date: `${randomInteger(2020, 2026)}-${String(randomInteger(1, 12)).padStart(2, '0')}-${String(randomInteger(1, 28)).padStart(2, '0')}`,
+    duration: `${randomInteger(8, 130)}分`,
+    genre: pickRandomItems(MOVIE_GENRE_MASTER, 1, 3),
+    cast: pickRandomItems(SAMPLE_CAST, 2, 4),
+    director: pickRandom(SAMPLE_DIRECTORS),
+    release_year: randomInteger(2000, 2026),
+    accessTier,
+    buyPrice,
+    buy_price: buyPrice,
+    is_published: Math.random() >= 0.25,
+    is_home_feature: isHomeFeature,
+    home_featured_order: isHomeFeature ? randomInteger(1, 20) : null,
+  };
+}
 
 function createVideoFormData(): MovieFormData {
   return {
@@ -100,6 +182,10 @@ export function VideoManagement() {
     setFormData((current) => ({ ...current, ...patch }));
   };
 
+  const fillRandomFormData = () => {
+    setFormData((current) => ({ ...current, ...createRandomMovieFormPatch() }));
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedVideo(null);
@@ -163,6 +249,7 @@ export function VideoManagement() {
             : video
         )));
       } else {
+        const accessPayload = toMovieAccessPayload(formData.accessTier, formData.buyPrice);
         const newVideo: Movie = {
           id: Math.random().toString(36).slice(2, 11),
           title: formData.title || '',
@@ -174,12 +261,17 @@ export function VideoManagement() {
           duration: formData.duration || null,
           director: formData.director || null,
           release_year: formData.release_year ?? null,
-          ...toMovieAccessPayload(formData.accessTier, formData.buyPrice),
+          price: accessPayload.price ?? 0,
+          rental_price: accessPayload.rental_price ?? 0,
+          access_mode: accessPayload.access_mode ?? 'public',
+          buy_price: accessPayload.buy_price ?? 0,
+          currency: accessPayload.currency ?? 'JPY',
           genre: formData.genre || [],
           cast: formData.cast || [],
           is_published: formData.is_published === true,
           is_home_feature: formData.is_home_feature === true,
           home_featured_order: formData.is_home_feature ? formData.home_featured_order ?? null : null,
+          stripe_price_id_one_time: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -333,9 +425,21 @@ export function VideoManagement() {
             className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-gray-800 p-8"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <h3 className="mb-6 text-2xl font-bold text-white">
-              {selectedVideo ? '動画を編集' : '新規動画を追加'}
-            </h3>
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-2xl font-bold text-white">
+                {selectedVideo ? '動画を編集' : '新規動画を追加'}
+              </h3>
+              {!selectedVideo && (
+                <button
+                  type="button"
+                  onClick={fillRandomFormData}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-400/50 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+                >
+                  <Shuffle className="h-4 w-4" />
+                  <span>ランダム入力</span>
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="space-y-4">
