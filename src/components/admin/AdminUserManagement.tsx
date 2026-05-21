@@ -494,8 +494,14 @@ export function AdminUserManagement() {
       )}
 
       {canManageAdminAccounts && isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-lg bg-dark-lighter p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onMouseDown={closeCreateModal}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-dark-lighter p-6"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <h3 className="mb-4 text-xl font-semibold text-white">新規管理者の追加</h3>
             <div className="space-y-4">
               <div>
