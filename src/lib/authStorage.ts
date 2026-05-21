@@ -68,7 +68,9 @@ export function decodeJwtPayload(token?: string): AuthProfile {
     if (!payload) return {};
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
     const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const decoded = window.atob(normalized);
+    const binary = window.atob(normalized);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const decoded = new TextDecoder('utf-8').decode(bytes);
     return JSON.parse(decoded) as AuthProfile;
   } catch {
     return {};
