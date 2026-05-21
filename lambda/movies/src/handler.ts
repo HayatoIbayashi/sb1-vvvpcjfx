@@ -1,9 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import {
-  AdminListGroupsForUserCommand,
-  CognitoIdentityProviderClient,
-  GetUserCommand,
-} from '@aws-sdk/client-cognito-identity-provider';
+import { createPublicKey, createVerify } from 'crypto';
+import type { JsonWebKey } from 'crypto';
 import type { PoolClient } from 'pg';
 import { getPool } from './db.js';
 import { handleStripeWebhook } from './stripeWebhook.js';
@@ -212,6 +209,120 @@ function getUserPoolId() {
   return userPoolId;
 }
 
+function getCognitoClientId() {
+  const clientId = process.env.COGNITO_CLIENT_ID;
+  if (!clientId) {
+    throw new Error('Missing env: COGNITO_CLIENT_ID');
+  }
+  return clientId;
+}
+
+function getCognitoRegion() {
+  return process.env.COGNITO_REGION || process.env.AWS_REGION || 'ap-northeast-1';
+}
+
+type Jwk = JsonWebKey & {
+  kid?: string;
+  alg?: string;
+  use?: string;
+};
+
+type CognitoJwks = {
+  keys?: Jwk[];
+};
+
+let cachedJwks: CognitoJwks | null = null;
+
+function getCognitoJwks() {
+  if (cachedJwks) return cachedJwks;
+  const raw = process.env.COGNITO_JWKS_JSON;
+  if (!raw) {
+    throw new Error('Missing env: COGNITO_JWKS_JSON');
+  }
+  try {
+    cachedJwks = JSON.parse(raw) as CognitoJwks;
+    return cachedJwks;
+  } catch {
+    throw new Error('Invalid env: COGNITO_JWKS_JSON');
+  }
+}
+
+function decodeJwtPart(part: string) {
+  const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf-8');
+}
+
+function decodeJwtJsonPart(part: string) {
+  try {
+    return JSON.parse(decodeJwtPart(part)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function verifyJwtSignature(signingInput: string, signaturePart: string, jwk: Jwk) {
+  try {
+    const publicKey = createPublicKey({ key: jwk as JsonWebKey, format: 'jwk' });
+    const verifier = createVerify('RSA-SHA256');
+    verifier.update(signingInput);
+    verifier.end();
+    return verifier.verify(publicKey, Buffer.from(signaturePart, 'base64url'));
+  } catch {
+    return false;
+  }
+}
+
+function getJwtGroups(payload: Record<string, unknown>) {
+  const groups = payload['cognito:groups'];
+  if (Array.isArray(groups)) {
+    return groups.filter((group): group is string => typeof group === 'string');
+  }
+  if (typeof groups === 'string') {
+    return [groups];
+  }
+  return [];
+}
+
+function verifyAdminAccessToken(token: string): AuthorizedAdminRole | null {
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts.some((part) => !part)) {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  const [headerPart, payloadPart, signaturePart] = parts;
+  const header = decodeJwtJsonPart(headerPart);
+  const payload = decodeJwtJsonPart(payloadPart);
+  if (!header || !payload) {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  if (header.alg !== 'RS256' || typeof header.kid !== 'string') {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  const jwk = (getCognitoJwks().keys ?? []).find((key) => key.kid === header.kid);
+  if (!jwk || !verifyJwtSignature(`${headerPart}.${payloadPart}`, signaturePart, jwk)) {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  const expectedIssuer = `https://cognito-idp.${getCognitoRegion()}.amazonaws.com/${getUserPoolId()}`;
+  if (
+    payload.token_use !== 'access'
+    || payload.iss !== expectedIssuer
+    || payload.client_id !== getCognitoClientId()
+    || typeof payload.exp !== 'number'
+    || payload.exp * 1000 <= Date.now()
+  ) {
+    throw new AuthError(401, 'Invalid authorization token');
+  }
+
+  const groupNames = new Set(getJwtGroups(payload));
+  if (groupNames.has('super_admin')) return 'super_admin';
+  if (groupNames.has('admin')) return 'admin';
+  return null;
+}
+
 function parseJsonBody(event: APIGatewayProxyEventV2) {
   if (!event.body) return null;
   const raw = event.isBase64Encoded
@@ -247,30 +358,7 @@ async function requireAdminRole(event: APIGatewayProxyEventV2, requiredRole: Aut
     throw new AuthError(401, 'Authorization required');
   }
 
-  let username: string | undefined;
-  try {
-    const user = await cognito.send(new GetUserCommand({ AccessToken: accessToken }));
-    username = user.Username;
-  } catch {
-    throw new AuthError(401, 'Invalid authorization token');
-  }
-
-  if (!username) {
-    throw new AuthError(401, 'Invalid authorization token');
-  }
-
-  const groups = await cognito.send(new AdminListGroupsForUserCommand({
-    UserPoolId: getUserPoolId(),
-    Username: username,
-    Limit: 60,
-  }));
-  const groupNames = new Set((groups.Groups ?? []).map((group) => group.GroupName).filter(Boolean));
-  const role: AuthorizedAdminRole | null = groupNames.has('super_admin')
-    ? 'super_admin'
-    : groupNames.has('admin')
-      ? 'admin'
-      : null;
-
+  const role = verifyAdminAccessToken(accessToken);
   if (!role || (requiredRole === 'super_admin' && role !== 'super_admin')) {
     throw new AuthError(403, 'Admin permission required');
   }
@@ -332,10 +420,6 @@ type AdminUserUpdateInput = {
 };
 
 type AuthorizedAdminRole = 'admin' | 'super_admin';
-
-const cognito = new CognitoIdentityProviderClient({
-  region: process.env.COGNITO_REGION || 'ap-northeast-1',
-});
 
 type AdminAccountCreateInput = {
   email: string;

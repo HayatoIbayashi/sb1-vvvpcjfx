@@ -30,6 +30,10 @@ Parameters:
     Type: String
     Default: ""
     Description: (Optional) Use existing User Pool Id for admin account operations
+  CognitoJwksJson:
+    Type: String
+    Default: ""
+    Description: Cognito User Pool JWKS JSON used by movies-list for offline JWT verification
   StripeSecretKey:
     Type: String
     Default: ""
@@ -162,18 +166,9 @@ Resources:
           DATABASE_URL: !Ref DatabaseUrl
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
           COGNITO_REGION: !Ref AWS::Region
+          COGNITO_CLIENT_ID: !If [UseExistingCognito, !Ref ExistingCognitoClientId, !Ref UserPoolClient]
           COGNITO_USER_POOL_ID: !If [CreateCognito, !Ref UserPool, !Ref ExistingCognitoUserPoolId]
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - cognito-idp:AdminListGroupsForUser
-                - cognito-idp:GetUser
-              Resource:
-                - !If
-                  - CreateCognito
-                  - !GetAtt UserPool.Arn
-                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingCognitoUserPoolId}
+          COGNITO_JWKS_JSON: !Ref CognitoJwksJson
       Events:
         PublicMovies:
           Type: HttpApi
@@ -501,28 +496,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-
-  CognitoEndpointSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Cognito User Pools VPC endpoint
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-
-  CognitoIdpVpcEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcEndpointType: Interface
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.cognito-idp
-      VpcId: !Ref VpcId
-      SubnetIds: !Ref SubnetIds
-      SecurityGroupIds:
-        - !Ref CognitoEndpointSecurityGroup
-      PrivateDnsEnabled: true
 
   RdsIngressFromLambda:
     Type: AWS::EC2::SecurityGroupIngress
